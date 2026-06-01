@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const G = () => (
   <style>{`
@@ -258,19 +258,21 @@ function useSbSync(db,setDb){
     }).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
   },[enabled]);
 
-  // db変更時にsave (debounce 1.5s)
+  // db変更時にsave (debounce 2s)
+  const dbRef=useRef(db);
+  useEffect(()=>{dbRef.current=db;},[db]);
   const timerRef=useRef(null);
   useEffect(()=>{
     if(!enabled)return;
     clearTimeout(timerRef.current);
     timerRef.current=setTimeout(()=>{
       setSyncState("syncing");
-      sbSave(conf,db).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
-    },1500);
+      sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+    },2000);
     return()=>clearTimeout(timerRef.current);
   },[db,enabled]);
 
-  // Realtime購読
+  // Realtime購読（一度だけ）
   useEffect(()=>{
     if(!enabled)return;
     const unsub=sbSubscribe(conf,()=>{
@@ -279,6 +281,7 @@ function useSbSync(db,setDb){
       }).catch(()=>{});
     });
     return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[enabled]);
 
   const manualSync=async()=>{
@@ -1301,6 +1304,15 @@ function WhiteDeclaration({invoices,expenses,settings}){
 }
 
 // ── Settings ───────────────────────────────────────────────
+// Settings用入力フィールド（defaultValueで非制御、iPhoneキーボード対策）
+function SettingsField({label,defaultValue,onBlur,placeholder,type="text",opt=false}){
+  return(
+    <Fld label={label} opt={opt}>
+      <input type={type} className="inp" placeholder={placeholder} defaultValue={defaultValue||""} onBlur={onBlur}/>
+    </Fld>
+  );
+}
+
 function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
@@ -1312,10 +1324,8 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
   const save=()=>{setSettings(form);setSaved(true);setTimeout(()=>setSaved(false),2000);};
   const saveSb=()=>{setSbConf(sbForm);setSbSaved(true);setTimeout(()=>{setSbSaved(false);window.location.reload();},1200);};
   const copySql=()=>{navigator.clipboard.writeText(SETUP_SQL).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
-
-  const SF=({k,label,placeholder,type="text",opt=false})=>(
-    <Fld label={label} opt={opt}><input type={type} className="inp" placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:type==="number"?Number(e.target.value):e.target.value}))}/></Fld>
-  );
+  const upd=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const updN=k=>e=>setForm(f=>({...f,[k]:Number(e.target.value)}));
   const syncColor={ok:"rgba(52,199,89,.12)",error:"rgba(255,59,48,.1)",syncing:"rgba(0,122,255,.08)",idle:"var(--fi)"}[syncState]||"var(--fi)";
   const syncIcon={ok:"🟢",error:"🔴",syncing:"🔄",idle:"⚪"}[syncState]||"⚪";
   const syncLabel={ok:"同期中",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
@@ -1340,10 +1350,10 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
 
         <div className="stk" style={{gap:9}}>
           <Fld label="Project URL">
-            <input className="inp" placeholder="https://xxxxxxxxxx.supabase.co" value={sbForm.url||""} onChange={e=>setSbForm(f=>({...f,url:e.target.value.trim()}))} autoComplete="off"/>
+            <input className="inp" placeholder="https://xxxxxxxxxx.supabase.co" value={sbForm.url||""} onChange={e=>setSbForm(f=>({...f,url:e.target.value}))} autoComplete="url"/>
           </Fld>
           <Fld label="anon public key">
-            <input className="inp" type="password" placeholder="eyJhbGciOi..." value={sbForm.anonKey||""} onChange={e=>setSbForm(f=>({...f,anonKey:e.target.value.trim()}))} autoComplete="off"/>
+            <input className="inp" type="text" inputMode="text" placeholder="eyJhbGciOi..." value={sbForm.anonKey||""} onChange={e=>setSbForm(f=>({...f,anonKey:e.target.value}))} autoComplete="off"/>
           </Fld>
           <button className="btn bp" style={{width:"100%"}} onClick={saveSb}>{sbSaved?"✅ 保存して再読み込み中…":"☁️ 保存してSupabaseに接続"}</button>
           {sbEnabled&&<button className="btn bd bsm" style={{width:"100%"}} onClick={()=>{if(confirm("Supabase接続設定を削除しますか？")){setSbConf({});setSbForm({});window.location.reload();}}}>接続を解除</button>}
@@ -1364,12 +1374,12 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🏢 自社情報</div>
         <div className="stk">
-          <SF k="shopName" label="会社名・屋号" placeholder="鈴木板金塗装"/>
-          <SF k="shopAddress" label="住所" placeholder="〒000-0000 東京都○○区"/>
-          <SF k="shopTel" label="電話番号" placeholder="03-0000-0000"/>
-          <SF k="shopEmail" label="メールアドレス" placeholder="info@example.com" opt/>
+          <SettingsField label="会社名・屋号" placeholder="鈴木板金塗装" defaultValue={form.shopName} onBlur={e=>setForm(f=>({...f,shopName:e.target.value}))}/>
+          <SettingsField label="住所" placeholder="〒000-0000 東京都○○区" defaultValue={form.shopAddress} onBlur={e=>setForm(f=>({...f,shopAddress:e.target.value}))}/>
+          <SettingsField label="電話番号" placeholder="03-0000-0000" defaultValue={form.shopTel} onBlur={e=>setForm(f=>({...f,shopTel:e.target.value}))}/>
+          <SettingsField label="メールアドレス" placeholder="info@example.com" defaultValue={form.shopEmail} onBlur={e=>setForm(f=>({...f,shopEmail:e.target.value}))} opt/>
           <Fld label="インボイス登録番号（Tから始まる13桁）">
-            <input className="inp" placeholder="T1234567890123" value={form.invoiceNo||""} onChange={e=>setForm(f=>({...f,invoiceNo:e.target.value}))}/>
+            <input className="inp" placeholder="T1234567890123" value={form.invoiceNo||""} onChange={upd("invoiceNo")}/>
           </Fld>
         </div>
       </div>
@@ -1377,23 +1387,23 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🏦 振込先</div>
         <div className="stk">
           <div className="g2" style={{gap:9}}>
-            <SF k="bankName" label="銀行名" placeholder="○○銀行"/>
-            <SF k="bankBranch" label="支店名" placeholder="○○支店"/>
+            <SettingsField label="銀行名" placeholder="○○銀行" defaultValue={form.bankName} onBlur={e=>setForm(f=>({...f,bankName:e.target.value}))}/>
+            <SettingsField label="支店名" placeholder="○○支店" defaultValue={form.bankBranch} onBlur={e=>setForm(f=>({...f,bankBranch:e.target.value}))}/>
             <Fld label="口座種別"><select className="sel" value={form.bankType||"普通"} onChange={e=>setForm(f=>({...f,bankType:e.target.value}))}><option>普通</option><option>当座</option></select></Fld>
-            <SF k="bankNo" label="口座番号" placeholder="1234567"/>
+            <SettingsField label="口座番号" placeholder="1234567" defaultValue={form.bankNo} onBlur={e=>setForm(f=>({...f,bankNo:e.target.value}))}/>
           </div>
-          <SF k="bankHolder" label="口座名義（カタカナ）" placeholder="スズキバンキントソウ"/>
+          <SettingsField label="口座名義（カタカナ）" placeholder="スズキバンキントソウ" defaultValue={form.bankHolder} onBlur={e=>setForm(f=>({...f,bankHolder:e.target.value}))}/>
         </div>
       </div>
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🚗 車検 固定費デフォルト値</div>
         <div className="stk">
           <div className="g2" style={{gap:9}}>
-            <SF k="kensaShomei" label="検査登録証紙代（円）" placeholder="1450" type="number"/>
-            <SF k="gijutsuKanri" label="技術管理料（円）" placeholder="400" type="number"/>
+            <SettingsField label="検査登録証紙代（円）" placeholder="1450" type="number" defaultValue={form.kensaShomei} onBlur={e=>setForm(f=>({...f,kensaShomei:Number(e.target.value)}))}/>
+            <SettingsField label="技術管理料（円）" placeholder="400" type="number" defaultValue={form.gijutsuKanri} onBlur={e=>setForm(f=>({...f,gijutsuKanri:Number(e.target.value)}))}/>
           </div>
           <div className="g2" style={{gap:9}}>
-            <SF k="daiko" label="車検代行料（税抜・円）" placeholder="10000" type="number"/>
+            <SettingsField label="車検代行料（税抜・円）" placeholder="10000" type="number" defaultValue={form.daiko} onBlur={e=>setForm(f=>({...f,daiko:Number(e.target.value)}))}/>
             <Fld label="代行料 消費税率">
               <select className="sel" value={form.daikoTax??0.1} onChange={e=>setForm(f=>({...f,daikoTax:Number(e.target.value)}))}>
                 <option value={0.1}>10%</option><option value={0.08}>8%</option>
