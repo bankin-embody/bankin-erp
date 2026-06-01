@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const G = () => (
   <style>{`
@@ -46,14 +46,15 @@ const G = () => (
     .sel{width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;appearance:none;cursor:pointer;}
     .sel:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(0,122,255,.13);}
     .fl{font-size:12px;font-weight:700;color:var(--lb2);margin-bottom:5px;}
-    .mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:999;display:flex;align-items:flex-end;justify-content:center;animation:fI .18s ease both;padding-top:env(safe-area-inset-top,0px);}
-    @media(min-width:600px){.mbg{align-items:center;padding-top:0;}}
-    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;height:88vh;max-height:88vh;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;margin-top:auto;}
-    @media(min-width:600px){.msh{border-radius:22px;height:auto;max-height:86vh;margin-top:0;}}
+    .mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:flex-end;justify-content:center;animation:fI .18s ease both;}
+    @media(min-width:600px){.mbg{align-items:center;}}
+    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:92svh;}
+    @media(min-width:600px){.msh{border-radius:22px;max-height:86vh;}}
     .mhd{width:36px;height:5px;background:var(--lb3);border-radius:3px;margin:10px auto 0;flex-shrink:0;}
-    .mttl{font-size:16px;font-weight:700;text-align:center;padding:12px 18px;border-bottom:1px solid var(--sep);flex-shrink:0;}
+    .mttl{font-size:15px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--sep);flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
+    .mttl .btn{padding:6px 14px;font-size:13px;border-radius:10px;font-weight:700;white-space:nowrap;}
     .mbdy{padding:16px 16px 12px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
-    .mft{padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;flex-shrink:0;border-top:1px solid var(--sep);background:var(--bg2);}
+    .mft{display:none;}
     .seg{display:flex;background:var(--fi);border-radius:9px;padding:2px;gap:2px;}
     .st{flex:1;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all var(--tr);border:none;background:transparent;color:var(--lb2);font-family:var(--f);}
     .st.on{background:var(--bg2);color:var(--lb);box-shadow:var(--sh);}
@@ -66,7 +67,7 @@ const G = () => (
     .ni:hover{background:var(--fi2);} .ni.on{background:rgba(0,122,255,.11);color:var(--bl);font-weight:700;}
     .nic{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
     .nb{margin-left:auto;background:var(--re);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:1px 6px;}
-    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid var(--sep);display:flex;padding:5px 0 env(safe-area-inset-bottom,10px);z-index:100;}
+    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid var(--sep);display:flex;padding:5px 0 env(safe-area-inset-bottom,10px);z-index:90;}
     .bi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 5px;cursor:pointer;flex:1;color:var(--lb3);transition:color var(--tr);}
     .bi.on{color:var(--bl);}
     .sc{border-radius:var(--r);padding:15px 17px;color:#fff;position:relative;overflow:hidden;}
@@ -320,9 +321,12 @@ function Modal({title,children,footer,onClose,wide=false}){
   return(
     <div className="mbg" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="msh si" style={wide?{maxWidth:720}:{}}>
-        <div className="mhd"/><div className="mttl">{title}</div>
+        <div className="mhd"/>
+        <div className="mttl">
+          <span style={{flex:1,fontSize:15,fontWeight:700}}>{title}</span>
+          {footer&&<div style={{display:"flex",gap:6,flexShrink:0}}>{footer}</div>}
+        </div>
         <div className="mbdy">{children}</div>
-        {footer&&<div className="mft">{footer}</div>}
       </div>
     </div>
   );
@@ -492,7 +496,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
   const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"乗用",weight:v?.weight||1.5});
   return(
     <Modal title={v?"車両編集":"車両追加"} onClose={onClose}
-      footer={<>{v&&<button className="btn bd bsm" onClick={onDel}>削除</button>}<button className="btn bs" style={{flex:1}} onClick={onClose}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={()=>onSave(f)}>保存</button></>}>
+      footer={<>{v&&<button className="btn bd bsm" onClick={onDel}>削除</button>}<button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(f)}>保存</button></>}>
       <div className="stk">
         <div className="g2" style={{gap:9}}>
           <Fld label="車種名"><input className="inp" placeholder="プリウス" value={f.carName} onChange={e=>setF(p=>({...p,carName:e.target.value}))}/></Fld>
@@ -578,8 +582,8 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
         <Modal title={modal==="add"?"新規顧客登録":"顧客編集"} onClose={()=>setModal(null)} wide
           footer={<>
             {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
-            <button className="btn bs" style={{flex:1}} onClick={()=>setModal(null)}>キャンセル</button>
-            <button className="btn bp" style={{flex:2}} onClick={save}>
+            <button className="btn bs" onClick={()=>setModal(null)}>キャンセル</button>
+            <button className="btn bp" onClick={save}>
               👥 顧客を{modal==="add"?"登録":"保存"}
             </button>
           </>}>
@@ -739,7 +743,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
   return(
     <Modal title="見積書" onClose={onClose} wide
-      footer={<>{doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}<button className="btn bs" style={{flex:1}} onClick={onClose}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={()=>onSave(form)}>保存</button></>}>
+      footer={<>{doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}<button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(form)}>保存</button></>}>
       <div className="stk">
         <div className="g2" style={{gap:9}}>
           <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
@@ -812,7 +816,7 @@ function RepairForm({doc,customers,onSave,onClose}){
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
   return(
     <Modal title="🔧 鈑金修理 請求書" onClose={onClose} wide
-      footer={<><button className="btn bs" style={{flex:1}} onClick={onClose}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={()=>onSave({...form,type:"repair"})}>保存</button></>}>
+      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave({...form,type:"repair"})}>保存</button></>}>
       <div className="stk">
         <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.25)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--or)"}}>🔧 鈑金修理用請求書</span></div>
         <div className="g2" style={{gap:9}}>
@@ -864,7 +868,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const grand=wT+gov+dWT;
   return(
     <Modal title="🚗 車検 請求書" onClose={onClose} wide
-      footer={<><button className="btn bs" style={{flex:1}} onClick={onClose}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={()=>onSave({...form,type:"shakken"})}>保存</button></>}>
+      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave({...form,type:"shakken"})}>保存</button></>}>
       <div className="stk">
         <div style={{background:"rgba(0,122,255,.06)",border:"1px solid rgba(0,122,255,.2)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--bl)"}}>🚗 車検用請求書 — 法定費用は非課税・代行料のみ課税</span></div>
         <div className="g2" style={{gap:9}}>
@@ -1120,12 +1124,31 @@ function Expenses({expenses,setExpenses}){
       )}
       {modal&&(
         <Modal title={modal==="add"?"経費入力":"経費編集"} onClose={()=>setModal(null)}
-          footer={<>{modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}}}>削除</button>}<button className="btn bs" style={{flex:1}} onClick={()=>setModal(null)}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={save}>保存</button></>}>
+          footer={<>{modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}}}>削除</button>}<button className="btn bs" onClick={()=>setModal(null)}>キャンセル</button><button className="btn bp" onClick={save}>保存</button></>}>
           <div className="stk">
             <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
-            <Fld label="カテゴリ"><select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{EXP_CAT.map(c=><option key={c}>{c}</option>)}</select></Fld>
-            <Fld label="内容"><input className="inp" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))}/></Fld>
-            <Fld label="金額（円）"><input type="number" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+            <Fld label="内容・摘要">
+              <div className="row" style={{gap:6}}>
+                <input className="inp" style={{flex:1}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: ガソリン代、塗料購入"/>
+                <button className="btn bsm" style={{background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}} onClick={async()=>{
+                  if(!form.desc)return;
+                  setForm(f=>({...f,aiLoading:true}));
+                  try{
+                    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
+                    const d=await res.json();
+                    const cat=d.content?.[0]?.text?.trim();
+                    if(EXP_CAT.includes(cat))setForm(f=>({...f,category:cat,aiLoading:false}));
+                    else setForm(f=>({...f,aiLoading:false}));
+                  }catch{setForm(f=>({...f,aiLoading:false}));}
+                }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
+              </div>
+            </Fld>
+            <Fld label="勘定科目（カテゴリ）">
+              <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+                {EXP_CAT.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </Fld>
+            <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
             <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
           </div>
         </Modal>
@@ -1304,14 +1327,14 @@ function WhiteDeclaration({invoices,expenses,settings}){
 }
 
 // ── Settings ───────────────────────────────────────────────
-// Settings用入力フィールド（defaultValueで非制御、iPhoneキーボード対策）
-function SettingsField({label,defaultValue,onBlur,placeholder,type="text",opt=false}){
+// Settings用入力フィールド（React.memoでiPhoneキーボード対策）
+const SettingsField=React.memo(function SettingsField({label,value,onChange,placeholder,type="text",opt=false}){
   return(
     <Fld label={label} opt={opt}>
-      <input type={type} className="inp" placeholder={placeholder} defaultValue={defaultValue||""} onBlur={onBlur}/>
+      <input type={type} className="inp" placeholder={placeholder} value={value||""} onChange={onChange}/>
     </Fld>
   );
-}
+});
 
 function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled}){
   const[form,setForm]=useState({...settings});
@@ -1374,10 +1397,10 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🏢 自社情報</div>
         <div className="stk">
-          <SettingsField label="会社名・屋号" placeholder="鈴木板金塗装" defaultValue={form.shopName} onBlur={e=>setForm(f=>({...f,shopName:e.target.value}))}/>
-          <SettingsField label="住所" placeholder="〒000-0000 東京都○○区" defaultValue={form.shopAddress} onBlur={e=>setForm(f=>({...f,shopAddress:e.target.value}))}/>
-          <SettingsField label="電話番号" placeholder="03-0000-0000" defaultValue={form.shopTel} onBlur={e=>setForm(f=>({...f,shopTel:e.target.value}))}/>
-          <SettingsField label="メールアドレス" placeholder="info@example.com" defaultValue={form.shopEmail} onBlur={e=>setForm(f=>({...f,shopEmail:e.target.value}))} opt/>
+          <SettingsField label="会社名・屋号" placeholder="鈴木板金塗装" value={form.shopName} onChange={upd("shopName")}/>
+          <SettingsField label="住所" placeholder="〒000-0000 東京都○○区" value={form.shopAddress} onChange={upd("shopAddress")}/>
+          <SettingsField label="電話番号" placeholder="03-0000-0000" value={form.shopTel} onChange={upd("shopTel")}/>
+          <SettingsField label="メールアドレス" placeholder="info@example.com" value={form.shopEmail} onChange={upd("shopEmail")} opt/>
           <Fld label="インボイス登録番号（Tから始まる13桁）">
             <input className="inp" placeholder="T1234567890123" value={form.invoiceNo||""} onChange={upd("invoiceNo")}/>
           </Fld>
@@ -1387,23 +1410,23 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🏦 振込先</div>
         <div className="stk">
           <div className="g2" style={{gap:9}}>
-            <SettingsField label="銀行名" placeholder="○○銀行" defaultValue={form.bankName} onBlur={e=>setForm(f=>({...f,bankName:e.target.value}))}/>
-            <SettingsField label="支店名" placeholder="○○支店" defaultValue={form.bankBranch} onBlur={e=>setForm(f=>({...f,bankBranch:e.target.value}))}/>
+            <SettingsField label="銀行名" placeholder="○○銀行" value={form.bankName} onChange={upd("bankName")}/>
+            <SettingsField label="支店名" placeholder="○○支店" value={form.bankBranch} onChange={upd("bankBranch")}/>
             <Fld label="口座種別"><select className="sel" value={form.bankType||"普通"} onChange={e=>setForm(f=>({...f,bankType:e.target.value}))}><option>普通</option><option>当座</option></select></Fld>
-            <SettingsField label="口座番号" placeholder="1234567" defaultValue={form.bankNo} onBlur={e=>setForm(f=>({...f,bankNo:e.target.value}))}/>
+            <SettingsField label="口座番号" placeholder="1234567" value={form.bankNo} onChange={upd("bankNo")}/>
           </div>
-          <SettingsField label="口座名義（カタカナ）" placeholder="スズキバンキントソウ" defaultValue={form.bankHolder} onBlur={e=>setForm(f=>({...f,bankHolder:e.target.value}))}/>
+          <SettingsField label="口座名義（カタカナ）" placeholder="スズキバンキントソウ" value={form.bankHolder} onChange={upd("bankHolder")}/>
         </div>
       </div>
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🚗 車検 固定費デフォルト値</div>
         <div className="stk">
           <div className="g2" style={{gap:9}}>
-            <SettingsField label="検査登録証紙代（円）" placeholder="1450" type="number" defaultValue={form.kensaShomei} onBlur={e=>setForm(f=>({...f,kensaShomei:Number(e.target.value)}))}/>
-            <SettingsField label="技術管理料（円）" placeholder="400" type="number" defaultValue={form.gijutsuKanri} onBlur={e=>setForm(f=>({...f,gijutsuKanri:Number(e.target.value)}))}/>
+            <SettingsField label="検査登録証紙代（円）" placeholder="1450" type="number" value={form.kensaShomei} onChange={updN("kensaShomei")}/>
+            <SettingsField label="技術管理料（円）" placeholder="400" type="number" value={form.gijutsuKanri} onChange={updN("gijutsuKanri")}/>
           </div>
           <div className="g2" style={{gap:9}}>
-            <SettingsField label="車検代行料（税抜・円）" placeholder="10000" type="number" defaultValue={form.daiko} onBlur={e=>setForm(f=>({...f,daiko:Number(e.target.value)}))}/>
+            <SettingsField label="車検代行料（税抜・円）" placeholder="10000" type="number" value={form.daiko} onChange={updN("daiko")}/>
             <Fld label="代行料 消費税率">
               <select className="sel" value={form.daikoTax??0.1} onChange={e=>setForm(f=>({...f,daikoTax:Number(e.target.value)}))}>
                 <option value={0.1}>10%</option><option value={0.08}>8%</option>
@@ -1510,7 +1533,7 @@ function WorkLogModal({log,customers,onSave,onClose}){
   const toggleTag=t=>setForm(f=>({...f,tags:f.tags.includes(t)?f.tags.filter(x=>x!==t):[...f.tags,t]}));
   return(
     <Modal title={log?"作業記録を編集":"作業記録を追加"} onClose={onClose} wide
-      footer={<><button className="btn bs" style={{flex:1}} onClick={onClose}>キャンセル</button><button className="btn bp" style={{flex:2}} onClick={()=>onSave(form)}>💾 保存</button></>}>
+      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(form)}>💾 保存</button></>}>
       <div className="stk">
         <div className="g2" style={{gap:9}}>
           <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
@@ -1542,7 +1565,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
   const sColor={完了:"dgr",作業中:"dbl",保留:"dor"}[log.status]||"dgy";
   return(
     <Modal title="作業記録" onClose={onClose} wide
-      footer={<><button className="btn bs" style={{flex:1}} onClick={onClose}>閉じる</button><button className="btn bp" style={{flex:2}} onClick={onEdit}>✏️ 編集</button></>}>
+      footer={<><button className="btn bs" onClick={onClose}>閉じる</button><button className="btn bp" onClick={onEdit}>✏️ 編集</button></>}>
       <div className="stk">
         <div style={{background:"var(--grp)",borderRadius:12,padding:"13px 15px"}}>
           <div className="rb mb8">
@@ -1717,8 +1740,8 @@ const PAGES=[
   {id:"settings",label:"設定",icon:"⚙️"},
   {id:"data",label:"データ管理",icon:"🗄️"},
 ];
-const BNAV_IDS=["dashboard","customers","worklog","invoices","settings"];
-const BNAV_LABELS={"dashboard":"ホーム","customers":"顧客","worklog":"作業記録","quotes":"見積書","invoices":"請求書","settings":"設定"};
+const BNAV_IDS=["dashboard","customers","worklog","expenses","invoices","quotes","cashbook","settings"];
+const BNAV_LABELS={"dashboard":"ホーム","customers":"顧客","worklog":"作業記録","expenses":"経費","quotes":"見積書","invoices":"請求書","cashbook":"出納帳","settings":"設定"};
 
 export default function App(){
   const[page,setPage]=useState("dashboard");
@@ -1794,16 +1817,18 @@ export default function App(){
           </div>
           <div className="pw">{render()}</div>
         </div>
-        <div className="bn np">
+        <div className="bn np" style={{overflowX:"auto",overflowY:"hidden",justifyContent:"flex-start",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
+          <div style={{display:"flex",minWidth:"max-content",padding:"0 4px"}}>
           {BNAV_IDS.map(id=>{
             const p=PAGES.find(p=>p.id===id);
             return(
-              <div key={id} className={`bi ${page===id?"on":""}`} onClick={()=>setPage(id)}>
+              <div key={id} className={`bi ${page===id?"on":""}`} onClick={()=>setPage(id)} style={{minWidth:64,flex:"none"}}>
                 <span style={{fontSize:20}}>{p.icon}</span>
                 <span style={{fontSize:9,fontWeight:600}}>{BNAV_LABELS[id]||p.label}</span>
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </>
