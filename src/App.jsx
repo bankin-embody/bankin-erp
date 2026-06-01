@@ -200,8 +200,12 @@ const sbLoad=async conf=>{
 };
 const sbSave=async(conf,db)=>{
   const payload={id:1,data:{...db,meta:{...db.meta,syncedAt:new Date().toISOString()}},updated_at:new Date().toISOString()};
-  // upsert
-  await sbFetch(conf,"POST","bankin_data?on_conflict=id",payload);
+  // try update first, then insert
+  try{
+    await sbFetch(conf,"PATCH","bankin_data?id=eq.1",{data:payload.data,updated_at:payload.updated_at});
+  }catch{
+    await sbFetch(conf,"POST","bankin_data",payload);
+  }
 };
 
 // Supabase Realtime (websocket) — minimal implementation
