@@ -119,7 +119,7 @@ const calcJibaiseki=(t,m=24)=>(JIBAISEKI[t]||JIBAISEKI["乗用"])[m]||17650;
 const calcJuryozei=w=>JURYOZEI[Math.ceil(Number(w)/0.5)*0.5]||16400;
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
-const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+i.qty*i.unit,0);return{sub,taxAmt:Math.floor(sub*tax),total:Math.floor(sub*(1+tax))};};
+const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+(i.qty*(i.unit||0))+(i.gijutsu||0),0);return{sub,taxAmt:Math.floor(sub*tax),total:Math.floor(sub*(1+tax))};};
 const invTotal=(inv,st)=>{
   const{total}=calcItems(inv.items,inv.tax);
   if(inv.type!=="shakken")return total;
@@ -392,8 +392,8 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
         ):(
           <>
             <table className="tbl" style={{marginBottom:10}}>
-              <thead><tr><th>品目・作業内容</th><th>数量</th><th style={{textAlign:"right"}}>単価</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
-              <tbody>{(doc.items||[]).map((it,i)=><tr key={i}><td>{it.desc}</td><td>{it.qty}</td><td style={{textAlign:"right"}}>{fmt(it.unit)}</td><td style={{textAlign:"right"}}>{fmt(it.qty*it.unit)}</td></tr>)}</tbody>
+              <thead><tr><th>品目・作業内容</th><th>数量</th><th style={{textAlign:"right"}}>部品代</th><th style={{textAlign:"right"}}>技術料</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
+              <tbody>{(doc.items||[]).map((it,i)=><tr key={i}><td>{it.desc}</td><td>{it.qty}</td><td style={{textAlign:"right"}}>{it.unit?fmt(it.qty*(it.unit||0)):"-"}</td><td style={{textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td><td style={{textAlign:"right"}}>{fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</td></tr>)}</tbody>
             </table>
             <div style={{display:"flex",justifyContent:"flex-end"}}>
               <div style={{width:270}}>
@@ -403,7 +403,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
                 {isS&&<>
                   <div style={{borderTop:"1px solid var(--sep)",margin:"5px 0"}}/>
                   <div style={{fontSize:10,color:"var(--lb2)",marginBottom:3}}>法定費用（非課税）</div>
-                  {[["自賠責保険",fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)]].map(([l,v])=>(
+                  {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)]].map(([l,v])=>(
                     <div key={l} className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>{l}</span><span>{v}</span></div>
                   ))}
                   <div className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>車検代行料（税込{Math.round(daikoTx*100)}%）</span><span>{fmt(daikoWT)}</span></div>
@@ -671,8 +671,8 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
 
 // ── Quote ──────────────────────────────────────────────────
 function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0}]}));
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
@@ -696,8 +696,12 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
         <div className="lst">{form.items.map((it,i)=>(
           <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
             <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
-            <div className="g2" style={{gap:7}}><Fld label="数量"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld><Fld label="単価（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld></div>
-            <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*it.unit)}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+            <div className="g3" style={{gap:7}}>
+              <Fld label="数量"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+              <Fld label="部品代（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
+              <Fld label="技術料（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+            </div>
+            <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
           </div>
         ))}</div>
         <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -748,9 +752,9 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
 
 // ── Repair Invoice Form ────────────────────────────────────
 function RepairForm({doc,customers,onSave,onClose}){
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
   const cust=customers.find(c=>c.id===Number(form.customerId));
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0}]}));
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
@@ -779,8 +783,12 @@ function RepairForm({doc,customers,onSave,onClose}){
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
               <input className="inp mb8" placeholder="バンパー修理・塗装など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
-              <div className="g2" style={{gap:7}}><Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld><Fld label="単価（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld></div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*it.unit)}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+              <div className="g3" style={{gap:7}}>
+                <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
+                <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+              </div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
           ))}</div>
           <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -797,15 +805,20 @@ function RepairForm({doc,customers,onSave,onClose}){
 }
 
 // ── Shakken Invoice Form ───────────────────────────────────
+const DEF_SHAKKEN_ITEMS=[
+  {desc:"2年24ヶ月定期点検基本作業",qty:1,unit:0,gijutsu:0,inspType:"24"},
+  {desc:"保安確認検査",qty:1,unit:0,gijutsu:0},
+  {desc:"OBD診断",qty:1,unit:0,gijutsu:0},
+];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax};
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"車検整備一式",qty:1,unit:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
   useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight)}}));},[form.vehicleId,auto]);
   const setS=(k,v)=>setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0}]}));
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total:wT}=calcItems(form.items,form.tax);
@@ -833,16 +846,8 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}><option>未入金</option><option>入金済</option></select></Fld>
           <Fld label="整備費消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
         </div>
-        <div><div className="fl">整備明細（課税）</div>
-          <div className="lst">{form.items.map((it,i)=>(
-            <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-              <input className="inp mb8" placeholder="車検整備一式・部品代など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
-              <div className="g2" style={{gap:7}}><Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld><Fld label="単価（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld></div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*it.unit)}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
-            </div>
-          ))}</div>
-          <button className="btn bs bsm mt8" onClick={addI}>＋ 整備明細追加</button>
-        </div>
+
+        {/* 法定諸費用（上に移動） */}
         <div>
           <div className="rb mb8">
             <div className="fl" style={{margin:0}}>法定諸費用（非課税）</div>
@@ -854,8 +859,19 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="lst">
             {[{key:"jibaiseki",label:"自賠責保険（24ヶ月）",hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,24))}`:"車両選択で自動入力"},{key:"juryozei",label:"重量税（2年）",hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
               <div key={key} className="fr">
-                <div style={{flex:1,minWidth:0}}><div className="sm b6">{label}</div><div className="xs cmu">{hint}</div></div>
-                <div className="row" style={{gap:6}}>{fixed&&<span className="bdg dgy">固定</span>}<input type="number" className="inp" style={{width:115,padding:"6px 10px",fontSize:14}} value={form.shakken[key]||0} onChange={e=>setS(key,e.target.value)}/></div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div className="sm b6">{label}</div>
+                  <div className="xs cmu">{hint}</div>
+                  {key==="jibaiseki"&&(
+                    <div className="row" style={{gap:5,marginTop:4}}>
+                      <input type="checkbox" id="mochikomi" checked={form.shakken.jibaisekiMochikomi||false}
+                        onChange={e=>setForm(f=>({...f,shakken:{...f.shakken,jibaisekiMochikomi:e.target.checked,jibaiseki:e.target.checked?0:f.shakken.jibaiseki}}))}
+                        style={{width:15,height:15,accentColor:"var(--bl)"}}/>
+                      <label htmlFor="mochikomi" style={{fontSize:12,color:"var(--lb2)",cursor:"pointer"}}>持ち込み（0円）</label>
+                    </div>
+                  )}
+                </div>
+                <div className="row" style={{gap:6}}>{fixed&&<span className="bdg dgy">固定</span>}<input type="number" className="inp" style={{width:115,padding:"6px 10px",fontSize:14}} disabled={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi} value={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi?0:form.shakken[key]||0} onChange={e=>setS(key,e.target.value)}/></div>
               </div>
             ))}
             <div className="fr">
@@ -867,9 +883,38 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             </div>
           </div>
         </div>
+
+        {/* 整備明細（下に移動） */}
+        <div><div className="fl">整備明細（課税）</div>
+          <div className="lst">{form.items.map((it,i)=>(
+            <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
+              <div className="rb mb8" style={{gap:8}}>
+                <input className="inp" style={{flex:1}} placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+                {it.inspType!==undefined&&(
+                  <select className="sel" style={{width:110,flexShrink:0,fontSize:12}} value={it.inspType} onChange={e=>{
+                    const t=e.target.value;
+                    setI(i,"inspType",t);
+                    setI(i,"desc",t==="24"?"2年24ヶ月定期点検基本作業":"1年12ヶ月定期点検基本作業");
+                  }}>
+                    <option value="24">24ヶ月点検</option>
+                    <option value="12">12ヶ月点検</option>
+                  </select>
+                )}
+              </div>
+              <div className="g3" style={{gap:7}}>
+                <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
+                <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+              </div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+            </div>
+          ))}</div>
+          <button className="btn bs bsm mt8" onClick={addI}>＋ 整備明細追加</button>
+        </div>
+
         <div className="card" style={{background:"var(--grp)"}}>
           <div className="xs cmu" style={{fontWeight:700,marginBottom:7}}>金額内訳</div>
-          {[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,["自賠責保険",fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,[`車検代行料（税込${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT)]].map((row,i)=>
+          {[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,[`車検代行料（税込${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT)]].map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
             <div key={i} className="rb" style={{padding:"3px 0"}}><span className="xs cmu">{row[0]}</span><span className="sm">{row[1]}</span></div>
           )}
