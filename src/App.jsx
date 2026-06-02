@@ -46,14 +46,16 @@ const G = () => (
     .sel{width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;appearance:none;cursor:pointer;}
     .sel:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(0,122,255,.13);}
     .fl{font-size:12px;font-weight:700;color:var(--lb2);margin-bottom:5px;}
-    .mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:flex-end;justify-content:center;animation:fI .18s ease both;}
-    @media(min-width:600px){.mbg{align-items:center;}}
-    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:92svh;}
-    @media(min-width:600px){.msh{border-radius:22px;max-height:86vh;}}
+    .mbg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;animation:fI .18s ease both;}
+    @media(min-width:600px){.mbg{justify-content:center;}}
+    .mbg.tall{align-items:stretch!important;}
+    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:90vh;overflow:hidden;}
+    @media(min-width:600px){.msh{border-radius:22px;max-height:85vh;}}
+    .msh.tall{flex:1!important;max-height:none!important;}
     .mhd{width:36px;height:5px;background:var(--lb3);border-radius:3px;margin:10px auto 0;flex-shrink:0;}
     .mttl{font-size:15px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--sep);flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
     .mttl .btn{padding:6px 14px;font-size:13px;border-radius:10px;font-weight:700;white-space:nowrap;}
-    .mbdy{padding:16px 16px 12px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
+    .mbdy{padding:16px 16px 20px;overflow-y:scroll;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch;}
     .mft{display:none;}
     .seg{display:flex;background:var(--fi);border-radius:9px;padding:2px;gap:2px;}
     .st{flex:1;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all var(--tr);border:none;background:transparent;color:var(--lb2);font-family:var(--f);}
@@ -188,7 +190,7 @@ const sbFetch=async(conf,method,path,body)=>{
   const res=await fetch(`${url}/rest/v1/${path}`,{
     method,
     headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":`Bearer ${anonKey}`,"Prefer":"return=representation"},
-    body:body?JSON.stringify(body):undefined,
+    body:(body!=null&&method!=="GET")?JSON.stringify(body):undefined,
   });
   if(!res.ok){const t=await res.text();throw new Error(`${res.status}: ${t}`);}
   return res.status===204?null:res.json();
@@ -196,7 +198,7 @@ const sbFetch=async(conf,method,path,body)=>{
 
 // テーブル名: bankin_data (row: id=1固定, data=jsonb)
 const sbLoad=async conf=>{
-  const rows=await sbFetch(conf,"GET","bankin_data?id=eq.1&select=data","");
+  const rows=await sbFetch(conf,"GET","bankin_data?id=eq.1&select=data",null);
   return rows?.[0]?.data||null;
 };
 const sbSave=async(conf,db)=>{
@@ -316,11 +318,20 @@ alter table bankin_data disable row level security;`;
 // ── Atoms ──────────────────────────────────────────────────
 const Ico=({e,sz=17,bg})=><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:sz+13,height:sz+13,borderRadius:(sz+13)*.28,background:bg,fontSize:sz,lineHeight:1,flexShrink:0}}>{e}</span>;
 const Fld=({label,children,opt=false})=><div><div className="fl">{label}{opt&&<span style={{fontWeight:400,color:"var(--lb3)",marginLeft:3}}>任意</span>}</div>{children}</div>;
-function Modal({title,children,footer,onClose,wide=false}){
-  useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",h);return()=>document.removeEventListener("keydown",h);},[onClose]);
+function Modal({title,children,footer,onClose,wide=false,tall=false}){
+  useEffect(()=>{
+    const h=e=>{if(e.key==="Escape")onClose();};
+    document.addEventListener("keydown",h);
+    const prev=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return()=>{
+      document.removeEventListener("keydown",h);
+      document.body.style.overflow=prev;
+    };
+  },[onClose]);
   return(
-    <div className="mbg" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="msh si" style={wide?{maxWidth:720}:{}}>
+    <div className={`mbg${tall?" tall":""}`} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>      
+      <div className={`msh si${tall?" tall":""}`} style={wide?{maxWidth:720}:{}}>
         <div className="mhd"/>
         <div className="mttl">
           <span style={{flex:1,fontSize:15,fontWeight:700}}>{title}</span>
@@ -542,6 +553,81 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
       return{...c,vehicles:[...vs,{...vd,id:nextId(vs)}]};
     }));setVModal(null);
   };
+  if(modal) return(
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"新規顧客登録":"顧客編集"}</div>
+        <div style={{display:"flex",gap:6}}>
+          {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
+          <button className="btn bs bsm" onClick={()=>setModal(null)}>キャンセル</button>
+          <button className="btn bp bsm" onClick={save}>👥 {modal==="add"?"登録":"保存"}</button>
+        </div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:18}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>姓（会社名） <span style={{color:"var(--re)"}}>*</span></div>
+          <input className="inp" placeholder="例：山田" value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>名（ふりがな） <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <input className="inp" placeholder="例：太郎" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{color:"var(--re)"}}>*</span></div>
+          <input className="inp" placeholder="例：東京都足立区1-2-3" value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>電話番号 <span style={{color:"var(--re)"}}>*</span></div>
+          <input className="inp" placeholder="例：03-1234-5678" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>メールアドレス <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <input className="inp" placeholder="任意" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>備考 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <input className="inp" placeholder="任意" value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)"}}>🚗 車両情報 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意・複数台登録可</span></div>
+            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"乗用",weight:1.5}]}))}>＋ 車両追加</button>
+          </div>
+          {(form.vehicles||[]).length===0&&(
+            <div style={{textAlign:"center",padding:"14px",background:"var(--grp)",borderRadius:11,color:"var(--lb2)",fontSize:13}}>車両未登録 — 「＋ 車両追加」で追加</div>
+          )}
+          {(form.vehicles||[]).map((v,vi)=>(
+            <div key={v.id||vi} style={{border:"1px solid rgba(52,199,89,.3)",borderRadius:12,padding:"14px",marginBottom:10,background:"rgba(52,199,89,.03)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#1a8f3a"}}>🚗 車両 {vi+1}{v.carName?` — ${v.carName}`:""}</div>
+                <button className="btn bd bsm" onClick={()=>setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vi)}))}>削除</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:11}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種名</div><input className="inp" placeholder="プリウス" value={v.carName||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carName:e.target.value}:x)}))}/></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>ナンバー</div><input className="inp" placeholder="品川300あ1234" value={v.plateNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,plateNo:e.target.value}:x)}))}/></div>
+                </div>
+                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div><input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><input type="month" className="inp" value={v.firstReg||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><select className="sel" value={v.carType||"乗用"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}>{CAR_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                </div>
+                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量</div><select className="sel" value={v.weight||1.5} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}>{WEIGHTS.map(w=><option key={w} value={w}>{w}t</option>)}</select></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1.5))]].map(([l,val])=>(
+                    <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
+                      <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
+                      <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
   return(
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>顧客管理</div><button className="btn bp bsm" onClick={()=>{setForm(E);setModal("add");}}>＋ 顧客追加</button></div>
@@ -578,157 +664,6 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
         ))}
         {!filtered.length&&<div className="li cmu" style={{justifyContent:"center"}}>顧客が見つかりません</div>}
       </div>
-      {modal&&(
-        <Modal title={modal==="add"?"新規顧客登録":"顧客編集"} onClose={()=>setModal(null)} wide
-          footer={<>
-            {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
-            <button className="btn bs" onClick={()=>setModal(null)}>キャンセル</button>
-            <button className="btn bp" onClick={save}>
-              👥 顧客を{modal==="add"?"登録":"保存"}
-            </button>
-          </>}>
-          <div style={{display:"flex",flexDirection:"column",gap:18}}>
-
-            {/* 顧客名 */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                顧客名・会社名 <span style={{color:"var(--re)"}}>*</span>
-              </div>
-              <input className="inp" placeholder="例：山田太郎" value={form.lastName}
-                onChange={e=>setForm(f=>({...f,lastName:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* 読み仮名 */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                読み仮名 <span style={{color:"var(--re)"}}>*</span>
-              </div>
-              <input className="inp" placeholder="例：ヤマダタロウ" value={form.firstName}
-                onChange={e=>setForm(f=>({...f,firstName:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* 住所 */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                住所 <span style={{color:"var(--re)"}}>*</span>
-              </div>
-              <input className="inp" placeholder="例：東京都足立区1-2-3" value={form.address}
-                onChange={e=>setForm(f=>({...f,address:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* 電話番号 */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                電話番号 <span style={{color:"var(--re)"}}>*</span>
-              </div>
-              <input className="inp" placeholder="例：03-1234-5678" value={form.phone}
-                onChange={e=>setForm(f=>({...f,phone:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* メールアドレス */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                メールアドレス <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span>
-              </div>
-              <input className="inp" placeholder="任意" value={form.email}
-                onChange={e=>setForm(f=>({...f,email:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* 備考 */}
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>
-                備考 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span>
-              </div>
-              <input className="inp" placeholder="任意" value={form.note}
-                onChange={e=>setForm(f=>({...f,note:e.target.value}))}
-                style={{fontSize:16,padding:"14px 16px"}}/>
-            </div>
-
-            {/* 車両情報（複数台） */}
-            <div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)"}}>
-                  🚗 車両情報 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意・複数台登録可</span>
-                </div>
-                <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"乗用",weight:1.5}]}))}>
-                  ＋ 車両追加
-                </button>
-              </div>
-
-              {(form.vehicles||[]).length===0&&(
-                <div style={{textAlign:"center",padding:"14px",background:"var(--grp)",borderRadius:11,color:"var(--lb2)",fontSize:13}}>
-                  車両未登録 — 「＋ 車両追加」で追加
-                </div>
-              )}
-
-              {(form.vehicles||[]).map((v,vi)=>(
-                <div key={v.id||vi} style={{border:"1px solid rgba(52,199,89,.3)",borderRadius:12,padding:"14px",marginBottom:10,background:"rgba(52,199,89,.03)"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                    <div style={{fontSize:13,fontWeight:700,color:"#1a8f3a"}}>
-                      🚗 車両 {vi+1}{v.carName?` — ${v.carName}`:""}
-                    </div>
-                    <button className="btn bd bsm" onClick={()=>setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vi)}))}>削除</button>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:11}}>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種名</div>
-                        <input className="inp" placeholder="プリウス" value={v.carName||""}
-                          onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carName:e.target.value}:x)}))}/>
-                      </div>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>ナンバー</div>
-                        <input className="inp" placeholder="品川300あ1234" value={v.plateNo||""}
-                          onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,plateNo:e.target.value}:x)}))}/>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div>
-                      <input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""}
-                        onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div>
-                        <input type="month" className="inp" value={v.firstReg||""}
-                          onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/>
-                      </div>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div>
-                        <select className="sel" value={v.carType||"乗用"}
-                          onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}>
-                          {CAR_TYPES.map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量</div>
-                      <select className="sel" value={v.weight||1.5}
-                        onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}>
-                        {WEIGHTS.map(w=><option key={w} value={w}>{w}t</option>)}
-                      </select>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1.5))]].map(([l,val])=>(
-                        <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
-                          <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
-                          <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-          </div>
-        </Modal>
-      )}
       {vModal&&<VehicleModal v={vModal.v} onSave={vd=>saveV(vModal.cid,vModal.v?.id,vd)} onClose={()=>setVModal(null)} onDel={()=>{if(confirm("削除？")){setCustomers(p=>p.map(c=>c.id===vModal.cid?{...c,vehicles:(c.vehicles||[]).filter(v=>v.id!==vModal.v.id)}:c));setVModal(null);}}}/>}
     </div>
   );
@@ -742,33 +677,38 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
   return(
-    <Modal title="見積書" onClose={onClose} wide
-      footer={<>{doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}<button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(form)}>保存</button></>}>
-      <div className="stk">
-        <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
-          <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
-          <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
-          <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>見積書</div>
+        <div style={{display:"flex",gap:6}}>
+          {doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bp bsm" onClick={()=>onSave(form)}>保存</button>
         </div>
-        <div><div className="fl">明細</div>
-          <div className="lst">{form.items.map((it,i)=>(
-            <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-              <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
-              <div className="g2" style={{gap:7}}><Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld><Fld label="単価（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld></div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*it.unit)}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
-            </div>
-          ))}</div>
-          <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
-        </div>
-        <div className="card" style={{background:"var(--grp)"}}>
-          {[["小計",fmt(sub)],["消費税",fmt(taxAmt)],["合計",fmt(total)]].map(([l,v])=>(
-            <div key={l} className="rb" style={{padding:"4px 0",borderBottom:l==="消費税"?"1px solid var(--sep)":"none"}}><span className={`sm ${l==="合計"?"b7":"cmu"}`}>{l}</span><span className={l==="合計"?"b7 cbl":"sm"}>{v}</span></div>
-          ))}
-        </div>
-        <Fld label="備考" opt><textarea className="inp" rows={2} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))}/></Fld>
       </div>
-    </Modal>
+      <div style={{display:"flex",flexDirection:"column",gap:9}}>
+        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
+        <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
+        <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
+        <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
+      </div>
+      <div><div className="fl">明細</div>
+        <div className="lst">{form.items.map((it,i)=>(
+          <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
+            <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+            <div className="g2" style={{gap:7}}><Fld label="数量"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld><Fld label="単価（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld></div>
+            <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*it.unit)}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+          </div>
+        ))}</div>
+        <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
+      </div>
+      <div className="card" style={{background:"var(--grp)"}}>
+        {[["小計",fmt(sub)],["消費税",fmt(taxAmt)],["合計",fmt(total)]].map(([l,v])=>(
+          <div key={l} className="rb" style={{padding:"4px 0",borderBottom:l==="消費税"?"1px solid var(--sep)":"none"}}><span className={`sm ${l==="合計"?"b7":"cmu"}`}>{l}</span><span className={l==="合計"?"b7 cbl":"sm"}>{v}</span></div>
+        ))}
+      </div>
+      <Fld label="備考" opt><textarea className="inp" rows={2} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))}/></Fld>
+    </div>
   );
 }
 
@@ -785,6 +725,7 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
     setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
     setModal(null);alert(`請求書 ${nid} に変換しました`);
   };
+  if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null}/>;
   return(
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>見積書</div><button className="btn bp bsm" onClick={()=>setModal("add")}>＋ 作成</button></div>
@@ -800,7 +741,6 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
         );})}
         {!quotes.length&&<div className="li cmu" style={{justifyContent:"center"}}>見積書がありません</div>}
       </div>
-      {modal&&<QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null}/>}
       {print&&<PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} settings={settings} onClose={()=>setPrint(null)}/>}
     </div>
   );
@@ -815,13 +755,19 @@ function RepairForm({doc,customers,onSave,onClose}){
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
   return(
-    <Modal title="🔧 鈑金修理 請求書" onClose={onClose} wide
-      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave({...form,type:"repair"})}>保存</button></>}>
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>🔧 鈑金修理 請求書</div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bp bsm" onClick={()=>onSave({...form,type:"repair"})}>保存</button>
+        </div>
+      </div>
       <div className="stk">
         <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.25)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--or)"}}>🔧 鈑金修理用請求書</span></div>
         <div className="g2" style={{gap:9}}>
           <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
-          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:Number(e.target.value)}))}>
+          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
           <Fld label="請求日"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
@@ -846,7 +792,7 @@ function RepairForm({doc,customers,onSave,onClose}){
         </div>
         <Fld label="備考" opt><textarea className="inp" rows={2} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))}/></Fld>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -867,13 +813,19 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const dWT=calcDaiko(form.shakken.daiko,form.shakken.daikoTax);
   const grand=wT+gov+dWT;
   return(
-    <Modal title="🚗 車検 請求書" onClose={onClose} wide
-      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave({...form,type:"shakken"})}>保存</button></>}>
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>🚗 車検 請求書</div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bp bsm" onClick={()=>onSave({...form,type:"shakken"})}>保存</button>
+        </div>
+      </div>
       <div className="stk">
         <div style={{background:"rgba(0,122,255,.06)",border:"1px solid rgba(0,122,255,.2)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--bl)"}}>🚗 車検用請求書 — 法定費用は非課税・代行料のみ課税</span></div>
         <div className="g2" style={{gap:9}}>
           <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
-          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:Number(e.target.value)}))}>
+          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
           <Fld label="請求日"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
@@ -928,7 +880,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
         </div>
         <Fld label="備考" opt><textarea className="inp" rows={2} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))}/></Fld>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -951,6 +903,34 @@ function Invoices({invoices,setInvoices,customers,settings}){
     else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
     setModal(null);
   };
+  if(modal?.mode==="repair") return <div className="stk fu"><RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)}/></div>;
+  if(modal?.mode==="shakken") return <div className="stk fu"><ShakkenForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/></div>;
+  if(showTpl) return(
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>テンプレートを選択</div>
+        <button className="btn bs bsm" onClick={()=>setShowTpl(false)}>キャンセル</button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:14,paddingTop:4}}>
+        {[
+          {mode:"repair",icon:"🔧",iconBg:"rgba(0,122,255,.12)",title:"板金塗装・整備用",desc:"通常の修理・整備向け。部品代・技術料明細、課税合計、インボイス対応。",color:"var(--bl)"},
+          {mode:"shakken",icon:"🔍",iconBg:"rgba(255,149,0,.15)",title:"車検用",desc:"車検専用。法定費用エリア（重量税・自賠責等）を自動計算。課税・非課税を分離表示。",color:"var(--or)"},
+        ].map(t=>(
+          <div key={t.mode} onClick={()=>{setShowTpl(false);setModal({mode:t.mode,doc:null});}}
+            style={{background:"var(--bg2)",borderRadius:16,padding:"20px",boxShadow:"var(--sh)",cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+              <div style={{width:52,height:52,borderRadius:14,background:t.iconBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>{t.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>{t.title}</div>
+                <div style={{fontSize:13,color:"var(--lb2)",lineHeight:1.6,marginBottom:10}}>{t.desc}</div>
+                <div style={{fontSize:13,fontWeight:700,color:t.color}}>選択する →</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
   return(
     <div className="stk fu">
       <div className="rb">
@@ -958,46 +938,6 @@ function Invoices({invoices,setInvoices,customers,settings}){
         <button className="btn bp bsm" onClick={()=>setShowTpl(true)}>＋ 請求書作成</button>
       </div>
 
-      {/* テンプレート選択モーダル */}
-      {showTpl&&(
-        <Modal title="テンプレートを選択" onClose={()=>setShowTpl(false)}>
-          <div style={{display:"flex",flexDirection:"column",gap:14,paddingTop:4}}>
-            {[
-              {
-                mode:"repair",
-                icon:"🔧",
-                iconBg:"rgba(0,122,255,.12)",
-                title:"板金塗装・整備用",
-                desc:"通常の修理・整備向け。部品代・技術料明細、課税合計、インボイス対応。",
-                color:"var(--bl)",
-              },
-              {
-                mode:"shakken",
-                icon:"🔍",
-                iconBg:"rgba(255,149,0,.15)",
-                title:"車検用",
-                desc:"車検専用。法定費用エリア（重量税・自賠責等）を自動計算。課税・非課税を分離表示。",
-                color:"var(--or)",
-              },
-            ].map(t=>(
-              <div key={t.mode}
-                onClick={()=>{setShowTpl(false);setModal({mode:t.mode,doc:null});}}
-                style={{background:"var(--bg2)",borderRadius:16,padding:"20px",boxShadow:"var(--sh)",cursor:"pointer",transition:"box-shadow var(--tr)","&:hover":{boxShadow:"var(--sh2)"}}}>
-                <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
-                  <div style={{width:52,height:52,borderRadius:14,background:t.iconBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>
-                    {t.icon}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>{t.title}</div>
-                    <div style={{fontSize:13,color:"var(--lb2)",lineHeight:1.6,marginBottom:10}}>{t.desc}</div>
-                    <div style={{fontSize:13,fontWeight:700,color:t.color}}>選択する →</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
       <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       <div className="seg">{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
       <div className="stk" style={{gap:9}}>
@@ -1043,8 +983,7 @@ function Invoices({invoices,setInvoices,customers,settings}){
         })}
         {!filtered.length&&<div className="lst"><div className="li cmu" style={{justifyContent:"center"}}>データがありません</div></div>}
       </div>
-      {modal?.mode==="repair"&&<RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)}/>}
-      {modal?.mode==="shakken"&&<ShakkenForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/>}
+
       {print&&(()=>{const c=customers.find(c=>c.id===print.customerId);const v=(c?.vehicles||[]).find(v=>v.id===print.vehicleId);return <PrintDoc type={printType} doc={print} customer={c} vehicle={v} settings={settings} onClose={()=>setPrint(null)}/>;})()}
     </div>
   );
@@ -1089,14 +1028,54 @@ function CombinedInvoice({invoices,customers,settings}){
 // ── Expenses ───────────────────────────────────────────────
 function Expenses({expenses,setExpenses}){
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:"",receipt:false});
+  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
   const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
   const byM={};expenses.forEach(e=>{const m=e.date.slice(0,7);byM[m]=(byM[m]||0)+e.amount;});
+  if(modal) return(
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"経費入力":"経費編集"}</div>
+        <div style={{display:"flex",gap:6}}>
+          {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}}}>削除</button>}
+          <button className="btn bs bsm" onClick={()=>setModal(null)}>キャンセル</button>
+          <button className="btn bp bsm" onClick={save}>保存</button>
+        </div>
+      </div>
+      <div className="stk">
+        <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
+        <Fld label="内容・摘要">
+          <div className="row" style={{gap:6}}>
+            <input className="inp" style={{flex:1}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: ガソリン代、塗料購入"/>
+            <button className="btn bsm" style={{background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}} onClick={async()=>{
+              if(!form.desc)return;
+              setForm(f=>({...f,aiLoading:true}));
+              try{
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
+カテゴリ: ${EXP_CAT.join("、")}
+摘要: ${form.desc}`}]})});
+                const d=await res.json();
+                const cat=d.content?.[0]?.text?.trim();
+                if(EXP_CAT.includes(cat))setForm(f=>({...f,category:cat,aiLoading:false}));
+                else setForm(f=>({...f,aiLoading:false}));
+              }catch{setForm(f=>({...f,aiLoading:false}));}
+            }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
+          </div>
+        </Fld>
+        <Fld label="勘定科目（カテゴリ）">
+          <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+            {EXP_CAT.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </Fld>
+        <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+        <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
+      </div>
+    </div>
+  );
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",amount:"",receipt:false});setModal("add");}}>＋ 入力</button></div>
+      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",amount:0,receipt:false});setModal("add");}}>＋ 入力</button></div>
       <div className="seg">{[["list","一覧"],["chart","集計"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       {tab==="list"?(
         <div className="lst">{[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
@@ -1121,37 +1100,6 @@ function Expenses({expenses,setExpenses}){
             ))}
           </div>
         </div>
-      )}
-      {modal&&(
-        <Modal title={modal==="add"?"経費入力":"経費編集"} onClose={()=>setModal(null)}
-          footer={<>{modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}}}>削除</button>}<button className="btn bs" onClick={()=>setModal(null)}>キャンセル</button><button className="btn bp" onClick={save}>保存</button></>}>
-          <div className="stk">
-            <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
-            <Fld label="内容・摘要">
-              <div className="row" style={{gap:6}}>
-                <input className="inp" style={{flex:1}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: ガソリン代、塗料購入"/>
-                <button className="btn bsm" style={{background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}} onClick={async()=>{
-                  if(!form.desc)return;
-                  setForm(f=>({...f,aiLoading:true}));
-                  try{
-                    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
-                    const d=await res.json();
-                    const cat=d.content?.[0]?.text?.trim();
-                    if(EXP_CAT.includes(cat))setForm(f=>({...f,category:cat,aiLoading:false}));
-                    else setForm(f=>({...f,aiLoading:false}));
-                  }catch{setForm(f=>({...f,aiLoading:false}));}
-                }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
-              </div>
-            </Fld>
-            <Fld label="勘定科目（カテゴリ）">
-              <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-                {EXP_CAT.map(c=><option key={c}>{c}</option>)}
-              </select>
-            </Fld>
-            <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
-            <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
-          </div>
-        </Modal>
       )}
     </div>
   );
@@ -1344,11 +1292,11 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
   const[showSql,setShowSql]=useState(false);
   const[copied,setCopied]=useState(false);
 
-  const save=()=>{setSettings(form);setSaved(true);setTimeout(()=>setSaved(false),2000);};
-  const saveSb=()=>{setSbConf(sbForm);setSbSaved(true);setTimeout(()=>{setSbSaved(false);window.location.reload();},1200);};
-  const copySql=()=>{navigator.clipboard.writeText(SETUP_SQL).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
-  const upd=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
-  const updN=k=>e=>setForm(f=>({...f,[k]:Number(e.target.value)}));
+  const save=useCallback(()=>{setSettings(form);setSaved(true);setTimeout(()=>setSaved(false),2000);},[form,setSettings]);
+  const saveSb=useCallback(()=>{setSbConf(sbForm);setSbSaved(true);setTimeout(()=>{setSbSaved(false);window.location.reload();},1200);},[sbForm]);
+  const copySql=useCallback(()=>{navigator.clipboard.writeText(SETUP_SQL).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});},[]);
+  const upd=useCallback(k=>e=>setForm(f=>({...f,[k]:e.target.value})),[]);
+  const updN=useCallback(k=>e=>setForm(f=>({...f,[k]:Number(e.target.value)})),[]);
   const syncColor={ok:"rgba(52,199,89,.12)",error:"rgba(255,59,48,.1)",syncing:"rgba(0,122,255,.08)",idle:"var(--fi)"}[syncState]||"var(--fi)";
   const syncIcon={ok:"🟢",error:"🔴",syncing:"🔄",idle:"⚪"}[syncState]||"⚪";
   const syncLabel={ok:"同期中",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
@@ -1532,12 +1480,18 @@ function WorkLogModal({log,customers,onSave,onClose}){
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const toggleTag=t=>setForm(f=>({...f,tags:f.tags.includes(t)?f.tags.filter(x=>x!==t):[...f.tags,t]}));
   return(
-    <Modal title={log?"作業記録を編集":"作業記録を追加"} onClose={onClose} wide
-      footer={<><button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(form)}>💾 保存</button></>}>
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>{log?"作業記録を編集":"作業記録を追加"}</div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bp bsm" onClick={()=>onSave(form)}>💾 保存</button>
+        </div>
+      </div>
       <div className="stk">
         <div className="g2" style={{gap:9}}>
           <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
-          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:Number(e.target.value)}))}><option value="">未選択</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}</select></Fld>
+          <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}><option value="">未選択</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}</select></Fld>
           <Fld label="作業日"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
           <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{WL_STATUS.map(s=><option key={s}>{s}</option>)}</select></Fld>
         </div>
@@ -1556,7 +1510,7 @@ function WorkLogModal({log,customers,onSave,onClose}){
           <PhotoGrid photos={form.photos} onAdd={p=>setForm(f=>({...f,photos:[...f.photos,p]}))} onDel={id=>setForm(f=>({...f,photos:f.photos.filter(p=>p.id!==id)}))}/>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -1564,8 +1518,14 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
   const[photo,setPhoto]=useState(null);
   const sColor={完了:"dgr",作業中:"dbl",保留:"dor"}[log.status]||"dgy";
   return(
-    <Modal title="作業記録" onClose={onClose} wide
-      footer={<><button className="btn bs" onClick={onClose}>閉じる</button><button className="btn bp" onClick={onEdit}>✏️ 編集</button></>}>
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:18,fontWeight:800}}>作業記録</div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn bs bsm" onClick={onClose}>閉じる</button>
+          <button className="btn bp bsm" onClick={onEdit}>✏️ 編集</button>
+        </div>
+      </div>
       <div className="stk">
         <div style={{background:"var(--grp)",borderRadius:12,padding:"13px 15px"}}>
           <div className="rb mb8">
@@ -1605,7 +1565,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
           <button onClick={()=>setPhoto(null)} style={{position:"absolute",top:18,right:18,background:"rgba(255,255,255,.18)",color:"#fff",border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",fontSize:14,fontWeight:700}}>✕ 閉じる</button>
         </div>
       )}
-    </Modal>
+    </div>
   );
 }
 
@@ -1639,6 +1599,8 @@ function WorkLog({worklogs,setWorklogs,customers}){
 
   const allTags=[...new Set(worklogs.flatMap(w=>w.tags||[]))];
 
+  if(modal) return <WorkLogModal log={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)}/>;
+  if(detail) return(()=>{const c=customers.find(c=>c.id===detail.customerId);const v=(c?.vehicles||[]).find(v=>v.id===detail.vehicleId);return <WorkLogDetail log={detail} customer={c} vehicle={v} onClose={()=>setDetail(null)} onEdit={()=>{setModal(detail);setDetail(null);}}/>;})();
   return(
     <div className="stk fu">
       <div className="rb">
@@ -1715,12 +1677,7 @@ function WorkLog({worklogs,setWorklogs,customers}){
         {!filtered.length&&<div className="lst"><div className="li cmu" style={{justifyContent:"center"}}>作業記録がありません</div></div>}
       </div>
 
-      {modal&&<WorkLogModal log={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)}/>}
-      {detail&&!modal&&(()=>{
-        const c=customers.find(c=>c.id===detail.customerId);
-        const v=(c?.vehicles||[]).find(v=>v.id===detail.vehicleId);
-        return <WorkLogDetail log={detail} customer={c} vehicle={v} onClose={()=>setDetail(null)} onEdit={()=>{setModal(detail);setDetail(null);}}/>;
-      })()}
+
     </div>
   );
 }
