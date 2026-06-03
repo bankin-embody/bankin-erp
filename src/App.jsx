@@ -122,14 +122,32 @@ const G = () => (
 );
 
 // ── Constants ─────────────────────────────────────────────
-const JIBAISEKI={"乗用":{24:17650,25:18440},"軽乗用":{24:17540,25:18300},"貨物":{24:22680,25:23690},"軽貨物":{24:17540,25:18300}};
+// 自賠責保険料（令和5年4月1日以降）月数→金額
+const JIBAISEKI={
+  "自家用乗用（普通・小型）": {12:11500,13:12010,24:17650,25:18160,36:23690,37:24190},
+  "軽自動車（検査対象）":     {12:11440,13:11950,24:17540,25:18040,36:23520,37:24010},
+  "普通貨物・自家用2t超":    {12:18230,13:19290,24:30980,25:32030},
+  "普通貨物・自家用2t以下":  {12:16900,13:17860,24:28370,25:29300},
+  "普通貨物・営業用2t超":    {12:24100,13:25640,24:42610,25:44130},
+  "普通貨物・営業用2t以下":  {12:17790,13:18810,24:30110,25:31120},
+  "小型貨物・自家用":         {12:12850,13:13480,24:20340,25:20950},
+  "小型貨物・営業用":         {12:15830,13:16700,24:26240,25:27090},
+  "小型二輪250cc超":          {12:7010, 13:7150, 24:8760, 25:8910, 36:10490,37:10630},
+};
+// 車両区分グループ（UI用）
+const CAR_TYPE_GROUPS=[
+  {label:"乗用車",types:["自家用乗用（普通・小型）","軽自動車（検査対象）"]},
+  {label:"普通貨物",types:["普通貨物・自家用2t超","普通貨物・自家用2t以下","普通貨物・営業用2t超","普通貨物・営業用2t以下"]},
+  {label:"小型貨物",types:["小型貨物・自家用","小型貨物・営業用"]},
+  {label:"二輪",types:["小型二輪250cc超"]},
+];
+const CAR_TYPES=Object.keys(JIBAISEKI);
 const JURYOZEI={0.5:8200,1.0:16400,1.5:24600,2.0:32800,2.5:41000,3.0:49200,3.5:57400,4.0:65600};
-const CAR_TYPES=["乗用","軽乗用","貨物","軽貨物"];
 const WEIGHTS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0];
 const EXP_CAT=["材料費","消耗品費","光熱費","工具費","外注費","交通費","広告費","通信費","その他"];
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
-const calcJibaiseki=(t,m=24)=>(JIBAISEKI[t]||JIBAISEKI["乗用"])[m]||17650;
+const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
 const calcJuryozei=w=>JURYOZEI[Math.ceil(Number(w)/0.5)*0.5]||16400;
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
@@ -387,7 +405,31 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     const w=window.open("","_blank","width=820,height=1100");
     if(!w)return;
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-    const style=`<style>*{box-sizing:border-box;margin:0;padding:0;}@page{size:A4 portrait;margin:15mm 12mm;}body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:13px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}table{border-collapse:collapse;width:100%;}th,td{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;}th{background:${theme.light};font-weight:700;color:#555;}.rb{display:flex;align-items:center;justify-content:space-between;}</style>`;
+    const style=`<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+@page{size:A4 portrait;margin:15mm 12mm;}
+html,body{height:100%;}
+body{
+  font-family:'Noto Sans JP',-apple-system,sans-serif;
+  font-size:13px;color:#000;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  display:flex;flex-direction:column;min-height:100%;
+}
+#print-area{
+  display:flex;flex-direction:column;flex:1;min-height:100%;
+  border-radius:0!important;border:none!important;box-shadow:none!important;
+}
+.detail-wrap{flex:1;display:flex;flex-direction:column;}
+.detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+.detail-table thead{display:table-header-group;}
+.detail-table tfoot{display:table-footer-group;}
+.detail-table tbody tr{page-break-inside:avoid;}
+.detail-table td,.detail-table th{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
+.detail-spacer{flex:1;border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
+.detail-spacer td{border-bottom:none;}
+.summary-block{page-break-inside:avoid;}
+.rb{display:flex;align-items:center;justify-content:space-between;}
+</style>`;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}</body></html>`);
     w.document.close();
     w.onload=()=>{w.focus();w.print();};
@@ -405,105 +447,170 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       </div>
 
       {/* 書類プレビュー本体 */}
-      <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)"}}>
-        {/* カラーヘッダーバー */}
-        <div style={{background:theme.accent,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{color:"#fff"}}>
-            <div style={{fontSize:26,fontWeight:800,letterSpacing:.5}}>{theme.emoji} {ttl}</div>
-            {doc.id&&<div style={{fontSize:12,opacity:.85,marginTop:3}}>書類番号: {doc.id}</div>}
-            {settings.invoiceNo&&type==="invoice"&&<div style={{fontSize:12,opacity:.85}}>適格請求書発行事業者: {settings.invoiceNo}</div>}
-          </div>
-          <div style={{textAlign:"right",color:"#fff"}}>
-            <div style={{fontSize:16,fontWeight:800}}>{settings.shopName}</div>
-            <div style={{fontSize:12,opacity:.85,marginTop:3}}>{settings.shopAddress}</div>
-            <div style={{fontSize:12,opacity:.85}}>TEL: {settings.shopTel}{settings.shopFax?` / FAX: ${settings.shopFax}`:""}</div>
+      <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
+
+        {/* ━━ ヘッダー：タイトルバー ━━ */}
+        <div style={{background:theme.accent,padding:"8px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{color:"#fff",fontSize:20,fontWeight:800,letterSpacing:2}}>{ttl}</div>
+          <div style={{color:"rgba(255,255,255,.85)",fontSize:11,display:"flex",gap:18}}>
+            <span>{doc.date||today()}</span>
+            {doc.id&&<span>No. {doc.id}</span>}
           </div>
         </div>
 
-        <div style={{padding:"24px 28px"}}>
-          {/* 宛先・日付 */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",borderBottom:`2px solid ${theme.accent}`,paddingBottom:12,marginBottom:16}}>
-            <div>
-              <div style={{fontSize:20,fontWeight:800}}>{fullName(customer)} <span style={{fontSize:14,fontWeight:400}}>様</span></div>
-              {vehicle&&<div style={{fontSize:12,color:"var(--lb2)",marginTop:4}}>🚗 {vehicle.carName} {vehicle.plateNo} / 車台番号: {vehicle.chassisNo}</div>}
-            </div>
-            <div style={{textAlign:"right",fontSize:13,color:"var(--lb2)"}}>
-              <div>発行日: <b style={{color:"#000"}}>{doc.date||today()}</b></div>
-              {doc.dueDate&&<div style={{marginTop:3}}>支払期限: <b style={{color:"#000"}}>{doc.dueDate}</b></div>}
+        {/* ━━ 上段：左＝顧客情報、右＝会社情報 ━━ */}
+        <div style={{display:"flex",gap:0,padding:"18px 20px 0",borderBottom:`1px solid ${theme.border}`}}>
+
+          {/* 左：顧客名・車両・文面 */}
+          <div style={{flex:1,paddingRight:16}}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>{fullName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
+            {vehicle&&<div style={{fontSize:11,color:"#555",marginBottom:4}}>
+              車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
+            </div>}
+            {/* 文面ボックス */}
+            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"10px 12px",marginTop:8,marginBottom:14,fontSize:11,lineHeight:1.8,background:"#fafafa",minHeight:90}}>
+              <div>毎度お引き立てありがとうございます。</div>
+              <div>下記の通りご請求申し上げます。</div>
+              <div style={{marginTop:6}}>※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。</div>
+              {settings.invoiceNo&&<div style={{marginTop:4}}>登録番号：{settings.invoiceNo}</div>}
             </div>
           </div>
 
+          {/* 右：会社情報＋ハンコ */}
+          <div style={{width:240,textAlign:"right",paddingLeft:16,borderLeft:`1px solid ${theme.border}`}}>
+            <div style={{display:"flex",justifyContent:"flex-end",alignItems:"flex-start",gap:10,marginBottom:8}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:800}}>{settings.shopName}</div>
+                <div style={{fontSize:10,color:"#555",marginTop:3,lineHeight:1.7}}>
+                  {settings.shopAddress&&<div>〒 {settings.shopAddress}</div>}
+                  <div>TEL {settings.shopTel}{settings.shopFax&&`  FAX ${settings.shopFax}`}</div>
+                  {settings.invoiceNo&&<div>登録番号：{settings.invoiceNo}</div>}
+                </div>
+              </div>
+              {/* 角印枠 */}
+              <div style={{width:64,height:64,border:`2px solid ${theme.accent}`,borderRadius:3,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.5}}>
+                <span style={{fontSize:10,color:theme.accent}}>印</span>
+              </div>
+            </div>
+            {/* 振込先（請求書のみ） */}
+            {(type==="invoice"||type==="combined")&&settings.bankName&&(
+              <div style={{fontSize:10,color:"#555",borderTop:"1px solid #ddd",paddingTop:8,textAlign:"right",lineHeight:1.7}}>
+                <div style={{fontWeight:700,marginBottom:2}}>お振込先</div>
+                <div>{settings.bankName} {settings.bankBranch} {settings.bankType}口座</div>
+                <div>{settings.bankHolder}　{settings.bankNo}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ━━ 中段：請求額バー ━━ */}
+        <div style={{display:"flex",alignItems:"stretch",borderBottom:`2px solid ${theme.accent}`,background:theme.light}}>
+          <div style={{flex:1,padding:"12px 20px",borderRight:`1px solid ${theme.border}`}}>
+            <div style={{fontSize:10,color:"#888",marginBottom:3}}>ご請求額</div>
+            <div style={{fontSize:26,fontWeight:800,color:theme.accent}}>¥{(grand).toLocaleString()}—</div>
+          </div>
+          <div style={{width:160,padding:"12px 16px",borderRight:`1px solid ${theme.border}`}}>
+            <div style={{fontSize:10,color:"#888",marginBottom:3}}>消費税等</div>
+            <div style={{fontSize:18,fontWeight:700}}>¥{taxAmt.toLocaleString()}—</div>
+          </div>
+          {doc.dueDate&&(
+            <div style={{width:160,padding:"12px 16px",background:theme.accent}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginBottom:3}}>お支払期限</div>
+              <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>{doc.dueDate}</div>
+            </div>
+          )}
+        </div>
+
+        {/* ━━ 件名 ━━ */}
+        {doc.subject&&<div style={{padding:"7px 20px",fontSize:12,borderBottom:`1px solid ${theme.border}`}}>件名：{doc.subject}</div>}
+
+        {/* ━━ 明細テーブル ━━ */}
+        <div className="detail-wrap" style={{padding:"0"}}>
           {type==="combined"?(
-            <>
-              {/* お支払い合計を上に */}
-              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
-                <div style={{background:theme.accent,borderRadius:10,padding:"10px 20px",display:"flex",alignItems:"center",gap:16}}>
-                  <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
-                  <span style={{fontSize:24,fontWeight:800,color:"#fff"}}>{fmt(doc.combinedTotal||0)}</span>
-                </div>
-              </div>
-              <table className="tbl" style={{marginBottom:12}}>
-                <thead><tr style={{background:theme.light}}><th>書類番号</th><th>日付</th><th>内容</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
-                <tbody>{(doc.allItems||[]).map((ci,i)=><tr key={i}><td>{ci.id}</td><td>{ci.date}</td><td>{ci.desc}</td><td style={{textAlign:"right"}}>{fmt(ci.total)}</td></tr>)}</tbody>
-              </table>
-            </>
-          ):(
-            <>
-              {/* お支払い合計を明細の上に表示 */}
-              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
-                <div style={{background:theme.accent,borderRadius:10,padding:"10px 20px",display:"flex",alignItems:"center",gap:16}}>
-                  <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
-                  <span style={{fontSize:24,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
-                </div>
-              </div>
-              <table className="tbl" style={{marginBottom:14}}>
-                <thead><tr style={{background:theme.light}}>
-                  <th>品目・作業内容</th>
-                  <th style={{width:44}}>数量</th>
-                  <th style={{textAlign:"right",width:100}}>部品代</th>
-                  <th style={{textAlign:"right",width:100}}>技術料</th>
-                  <th style={{textAlign:"right",width:100}}>金額</th>
-                </tr></thead>
-                <tbody>{(doc.items||[]).map((it,i)=>(
-                  <tr key={i}>
-                    <td>{it.desc}</td>
-                    <td>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
-                    <td style={{textAlign:"right"}}>{it.unit?fmt(it.qty*(it.unit||0)):"-"}</td>
-                    <td style={{textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
-                    <td style={{textAlign:"right",fontWeight:600}}>{fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-              <div style={{display:"flex",justifyContent:"flex-end"}}>
-                <div style={{width:310,background:theme.light,borderRadius:10,padding:"14px 16px",border:`1px solid ${theme.border}`}}>
-                  {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
-                    <div key={l} className="rb" style={{padding:"4px 0",fontSize:13}}><span style={{color:"var(--lb2)"}}>{l}</span><span style={{fontWeight:600}}>{v}</span></div>
+            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:theme.accent}}>
+                  {["書類番号","日付","内容","金額"].map((h,i)=>(
+                    <th key={h} style={{padding:"7px 12px",fontSize:11,fontWeight:700,color:"#fff",textAlign:i===3?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                   ))}
-                  {isS&&<>
-                    <div style={{borderTop:"1px solid rgba(0,0,0,.1)",margin:"7px 0"}}/>
-                    {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持込）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)]].map(([l,v])=>(
-                      <div key={l} className="rb" style={{padding:"3px 0",fontSize:12}}><span style={{color:"var(--lb2)"}}>{l}</span><span>{v}</span></div>
-                    ))}
-                    <div className="rb" style={{padding:"3px 0",fontSize:12}}><span style={{color:"var(--lb2)"}}>車検代行料（税込{Math.round(daikoTx*100)}%）</span><span>{fmt(daikoWT)}</span></div>
-                    <div style={{borderTop:"1px dashed rgba(0,0,0,.15)",margin:"6px 0"}}/>
-                  </>}
-                  <div className="rb" style={{padding:"9px 0",borderTop:`2px solid ${theme.accent}`,marginTop:3}}>
-                    <span style={{fontSize:15,fontWeight:800}}>お支払い合計</span>
-                    <span style={{fontSize:22,fontWeight:800,color:theme.accent}}>{fmt(grand)}</span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-          {doc.note&&<div style={{marginTop:16,padding:"10px 14px",background:theme.light,borderRadius:8,fontSize:12,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
-          {type==="invoice"&&(
-            <div style={{marginTop:18,padding:"13px 16px",border:`1px solid ${theme.border}`,borderRadius:9,fontSize:13,background:theme.light}}>
-              <div style={{fontWeight:700,marginBottom:6,color:theme.accent}}>💳 振込先</div>
-              <div>{settings.bankName} {settings.bankBranch} {settings.bankType}口座 {settings.bankNo}</div>
-              <div>口座名義: {settings.bankHolder}</div>
-            </div>
+                </tr>
+              </thead>
+              <tbody>{(doc.allItems||[]).map((ci,i)=>(
+                <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light}}>
+                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.id}</td>
+                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.date}</td>
+                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.desc}</td>
+                  <td style={{padding:"8px 12px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmt(ci.total)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          ):(
+            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+              <colgroup>
+                <col style={{width:"auto"}}/>
+                <col style={{width:52}}/>
+                <col style={{width:52}}/>
+                <col style={{width:80}}/>
+                <col style={{width:90}}/>
+                <col style={{width:90}}/>
+              </colgroup>
+              <thead>
+                <tr style={{background:theme.accent}}>
+                  {["品名","数量","単位","単価","金額","備考"].map(h=>(
+                    <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
+                      textAlign:["金額","単価"].includes(h)?"right":"left",
+                      borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(doc.items||[]).map((it,i)=>{
+                  const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
+                  return(
+                    <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                      <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all"}}>{it.desc}</td>
+                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
+                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unit?"式":"-"}</td>
+                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
+                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
+                      <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
+                    </tr>
+                  );
+                })}
+                {/* 伸縮スペーサー行：余白を埋めてA4ページいっぱいにする */}
+                <tr style={{borderBottom:`1px solid ${theme.border}`}}>
+                  <td colSpan={6} style={{height:"100%",padding:0,verticalAlign:"top"}}/>
+                </tr>
+              </tbody>
+            </table>
           )}
         </div>
+
+        {/* ━━ 合計欄（改ページで切れないよう page-break-inside:avoid） ━━ */}
+        {type!=="combined"&&(
+          <div className="summary-block" style={{display:"flex",justifyContent:"flex-end",padding:"16px 20px",pageBreakInside:"avoid"}}>
+            <div style={{width:280,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden"}}>
+              {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
+                  <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
+                </div>
+              ))}
+              {isS&&<>
+                {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持込）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)],["車検代行料",fmt(daikoWT)]].map(([l,v])=>(
+                  <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:11,background:"#fafafa"}}>
+                    <span style={{color:"#666"}}>{l}</span><span>{v}</span>
+                  </div>
+                ))}
+              </>}
+              <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:theme.accent}}>
+                <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
+                <span style={{fontSize:20,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {doc.note&&<div style={{margin:"0 20px 16px",padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
       </div>
 
       {/* 下部にも印刷ボタン */}
@@ -587,31 +694,121 @@ function Dashboard({customers,invoices,quotes,expenses,settings}){
   );
 }
 
-// ── Customers ──────────────────────────────────────────────
-function VehicleModal({v,onSave,onClose,onDel}){
-  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"乗用",weight:v?.weight||1.5});
+// 車種区分セレクト（グループ化）
+function CarTypeSelect({value,onChange}){
   return(
+    <select className="sel" value={value} onChange={onChange}>
+      {CAR_TYPE_GROUPS.map(g=>(
+        <optgroup key={g.label} label={g.label}>
+          {g.types.map(t=><option key={t} value={t}>{t}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+// 車検証OCRモーダル
+function ShakkenShoOCR({onResult,onClose}){
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState("");
+  const fileRef=React.useRef();
+  const run=async(file)=>{
+    setLoading(true);setErr("");
+    try{
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",max_tokens:800,
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:b64}},
+          {type:"text",text:`この車検証の画像から以下の情報をJSONで抽出してください。必ずJSONのみ返してください（マークダウン不要）。
+{
+  "carName": "車名＋型式（例: トヨタ プリウス ZVW50）",
+  "plateNo": "ナンバープレート（例: 宮城483い1920）",
+  "chassisNo": "車台番号",
+  "firstReg": "初度登録年月 YYYY-MM形式",
+  "weight": 車両重量トン数（数値のみ、例: 1.5）,
+  "carType": 以下から最も近いものを1つ選択: "自家用乗用（普通・小型）","軽自動車（検査対象）","普通貨物・自家用2t超","普通貨物・自家用2t以下","普通貨物・営業用2t超","普通貨物・営業用2t以下","小型貨物・自家用","小型貨物・営業用","小型二輪250cc超"
+}`}
+        ]}]
+      })});
+      const d=await resp.json();
+      const txt=(d.content||[]).map(c=>c.text||"").join("");
+      const clean=txt.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      onResult(parsed);
+    }catch(e){setErr("読み取りに失敗しました。手動で入力してください。");}
+    setLoading(false);
+  };
+  return(
+    <Modal title="🚗 車検証から自動入力" onClose={onClose}>
+      <div className="stk" style={{alignItems:"center",textAlign:"center",padding:"8px 0"}}>
+        {loading?(
+          <div style={{padding:"32px 0"}}>
+            <div style={{fontSize:32,marginBottom:12}}>🔍</div>
+            <div className="b6">車検証を読み取り中...</div>
+            <div className="cmu sm mt4">AIが自動解析しています</div>
+          </div>
+        ):(
+          <>
+            <div style={{fontSize:48,marginBottom:8}}>📄</div>
+            <div className="b7">車検証の写真を選択</div>
+            <div className="cmu sm" style={{marginBottom:16}}>車名・ナンバー・車台番号などを自動入力します</div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>e.target.files[0]&&run(e.target.files[0])}/>
+            <button className="btn bp" style={{width:"100%",padding:"14px"}} onClick={()=>fileRef.current.click()}>📷 カメラで撮影 / 写真を選択</button>
+            {err&&<div style={{color:"var(--rd)",fontSize:12,marginTop:8}}>{err}</div>}
+            <button className="btn bs" style={{marginTop:6}} onClick={onClose}>キャンセル</button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ── VehicleModal ───────────────────────────────────────────
+function VehicleModal({v,onSave,onClose,onDel}){
+  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1.5});
+  const[showOCR,setShowOCR]=useState(false);
+  const handleOCR=(parsed)=>{
+    setF(p=>({...p,...parsed,weight:Number(parsed.weight)||p.weight}));
+    setShowOCR(false);
+  };
+  return(
+    <>
     <Modal title={v?"車両編集":"車両追加"} onClose={onClose}
       footer={<>{v&&<button className="btn bd bsm" onClick={onDel}>削除</button>}<button className="btn bs" onClick={onClose}>キャンセル</button><button className="btn bp" onClick={()=>onSave(f)}>保存</button></>}>
       <div className="stk">
+        {/* 車検証OCRボタン */}
+        <button className="btn" style={{background:"linear-gradient(135deg,rgba(0,122,255,.12),rgba(52,199,89,.08))",border:"1.5px dashed rgba(0,122,255,.4)",borderRadius:12,padding:"12px",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:9,color:"var(--bl)",fontWeight:700,fontSize:14}}
+          onClick={()=>setShowOCR(true)}>
+          📷 車検証を撮影して自動入力
+          <span style={{fontSize:11,fontWeight:400,opacity:.7}}>AIが情報を読み取ります</span>
+        </button>
         <div className="g2" style={{gap:9}}>
           <Fld label="車種名"><input className="inp" placeholder="プリウス" value={f.carName} onChange={e=>setF(p=>({...p,carName:e.target.value}))}/></Fld>
           <Fld label="ナンバー"><input className="inp" placeholder="品川300あ1234" value={f.plateNo} onChange={e=>setF(p=>({...p,plateNo:e.target.value}))}/></Fld>
           <Fld label="車台番号"><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
           <Fld label="初度登録年月"><input type="month" className="inp" value={f.firstReg} onChange={e=>setF(p=>({...p,firstReg:e.target.value}))}/></Fld>
-          <Fld label="車種区分"><select className="sel" value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}>{CAR_TYPES.map(t=><option key={t}>{t}</option>)}</select></Fld>
-          <Fld label="車両重量"><select className="sel" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}>{WEIGHTS.map(w=><option key={w} value={w}>{w}t</option>)}</select></Fld>
+          <Fld label="車種区分（自賠責に影響）" style={{gridColumn:"1/-1"}}>
+            <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
+          </Fld>
+          <Fld label="車両重量（重量税に影響）">
+            <select className="sel" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}>
+              {WEIGHTS.map(w=><option key={w} value={w}>{w}t</option>)}
+            </select>
+          </Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
           <div className="g2" style={{gap:7}}>
-            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight))]].map(([l,v])=>(
-              <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{v}</div></div>
+            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight))]].map(([l,val])=>(
+              <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{val}</div></div>
             ))}
           </div>
         </div>
       </div>
     </Modal>
+    {showOCR&&<ShakkenShoOCR onResult={handleOCR} onClose={()=>setShowOCR(false)}/>}
+    </>
   );
 }
 
@@ -639,6 +836,10 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
     }));setVModal(null);
   };
   if(modal) return(
+    <>
+    {form._ocrTarget!=null&&<ShakkenShoOCR
+      onResult={parsed=>{setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed,weight:Number(parsed.weight)||v.weight}:v)}));}}
+      onClose={()=>setForm(f=>({...f,_ocrTarget:null}))}/>}
     <div className="stk fu">
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"新規顧客登録":"顧客編集"}</div>
@@ -676,17 +877,22 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
         <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)"}}>🚗 車両情報 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意・複数台登録可</span></div>
-            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"乗用",weight:1.5}]}))}>＋ 車両追加</button>
+            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"自家用乗用（普通・小型）",weight:1.5}]}))}>＋ 車両追加</button>
           </div>
           {(form.vehicles||[]).length===0&&(
             <div style={{textAlign:"center",padding:"14px",background:"var(--grp)",borderRadius:11,color:"var(--lb2)",fontSize:13}}>車両未登録 — 「＋ 車両追加」で追加</div>
           )}
           {(form.vehicles||[]).map((v,vi)=>(
             <div key={v.id||vi} style={{border:"1px solid rgba(52,199,89,.3)",borderRadius:12,padding:"14px",marginBottom:10,background:"rgba(52,199,89,.03)"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#1a8f3a"}}>🚗 車両 {vi+1}{v.carName?` — ${v.carName}`:""}</div>
                 <button className="btn bd bsm" onClick={()=>setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vi)}))}>削除</button>
               </div>
+              {/* 車検証OCRボタン */}
+              <button style={{width:"100%",marginBottom:11,padding:"10px",background:"linear-gradient(135deg,rgba(0,122,255,.1),rgba(52,199,89,.07))",border:"1.5px dashed rgba(0,122,255,.4)",borderRadius:10,color:"var(--bl)",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
+                onClick={()=>setForm(f=>({...f,_ocrTarget:vi}))}>
+                📷 車検証を撮影して自動入力
+              </button>
               <div style={{display:"flex",flexDirection:"column",gap:11}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種名</div><input className="inp" placeholder="プリウス" value={v.carName||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carName:e.target.value}:x)}))}/></div>
@@ -695,7 +901,7 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div><input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><input type="month" className="inp" value={v.firstReg||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/></div>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><select className="sel" value={v.carType||"乗用"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}>{CAR_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量</div><select className="sel" value={v.weight||1.5} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}>{WEIGHTS.map(w=><option key={w} value={w}>{w}t</option>)}</select></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -712,6 +918,7 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
         </div>
       </div>
     </div>
+    </>
   );
   return(
     <div className="stk fu">
