@@ -103,7 +103,20 @@ const G = () => (
     .tbl td{padding:10px 11px;font-size:13px;border-bottom:1px solid var(--sep);}
     .tbl tr:last-child td{border-bottom:none;}
     .tbl tr:hover td{background:var(--fi2);}
-    @media print{.np{display:none!important;}body{background:#fff;}.card,.lst{box-shadow:none!important;}}
+    @media print{
+      @page{size:A4 portrait;margin:15mm 12mm;}
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+      .np{display:none!important;}
+      body{background:#fff!important;}
+      .card,.lst{box-shadow:none!important;}
+      .mbg{position:static!important;background:none!important;backdrop-filter:none!important;display:block!important;padding:0!important;}
+      .msh{max-height:none!important;height:auto!important;overflow:visible!important;border-radius:0!important;animation:none!important;width:100%!important;max-width:100%!important;box-shadow:none!important;}
+      .mhd,.mttl{display:none!important;}
+      .mbdy{overflow:visible!important;padding:0!important;flex:none!important;}
+      #print-area{display:block!important;}
+      .tbl,table{page-break-inside:auto;border-collapse:collapse;width:100%;}
+      .tbl tr,tr{page-break-inside:avoid;}
+    }
   `}</style>
 );
 
@@ -135,7 +148,7 @@ const mo=d=>new Date(d).getMonth()+1;
 // ── Default Settings ───────────────────────────────────────
 const DEF_SETTINGS={
   shopName:"鈴木板金塗装",shopAddress:"〒000-0000 東京都○○区○○1-2-3",
-  shopTel:"03-0000-0000",shopEmail:"info@suzuki-bankin.co.jp",
+  shopTel:"03-0000-0000",shopFax:"",shopEmail:"info@suzuki-bankin.co.jp",
   invoiceNo:"T1234567890123",
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
   kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,
@@ -357,10 +370,20 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   return(
     <Modal title={`${ttl} 印刷プレビュー`} onClose={onClose} wide>
       <div className="row mb12 np">
-        <button className="btn bp" onClick={()=>window.print()}>🖨️ 印刷する</button>
+        <button className="btn bp" onClick={()=>{
+          const el=document.getElementById("print-area");
+          if(!el)return;
+          const w=window.open("","_blank","width=800,height=1000");
+          if(!w)return;
+          const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+          const style=`<style>*{box-sizing:border-box;margin:0;padding:0;}@page{size:A4 portrait;margin:15mm 12mm;}body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:13px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}table{border-collapse:collapse;width:100%;}th,td{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;}th{background:#f2f2f7;font-weight:700;color:#666;}.rb{display:flex;align-items:center;justify-content:space-between;}.g2{display:grid;grid-template-columns:1fr 1fr;gap:7px;}</style>`;
+          w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}</body></html>`);
+          w.document.close();
+          w.onload=()=>{w.focus();w.print();};
+        }}>🖨️ 印刷する</button>
         <button className="btn bs" onClick={onClose}>閉じる</button>
       </div>
-      <div style={{background:"#fff",padding:"26px 30px",borderRadius:11,border:"1px solid var(--sep)",fontFamily:"var(--f)"}}>
+      <div id="print-area" style={{background:"#fff",padding:"26px 30px",borderRadius:11,border:"1px solid var(--sep)",fontFamily:"var(--f)"}}>
         <div className="rb" style={{marginBottom:18}}>
           <div>
             <div style={{fontSize:22,fontWeight:800}}>{ttl}</div>
@@ -370,7 +393,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:14,fontWeight:700}}>{settings.shopName}</div>
             <div style={{fontSize:11,color:"var(--lb2)"}}>{settings.shopAddress}</div>
-            <div style={{fontSize:11,color:"var(--lb2)"}}>TEL: {settings.shopTel}</div>
+            <div style={{fontSize:11,color:"var(--lb2)"}}>TEL: {settings.shopTel}{settings.shopFax?` / FAX: ${settings.shopFax}`:""}</div>
           </div>
         </div>
         <div style={{borderBottom:"2px solid #000",paddingBottom:9,marginBottom:14}}>
@@ -1393,6 +1416,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           <SettingsField label="会社名・屋号" placeholder="鈴木板金塗装" value={form.shopName} onChange={upd("shopName")}/>
           <SettingsField label="住所" placeholder="〒000-0000 東京都○○区" value={form.shopAddress} onChange={upd("shopAddress")}/>
           <SettingsField label="電話番号" placeholder="03-0000-0000" value={form.shopTel} onChange={upd("shopTel")}/>
+          <SettingsField label="FAX番号" placeholder="03-0000-0001" value={form.shopFax} onChange={upd("shopFax")} opt/>
           <SettingsField label="メールアドレス" placeholder="info@example.com" value={form.shopEmail} onChange={upd("shopEmail")} opt/>
           <Fld label="インボイス登録番号（Tから始まる13桁）">
             <input className="inp" placeholder="T1234567890123" value={form.invoiceNo||""} onChange={upd("invoiceNo")}/>
