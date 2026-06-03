@@ -577,10 +577,17 @@ body{
                     </tr>
                   );
                 })}
-                {/* 伸縮スペーサー行：余白を埋めてA4ページいっぱいにする */}
-                <tr style={{borderBottom:`1px solid ${theme.border}`}}>
-                  <td colSpan={6} style={{height:"100%",padding:0,verticalAlign:"top"}}/>
-                </tr>
+                {/* 記入欄：最低20行になるよう空白罫線行を追加 */}
+                {Array.from({length:Math.max(5,20-(doc.items||[]).length)},(_,i)=>(
+                  <tr key={`blank-${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:(((doc.items||[]).length+i)%2===0)?"#fff":theme.light}}>
+                    <td style={{padding:"8px 10px",height:32}}/>
+                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
