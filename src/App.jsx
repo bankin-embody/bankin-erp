@@ -49,8 +49,9 @@ const G = () => (
     .mbg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;animation:fI .18s ease both;}
     @media(min-width:600px){.mbg{justify-content:center;}}
     .mbg.tall{align-items:stretch!important;}
-    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:90vh;overflow:hidden;}
-    @media(min-width:600px){.msh{border-radius:22px;max-height:85vh;}}
+    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:94vh;overflow:hidden;}
+    @media(min-width:600px){.msh{border-radius:22px;max-height:90vh;}}
+    .msh.print-wide{max-width:820px!important;}
     .msh.tall{flex:1!important;max-height:none!important;}
     .mhd{width:36px;height:5px;background:var(--lb3);border-radius:3px;margin:10px auto 0;flex-shrink:0;}
     .mttl{font-size:15px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--sep);flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
@@ -344,7 +345,7 @@ function Modal({title,children,footer,onClose,wide=false,tall=false}){
   },[onClose]);
   return(
     <div className={`mbg${tall?" tall":""}`} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>      
-      <div className={`msh si${tall?" tall":""}`} style={wide?{maxWidth:720}:{}}>
+      <div className={`msh si${tall?" tall":""}${wide?" print-wide":""}`} style={wide?{maxWidth:820}:{}}>
         <div className="mhd"/>
         <div className="mttl">
           <span style={{flex:1,fontSize:15,fontWeight:700}}>{title}</span>
@@ -357,6 +358,19 @@ function Modal({title,children,footer,onClose,wide=false,tall=false}){
 }
 
 // ── Print Document ─────────────────────────────────────────
+// 書類種別ごとのカラーテーマ
+const DOC_THEME={
+  quote:    {accent:"#FF9500", light:"#FFF8EE", border:"rgba(255,149,0,.35)",   label:"見積書",    emoji:"📋"},
+  invoice:  {accent:"#34C759", light:"#F0FFF4", border:"rgba(52,199,89,.35)",   label:"請求書",    emoji:"📄"},  // 車検・整備共通（車検=緑）
+  repair:   {accent:"#007AFF", light:"#EFF6FF", border:"rgba(0,122,255,.35)",   label:"請求書",    emoji:"📄"},  // 整備=青
+  delivery: {accent:"#5AC8FA", light:"#EFF9FF", border:"rgba(90,200,250,.35)",  label:"納品書",    emoji:"📦"},
+  combined: {accent:"#FFD60A", light:"#FFFBE6", border:"rgba(255,214,10,.45)",  label:"合計請求書",emoji:"📑"},
+};
+function getDocTheme(type,doc){
+  if(type==="invoice"&&doc?.type==="repair") return DOC_THEME.repair;
+  return DOC_THEME[type]||DOC_THEME.invoice;
+}
+
 function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const isS=doc.type==="shakken";
   const{sub,taxAmt,total:wT}=calcItems(doc.items||[],doc.tax||0.1);
@@ -365,89 +379,109 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const daikoTx=isS?(doc.shakken?.daikoTax??settings.daikoTax):0;
   const daikoWT=calcDaiko(daikoRaw,daikoTx);
   const grand=wT+gov+daikoWT;
-  const titles={invoice:"請求書",delivery:"納品書",quote:"見積書",combined:"合計請求書"};
-  const ttl=titles[type]||"請求書";
+  const theme=getDocTheme(type,doc);
+  const ttl=theme.label;
   return(
     <Modal title={`${ttl} 印刷プレビュー`} onClose={onClose} wide>
       <div className="row mb12 np">
         <button className="btn bp" onClick={()=>{
           const el=document.getElementById("print-area");
           if(!el)return;
-          const w=window.open("","_blank","width=800,height=1000");
+          const w=window.open("","_blank","width=820,height=1100");
           if(!w)return;
           const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-          const style=`<style>*{box-sizing:border-box;margin:0;padding:0;}@page{size:A4 portrait;margin:15mm 12mm;}body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:13px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}table{border-collapse:collapse;width:100%;}th,td{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;}th{background:#f2f2f7;font-weight:700;color:#666;}.rb{display:flex;align-items:center;justify-content:space-between;}.g2{display:grid;grid-template-columns:1fr 1fr;gap:7px;}</style>`;
+          const style=`<style>*{box-sizing:border-box;margin:0;padding:0;}@page{size:A4 portrait;margin:15mm 12mm;}body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:13px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}table{border-collapse:collapse;width:100%;}th,td{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;}th{background:${theme.light};font-weight:700;color:#555;}.rb{display:flex;align-items:center;justify-content:space-between;}.g2{display:grid;grid-template-columns:1fr 1fr;gap:7px;}</style>`;
           w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}</body></html>`);
           w.document.close();
           w.onload=()=>{w.focus();w.print();};
         }}>🖨️ 印刷する</button>
         <button className="btn bs" onClick={onClose}>閉じる</button>
       </div>
-      <div id="print-area" style={{background:"#fff",padding:"26px 30px",borderRadius:11,border:"1px solid var(--sep)",fontFamily:"var(--f)"}}>
-        <div className="rb" style={{marginBottom:18}}>
-          <div>
-            <div style={{fontSize:22,fontWeight:800}}>{ttl}</div>
-            {doc.id&&<div style={{fontSize:11,color:"var(--lb2)",marginTop:2}}>書類番号: {doc.id}</div>}
-            {settings.invoiceNo&&type==="invoice"&&<div style={{fontSize:11,color:"var(--lb2)"}}>適格請求書発行事業者: {settings.invoiceNo}</div>}
+      <div id="print-area" style={{background:"#fff",borderRadius:11,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden"}}>
+        {/* カラーヘッダーバー */}
+        <div style={{background:theme.accent,padding:"14px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{color:"#fff"}}>
+            <div style={{fontSize:24,fontWeight:800,letterSpacing:1}}>{theme.emoji} {ttl}</div>
+            {doc.id&&<div style={{fontSize:11,opacity:.85,marginTop:2}}>書類番号: {doc.id}</div>}
+            {settings.invoiceNo&&type==="invoice"&&<div style={{fontSize:11,opacity:.85}}>適格請求書発行事業者: {settings.invoiceNo}</div>}
           </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:14,fontWeight:700}}>{settings.shopName}</div>
-            <div style={{fontSize:11,color:"var(--lb2)"}}>{settings.shopAddress}</div>
-            <div style={{fontSize:11,color:"var(--lb2)"}}>TEL: {settings.shopTel}{settings.shopFax?` / FAX: ${settings.shopFax}`:""}</div>
+          <div style={{textAlign:"right",color:"#fff"}}>
+            <div style={{fontSize:15,fontWeight:800}}>{settings.shopName}</div>
+            <div style={{fontSize:11,opacity:.85,marginTop:2}}>{settings.shopAddress}</div>
+            <div style={{fontSize:11,opacity:.85}}>TEL: {settings.shopTel}{settings.shopFax?` / FAX: ${settings.shopFax}`:""}</div>
           </div>
         </div>
-        <div style={{borderBottom:"2px solid #000",paddingBottom:9,marginBottom:14}}>
-          <span style={{fontSize:17,fontWeight:700}}>{fullName(customer)}</span><span style={{fontSize:13}}> 様</span>
-          {vehicle&&<div style={{fontSize:11,color:"var(--lb2)",marginTop:2}}>{vehicle.carName} {vehicle.plateNo} / 車台番号: {vehicle.chassisNo}</div>}
-        </div>
-        <div className="g2" style={{gap:7,marginBottom:14,fontSize:12}}>
-          <div><span style={{color:"var(--lb2)"}}>発行日: </span>{doc.date||today()}</div>
-          {doc.dueDate&&<div><span style={{color:"var(--lb2)"}}>支払期限: </span>{doc.dueDate}</div>}
-        </div>
-        {type==="combined"?(
-          <>
-            <table className="tbl" style={{marginBottom:10}}>
-              <thead><tr><th>書類番号</th><th>日付</th><th>内容</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
-              <tbody>{(doc.allItems||[]).map((ci,i)=><tr key={i}><td>{ci.id}</td><td>{ci.date}</td><td>{ci.desc}</td><td style={{textAlign:"right"}}>{fmt(ci.total)}</td></tr>)}</tbody>
-            </table>
-            <div style={{textAlign:"right",fontSize:17,fontWeight:800,borderTop:"2px solid #000",paddingTop:7}}>合計: {fmt(doc.combinedTotal||0)}</div>
-          </>
-        ):(
-          <>
-            <table className="tbl" style={{marginBottom:10}}>
-              <thead><tr><th>品目・作業内容</th><th>数量</th><th style={{textAlign:"right"}}>部品代</th><th style={{textAlign:"right"}}>技術料</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
-              <tbody>{(doc.items||[]).map((it,i)=><tr key={i}><td>{it.desc}</td><td>{it.qty}</td><td style={{textAlign:"right"}}>{it.unit?fmt(it.qty*(it.unit||0)):"-"}</td><td style={{textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td><td style={{textAlign:"right"}}>{fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</td></tr>)}</tbody>
-            </table>
-            <div style={{display:"flex",justifyContent:"flex-end"}}>
-              <div style={{width:270}}>
-                {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
-                  <div key={l} className="rb" style={{padding:"3px 0",fontSize:12}}><span style={{color:"var(--lb2)"}}>{l}</span><span>{v}</span></div>
-                ))}
-                {isS&&<>
-                  <div style={{borderTop:"1px solid var(--sep)",margin:"5px 0"}}/>
-                  <div style={{fontSize:10,color:"var(--lb2)",marginBottom:3}}>法定費用（非課税）</div>
-                  {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)]].map(([l,v])=>(
-                    <div key={l} className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>{l}</span><span>{v}</span></div>
+
+        <div style={{padding:"22px 28px"}}>
+          {/* 宛先・日付 */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",borderBottom:`2px solid ${theme.accent}`,paddingBottom:10,marginBottom:14}}>
+            <div>
+              <div style={{fontSize:18,fontWeight:800}}>{fullName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
+              {vehicle&&<div style={{fontSize:11,color:"var(--lb2)",marginTop:3}}>🚗 {vehicle.carName} {vehicle.plateNo} / 車台番号: {vehicle.chassisNo}</div>}
+            </div>
+            <div style={{textAlign:"right",fontSize:12,color:"var(--lb2)"}}>
+              <div>発行日: <b style={{color:"#000"}}>{doc.date||today()}</b></div>
+              {doc.dueDate&&<div style={{marginTop:2}}>支払期限: <b style={{color:"#000"}}>{doc.dueDate}</b></div>}
+            </div>
+          </div>
+
+          {type==="combined"?(
+            <>
+              <table className="tbl" style={{marginBottom:10}}>
+                <thead><tr style={{background:theme.light}}><th>書類番号</th><th>日付</th><th>内容</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
+                <tbody>{(doc.allItems||[]).map((ci,i)=><tr key={i}><td>{ci.id}</td><td>{ci.date}</td><td>{ci.desc}</td><td style={{textAlign:"right"}}>{fmt(ci.total)}</td></tr>)}</tbody>
+              </table>
+              <div style={{textAlign:"right",fontSize:18,fontWeight:800,borderTop:`2px solid ${theme.accent}`,paddingTop:8,color:theme.accent}}>合計: {fmt(doc.combinedTotal||0)}</div>
+            </>
+          ):(
+            <>
+              <table className="tbl" style={{marginBottom:12}}>
+                <thead><tr style={{background:theme.light}}>
+                  <th>品目・作業内容</th><th style={{width:40}}>数量</th>
+                  <th style={{textAlign:"right",width:90}}>部品代</th>
+                  <th style={{textAlign:"right",width:90}}>技術料</th>
+                  <th style={{textAlign:"right",width:90}}>金額</th>
+                </tr></thead>
+                <tbody>{(doc.items||[]).map((it,i)=>(
+                  <tr key={i}>
+                    <td>{it.desc}</td><td>{it.qty}</td>
+                    <td style={{textAlign:"right"}}>{it.unit?fmt(it.qty*(it.unit||0)):"-"}</td>
+                    <td style={{textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
+                    <td style={{textAlign:"right",fontWeight:600}}>{fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              <div style={{display:"flex",justifyContent:"flex-end"}}>
+                <div style={{width:290,background:theme.light,borderRadius:9,padding:"12px 14px",border:`1px solid ${theme.border}`}}>
+                  {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
+                    <div key={l} className="rb" style={{padding:"3px 0",fontSize:12}}><span style={{color:"var(--lb2)"}}>{l}</span><span style={{fontWeight:600}}>{v}</span></div>
                   ))}
-                  <div className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>車検代行料（税込{Math.round(daikoTx*100)}%）</span><span>{fmt(daikoWT)}</span></div>
-                  <div style={{borderTop:"1px dashed var(--sep)",margin:"4px 0"}}/>
-                </>}
-                <div className="rb" style={{padding:"7px 0",borderTop:"2px solid #000",marginTop:3}}>
-                  <span style={{fontSize:15,fontWeight:800}}>お支払い合計</span>
-                  <span style={{fontSize:19,fontWeight:800,color:"var(--bl)"}}>{fmt(grand)}</span>
+                  {isS&&<>
+                    <div style={{borderTop:"1px solid rgba(0,0,0,.1)",margin:"6px 0"}}/>
+                    {/* 「法定費用（非課税）」のラベルは非表示 */}
+                    {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持込）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)]].map(([l,v])=>(
+                      <div key={l} className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>{l}</span><span>{v}</span></div>
+                    ))}
+                    <div className="rb" style={{padding:"2px 0",fontSize:11}}><span style={{color:"var(--lb2)"}}>車検代行料（税込{Math.round(daikoTx*100)}%）</span><span>{fmt(daikoWT)}</span></div>
+                    <div style={{borderTop:"1px dashed rgba(0,0,0,.15)",margin:"5px 0"}}/>
+                  </>}
+                  <div className="rb" style={{padding:"8px 0",borderTop:`2px solid ${theme.accent}`,marginTop:3}}>
+                    <span style={{fontSize:14,fontWeight:800}}>お支払い合計</span>
+                    <span style={{fontSize:20,fontWeight:800,color:theme.accent}}>{fmt(grand)}</span>
+                  </div>
                 </div>
               </div>
+            </>
+          )}
+          {doc.note&&<div style={{marginTop:14,padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
+          {type==="invoice"&&(
+            <div style={{marginTop:16,padding:"11px 14px",border:`1px solid ${theme.border}`,borderRadius:7,fontSize:11,background:theme.light}}>
+              <div style={{fontWeight:700,marginBottom:5,color:theme.accent}}>💳 振込先</div>
+              <div>{settings.bankName} {settings.bankBranch} {settings.bankType}口座 {settings.bankNo}</div>
+              <div>口座名義: {settings.bankHolder}</div>
             </div>
-          </>
-        )}
-        {doc.note&&<div style={{marginTop:14,padding:"9px 12px",background:"var(--grp)",borderRadius:7,fontSize:11}}><b>備考:</b> {doc.note}</div>}
-        {type==="invoice"&&(
-          <div style={{marginTop:18,padding:"11px 14px",border:"1px solid var(--sep)",borderRadius:7,fontSize:11}}>
-            <div style={{fontWeight:700,marginBottom:5}}>振込先</div>
-            <div>{settings.bankName} {settings.bankBranch} {settings.bankType}口座 {settings.bankNo}</div>
-            <div>口座名義: {settings.bankHolder}</div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -762,7 +796,7 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
             <Ico e="📋" bg="rgba(0,122,255,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{fullName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
             <div style={{textAlign:"right",marginRight:7}}><div className="b7 sm">{fmt(total)}</div><span className={`bdg ${q.status==="承認済"?"dgr":q.status==="見積中"?"dbl":"dgy"}`}>{q.status}</span></div>
-            <button className="btn bs bsm" onClick={e=>{e.stopPropagation();setPrint(q);}}>印刷</button>
+            <button className="btn bsm" style={{background:"rgba(255,149,0,.15)",color:"#b36500",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(q);}}>🖨️ 印刷</button>
             <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setQuotes(p=>p.filter(x=>x.id!==q.id));}}>削除</button>
           </div>
         );})}
@@ -1040,8 +1074,8 @@ function Invoices({invoices,setInvoices,customers,settings}){
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`} style={{fontSize:12,padding:"3px 10px"}}>{inv.status}</span>
                   <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
-                    <button className="btn bs bsm" onClick={e=>{e.stopPropagation();setPrint(inv);setPType("invoice");}}>📄 請求書</button>
-                    <button className="btn bs bsm" onClick={e=>{e.stopPropagation();setPrint(inv);setPType("delivery");}}>📦 納品書</button>
+                    <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("invoice");}}>📄 請求書</button>
+                    <button className="btn bsm" style={{background:"rgba(90,200,250,.15)",color:"#0077a8",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("delivery");}}>📦 納品書</button>
                     <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setInvoices(p=>p.filter(i=>i.id!==inv.id));}}>削除</button>
                   </div>
                 </div>
