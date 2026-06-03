@@ -544,71 +544,122 @@ body{
                 </tr>
               ))}</tbody>
             </table>
-          ):(
-            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-              <colgroup>
-                <col style={{width:"auto"}}/>
-                <col style={{width:52}}/>
-                <col style={{width:52}}/>
-                <col style={{width:80}}/>
-                <col style={{width:90}}/>
-                <col style={{width:90}}/>
-              </colgroup>
-              <thead>
-                <tr style={{background:theme.accent}}>
-                  {["品名","数量","単位","単価","金額","備考"].map(h=>(
-                    <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
-                      textAlign:["金額","単価"].includes(h)?"right":"left",
-                      borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(doc.items||[]).map((it,i)=>{
-                  const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
-                  return(
-                    <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
-                      <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all"}}>{it.desc}</td>
-                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
-                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unit?"式":"-"}</td>
-                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
-                      <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
-                      <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
-                    </tr>
-                  );
-                })}
-                {/* 記入欄：最低20行になるよう空白罫線行を追加 */}
-                {Array.from({length:Math.max(5,20-(doc.items||[]).length)},(_,i)=>(
-                  <tr key={`blank-${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:(((doc.items||[]).length+i)%2===0)?"#fff":theme.light}}>
-                    <td style={{padding:"8px 10px",height:32}}/>
-                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
-                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
-                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
-                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
-                    <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+          ):(()=>{
+            // 車検の場合、固定費用行を明細の先頭に組み込む
+            const sk=doc.shakken||{};
+            const fixedRows=isS?[
+              {desc:"自賠責保険料",    amt:sk.jibaisekiMochikomi?null:(sk.jibaiseki||0), note:sk.jibaisekiMochikomi?"持ち込み":"", isFixed:true},
+              {desc:"重量税",          amt:sk.juryozei||0,                                note:"",                                    isFixed:true},
+              {desc:"検査登録・証紙代",amt:sk.kensaShomei||settings.kensaShomei||0,      note:"",                                    isFixed:true},
+              {desc:"技術情報管理料",  amt:sk.gijutsuKanri||settings.gijutsuKanri||0,    note:"",                                    isFixed:true},
+              {desc:"車検代行手数料",  amt:daikoWT,                                       note:"",                                    isFixed:true},
+              // 整備料 区切り見出し行
+              {desc:"整備料", amt:null, note:"", isFixed:true, isSeparator:true},
+            ]:[];
+            const allRows=[...fixedRows,...(doc.items||[])];
+            const blankCount=Math.max(5, 20-allRows.length);
+            let rowIdx=0;
+            return(
+              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+                <colgroup>
+                  <col style={{width:"auto"}}/>
+                  <col style={{width:52}}/>
+                  <col style={{width:52}}/>
+                  <col style={{width:80}}/>
+                  <col style={{width:90}}/>
+                  <col style={{width:90}}/>
+                </colgroup>
+                <thead>
+                  <tr style={{background:theme.accent}}>
+                    {["品名","数量","単位","単価","金額","備考"].map(h=>(
+                      <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
+                        textAlign:["金額","単価"].includes(h)?"right":"left",
+                        borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {/* 車検固定行 */}
+                  {fixedRows.map((row,i)=>{
+                    if(row.isSeparator){
+                      return(
+                        <tr key={`sep-${i}`} style={{background:theme.light,borderBottom:`2px solid ${theme.accent}`}}>
+                          <td colSpan={6} style={{padding:"5px 10px",fontSize:11,fontWeight:800,color:theme.accent,letterSpacing:1}}>
+                            ── 整備料
+                          </td>
+                        </tr>
+                      );
+                    }
+                    rowIdx++;
+                    return(
+                      <tr key={`fixed-${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                        <td style={{padding:"8px 10px",fontSize:12}}>{row.desc}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>-</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>-</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>-</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>
+                          {row.note==="持ち込み"?"持ち込み":row.amt!=null?fmt(row.amt):"-"}
+                        </td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{row.note==="持ち込み"?"":row.note}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* ユーザー入力の明細行 */}
+                  {(doc.items||[]).map((it,i)=>{
+                    const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
+                    const bgIdx=fixedRows.filter(r=>!r.isSeparator).length+i;
+                    return(
+                      <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:bgIdx%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                        <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all"}}>{it.desc}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unit?"式":"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* 空白記入欄 */}
+                  {Array.from({length:blankCount},(_,i)=>{
+                    const bgIdx=fixedRows.filter(r=>!r.isSeparator).length+(doc.items||[]).length+i;
+                    return(
+                      <tr key={`blank-${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:bgIdx%2===0?"#fff":theme.light}}>
+                        <td style={{padding:"8px 10px",height:32}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          })()}
         </div>
 
-        {/* ━━ 合計欄（改ページで切れないよう page-break-inside:avoid） ━━ */}
+        {/* ━━ 合計欄 ━━ */}
         {type!=="combined"&&(
           <div className="summary-block" style={{display:"flex",justifyContent:"flex-end",padding:"16px 20px",pageBreakInside:"avoid"}}>
             <div style={{width:280,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden"}}>
-              {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
-                  <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
-                </div>
-              ))}
-              {isS&&<>
-                {[[doc.shakken?.jibaisekiMochikomi?"自賠責保険（持込）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],["重量税",fmt(doc.shakken?.juryozei||0)],["検査登録証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri)],["車検代行料",fmt(daikoWT)]].map(([l,v])=>(
-                  <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:11,background:"#fafafa"}}>
-                    <span style={{color:"#666"}}>{l}</span><span>{v}</span>
+              {isS?(
+                // 車検：整備費合計 + 合計のみ（内訳は明細に表示済み）
+                <>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
+                    <span style={{color:"#666"}}>整備費合計（税込）</span><span style={{fontWeight:600}}>{fmt(wT)}</span>
                   </div>
-                ))}
-              </>}
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
+                    <span style={{color:"#666"}}>消費税（{Math.round((doc.tax||0.1)*100)}%）</span><span style={{fontWeight:600}}>{fmt(taxAmt)}</span>
+                  </div>
+                </>
+              ):(
+                [[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
+                  <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
+                    <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
+                  </div>
+                ))
+              )}
               <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:theme.accent}}>
                 <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
                 <span style={{fontSize:20,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
