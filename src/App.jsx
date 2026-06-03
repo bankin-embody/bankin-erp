@@ -557,7 +557,7 @@ body{
               {desc:"整備料", amt:null, note:"", isFixed:true, isSeparator:true},
             ]:[];
             const allRows=[...fixedRows,...(doc.items||[])];
-            const blankCount=Math.max(5, 20-allRows.length);
+            const blankCount=Math.max(0, Math.min(5, 15-allRows.length));
             let rowIdx=0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
