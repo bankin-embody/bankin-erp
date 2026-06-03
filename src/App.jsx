@@ -435,14 +435,27 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
 
           {type==="combined"?(
             <>
+              {/* お支払い合計を上に */}
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+                <div style={{background:theme.accent,borderRadius:10,padding:"10px 20px",display:"flex",alignItems:"center",gap:16}}>
+                  <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
+                  <span style={{fontSize:24,fontWeight:800,color:"#fff"}}>{fmt(doc.combinedTotal||0)}</span>
+                </div>
+              </div>
               <table className="tbl" style={{marginBottom:12}}>
                 <thead><tr style={{background:theme.light}}><th>書類番号</th><th>日付</th><th>内容</th><th style={{textAlign:"right"}}>金額</th></tr></thead>
                 <tbody>{(doc.allItems||[]).map((ci,i)=><tr key={i}><td>{ci.id}</td><td>{ci.date}</td><td>{ci.desc}</td><td style={{textAlign:"right"}}>{fmt(ci.total)}</td></tr>)}</tbody>
               </table>
-              <div style={{textAlign:"right",fontSize:19,fontWeight:800,borderTop:`2px solid ${theme.accent}`,paddingTop:9,color:theme.accent}}>合計: {fmt(doc.combinedTotal||0)}</div>
             </>
           ):(
             <>
+              {/* お支払い合計を明細の上に表示 */}
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+                <div style={{background:theme.accent,borderRadius:10,padding:"10px 20px",display:"flex",alignItems:"center",gap:16}}>
+                  <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>お支払い合計</span>
+                  <span style={{fontSize:24,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
+                </div>
+              </div>
               <table className="tbl" style={{marginBottom:14}}>
                 <thead><tr style={{background:theme.light}}>
                   <th>品目・作業内容</th>
@@ -453,7 +466,8 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
                 </tr></thead>
                 <tbody>{(doc.items||[]).map((it,i)=>(
                   <tr key={i}>
-                    <td>{it.desc}</td><td>{it.qty}</td>
+                    <td>{it.desc}</td>
+                    <td>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
                     <td style={{textAlign:"right"}}>{it.unit?fmt(it.qty*(it.unit||0)):"-"}</td>
                     <td style={{textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
                     <td style={{textAlign:"right",fontWeight:600}}>{fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</td>
