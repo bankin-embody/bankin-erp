@@ -485,8 +485,9 @@ body{
               <div>
                 <div style={{fontSize:15,fontWeight:800}}>{settings.shopName}</div>
                 <div style={{fontSize:10,color:"#555",marginTop:3,lineHeight:1.7}}>
-                  {settings.shopAddress&&<div>〒 {settings.shopAddress}</div>}
-                  <div>TEL {settings.shopTel}{settings.shopFax&&`  FAX ${settings.shopFax}`}</div>
+                  {settings.shopAddress&&<div>{settings.shopAddress.startsWith("〒")?settings.shopAddress:`〒${settings.shopAddress}`}</div>}
+                  <div>TEL: {settings.shopTel}</div>
+                  {settings.shopFax&&<div>FAX: {settings.shopFax}</div>}
                   {settings.invoiceNo&&<div>登録番号：{settings.invoiceNo}</div>}
                 </div>
               </div>
