@@ -779,7 +779,7 @@ function ShakkenShoOCR({onResult,onClose}){
     setLoading(true);setErr("");
     try{
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      const resp=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         model:"claude-sonnet-4-20250514",max_tokens:800,
         messages:[{role:"user",content:[
           {type:"image",source:{type:"base64",media_type:file.type&&file.type.startsWith("image/")?file.type:"image/jpeg",data:b64}},
@@ -1453,7 +1453,7 @@ function Expenses({expenses,setExpenses}){
               if(!form.desc)return;
               setForm(f=>({...f,aiLoading:true}));
               try{
-                const res=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
 カテゴリ: ${EXP_CAT.join("、")}
 摘要: ${form.desc}`}]})});
                 const d=await res.json();
