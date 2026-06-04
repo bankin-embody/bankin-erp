@@ -402,12 +402,13 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const grand=wT+gov+daikoWT;
   const theme=getDocTheme(type,doc);
   const ttl=theme.label;
-  const doPrint=()=>{
+  const doPrint=(mono=false)=>{
     const el=document.getElementById("print-area");
     if(!el)return;
     const w=window.open("","_blank","width=820,height=1100");
     if(!w)return;
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+    const monoStyle=mono?`*{color:#000!important;background:#fff!important;border-color:#999!important;}.copy-label{display:block!important;}`:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:10mm 12mm;}
@@ -432,19 +433,21 @@ body{
 .detail-spacer td{border-bottom:none;}
 .summary-block{page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
+.copy-label{display:none;position:fixed;top:8mm;left:10mm;font-size:14px;font-weight:800;color:#444;border:2px solid #444;padding:3px 12px;border-radius:4px;letter-spacing:2px;}
+${monoStyle}
 </style>`;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}</body></html>`);
+    const copyLabel=`<div class="copy-label">【控え】</div>`;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}${copyLabel}</body></html>`);
     w.document.close();
     w.onload=()=>{w.focus();w.print();};
   };
-  // フォームと同じ全画面スクロール方式
   return(
     <div className="stk fu">
-      {/* 固定ヘッダーバー（印刷時は非表示） */}
       <div className="rb np">
         <div style={{fontSize:17,fontWeight:800}}>{theme.emoji} {ttl} 印刷プレビュー</div>
-        <div style={{display:"flex",gap:7}}>
-          <button className="btn bp" onClick={doPrint}>🖨️ 印刷する</button>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          <button className="btn bp" onClick={()=>doPrint(false)}>🖨️ お客様用（カラー）</button>
+          <button className="btn bs" onClick={()=>doPrint(true)}>🖨️ 控え（白黒）</button>
           <button className="btn bs" onClick={onClose}>← 戻る</button>
         </div>
       </div>
@@ -667,8 +670,9 @@ body{
       </div>
 
       {/* 下部にも印刷ボタン */}
-      <div className="np" style={{display:"flex",gap:9,justifyContent:"center",paddingBottom:8}}>
-        <button className="btn bp" style={{padding:"12px 32px",fontSize:15}} onClick={doPrint}>🖨️ 印刷する</button>
+      <div className="np" style={{display:"flex",gap:9,justifyContent:"center",paddingBottom:8,flexWrap:"wrap"}}>
+        <button className="btn bp" style={{padding:"12px 32px",fontSize:15}} onClick={()=>doPrint(false)}>🖨️ お客様用（カラー）</button>
+        <button className="btn bs" style={{padding:"12px 24px",fontSize:15}} onClick={()=>doPrint(true)}>🖨️ 控え（白黒）</button>
         <button className="btn bs" onClick={onClose}>← 戻る</button>
       </div>
     </div>
@@ -1275,10 +1279,84 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
 }
 
 // ── Invoices Page ──────────────────────────────────────────
+// ── 入金管理 ───────────────────────────────────────────────
+function PaymentModal({inv,total,onSave,onClose}){
+  const payments=inv.payments||[];
+  const paid=payments.reduce((s,p)=>s+p.amount,0);
+  const remaining=total-paid;
+  const[date,setDate]=useState(today());
+  const[amount,setAmount]=useState(remaining>0?remaining:0);
+  const[memo,setMemo]=useState("");
+
+  const add=()=>{
+    if(!amount||amount<=0)return;
+    const newPayments=[...payments,{id:Date.now(),date,amount:Number(amount),memo}];
+    const newPaid=newPayments.reduce((s,p)=>s+p.amount,0);
+    const newStatus=newPaid>=total?"入金済":"未入金";
+    onSave({...inv,payments:newPayments,status:newStatus});
+    setAmount(Math.max(0,total-newPaid));
+    setMemo("");
+  };
+  const del=id=>{
+    const newPayments=payments.filter(p=>p.id!==id);
+    const newPaid=newPayments.reduce((s,p)=>s+p.amount,0);
+    const newStatus=newPaid>=total?"入金済":"未入金";
+    onSave({...inv,payments:newPayments,status:newStatus});
+  };
+
+  return(
+    <Modal title="💰 入金管理" onClose={onClose}
+      footer={<><button className="btn bs" onClick={onClose}>閉じる</button></>}>
+      <div className="stk">
+        <div style={{background:"var(--grp)",borderRadius:12,padding:"13px 15px"}}>
+          <div className="g3" style={{gap:8}}>
+            {[["請求合計",fmt(total),"var(--lb)"],[`入金済`,fmt(paid),"#1a8f3a"],[`残金`,fmt(remaining),remaining>0?"var(--re)":"#1a8f3a"]].map(([l,v,c])=>(
+              <div key={l} style={{textAlign:"center"}}>
+                <div style={{fontSize:11,color:"var(--lb3)",marginBottom:3}}>{l}</div>
+                <div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {remaining<=0&&<div style={{textAlign:"center",marginTop:8,fontSize:13,fontWeight:700,color:"#1a8f3a"}}>✅ 入金完了</div>}
+        </div>
+        <div>
+          <div className="fl">入金履歴</div>
+          {payments.length===0&&<div className="cmu sm" style={{textAlign:"center",padding:12}}>入金記録なし</div>}
+          <div className="lst">
+            {payments.map(p=>(
+              <div key={p.id} className="fr">
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"#1a8f3a"}}>{fmt(p.amount)}</div>
+                  <div style={{fontSize:12,color:"var(--lb2)"}}>{p.date}{p.memo?` · ${p.memo}`:""}</div>
+                </div>
+                <button className="btn bd bsm" onClick={()=>del(p.id)}>削除</button>
+              </div>
+            ))}
+          </div>
+        </div>
+        {remaining>0&&(
+          <div style={{background:"rgba(52,199,89,.06)",border:"1px solid rgba(52,199,89,.25)",borderRadius:12,padding:"13px 15px"}}>
+            <div className="fl" style={{color:"#1a8f3a"}}>入金を記録する</div>
+            <div className="stk" style={{gap:9}}>
+              <div className="g2" style={{gap:9}}>
+                <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+              </div>
+              <Fld label="メモ" opt={true}><input className="inp" placeholder="経費分・残金など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
+              <button className="btn bp" style={{width:"100%"}} onClick={add}>＋ 入金を記録</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function Invoices({invoices,setInvoices,customers,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);const[printType,setPType]=useState("invoice");
   const[tab,setTab]=useState("all");const[tTab,setTTab]=useState("all");
   const[showTpl,setShowTpl]=useState(false);
+  const[payModal,setPayModal]=useState(null);
   const gt=inv=>invTotal(inv,settings);
   const filtered=invoices.filter(i=>{
     if(tab==="paid"&&i.status!=="入金済")return false;
@@ -1359,9 +1437,17 @@ function Invoices({invoices,setInvoices,customers,settings}){
                   {inv.dueDate&&<><span>·</span><span>期限 {inv.dueDate}</span></>}
                 </div>
                 {/* 3行目: ステータス + ボタン */}
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`} style={{fontSize:12,padding:"3px 10px"}}>{inv.status}</span>
-                  <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`} style={{fontSize:12,padding:"3px 10px"}}>{inv.status}</span>
+                    {(inv.payments||[]).length>0&&inv.status!=="入金済"&&(
+                      <span style={{fontSize:11,color:"var(--re)",fontWeight:700}}>
+                        残金 {fmt(gt(inv)-(inv.payments||[]).reduce((s,p)=>s+p.amount,0))}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
+                    <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={e=>{e.stopPropagation();setPayModal(inv);}}>💰 入金</button>
                     <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("invoice");}}>📄 請求書</button>
                     <button className="btn bsm" style={{background:"rgba(90,200,250,.15)",color:"#0077a8",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("delivery");}}>📦 納品書</button>
                     <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setInvoices(p=>p.filter(i=>i.id!==inv.id));}}>削除</button>
@@ -1373,6 +1459,7 @@ function Invoices({invoices,setInvoices,customers,settings}){
         })}
         {!filtered.length&&<div className="lst"><div className="li cmu" style={{justifyContent:"center"}}>データがありません</div></div>}
       </div>
+      {payModal&&<PaymentModal inv={payModal} total={gt(payModal)} onSave={updated=>{setInvoices(p=>p.map(i=>i.id===updated.id?updated:i));setPayModal(updated);}} onClose={()=>setPayModal(null)}/>}
     </div>
   );
 }
