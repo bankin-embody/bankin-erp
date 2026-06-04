@@ -168,12 +168,14 @@ const yr=d=>new Date(d).getFullYear();
 const mo=d=>new Date(d).getMonth()+1;
 
 // ── Default Settings ───────────────────────────────────────
+const DEF_UNIT_LIST=["式","個","本","枚","セット","台","ヶ所","回","時間","m","L"];
 const DEF_SETTINGS={
-  shopName:"鈴木板金塗装",shopAddress:"〒000-0000 東京都○○区○○1-2-3",
+  shopName:"鈴木鈑金塗装",shopAddress:"〒000-0000 東京都○○区○○1-2-3",
   shopTel:"03-0000-0000",shopFax:"",shopEmail:"info@suzuki-bankin.co.jp",
   invoiceNo:"T1234567890123",
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
   kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,
+  unitList:DEF_UNIT_LIST,
 };
 
 // ── Initial Data ───────────────────────────────────────────
@@ -192,13 +194,13 @@ const II=[
    shakken:{jibaiseki:17650,juryozei:16400,kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1}},
 ];
 const IE=[
-  {id:1,date:"2026-05-02",category:"材料費",desc:"板金塗料",amount:18000,receipt:true},
+  {id:1,date:"2026-05-02",category:"材料費",desc:"鈑金塗料",amount:18000,receipt:true},
   {id:2,date:"2026-05-05",category:"消耗品費",desc:"研磨剤・ペーパー",amount:5400,receipt:true},
   {id:3,date:"2026-05-10",category:"光熱費",desc:"電気代",amount:22000,receipt:false},
 ];
 
 const IW=[
-  {id:1,customerId:1,vehicleId:1,date:"2026-05-01",title:"フェンダー修理",memo:"右フロントフェンダー凹み修理。パテ成形後塗装仕上げ。色合わせOK。",photos:[],tags:["板金","塗装"],status:"完了"},
+  {id:1,customerId:1,vehicleId:1,date:"2026-05-01",title:"フェンダー修理",memo:"右フロントフェンダー凹み修理。パテ成形後塗装仕上げ。色合わせOK。",photos:[],tags:["鈑金","塗装"],status:"完了"},
   {id:2,customerId:2,vehicleId:1,date:"2026-05-08",title:"車検整備",memo:"タイヤ交換・ブレーキパッド交換・オイル交換実施。次回車検2028年5月。",photos:[],tags:["車検","整備"],status:"完了"},
 ];
 
@@ -584,7 +586,7 @@ ${monoStyle}
                       <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid",breakInside:"avoid"}}>
                         <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all"}}>{it.desc}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unit?"式":"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unitLabel||"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
@@ -1019,9 +1021,10 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
 }
 
 // ── Quote ──────────────────────────────────────────────────
-function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
+function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
+  const unitList=settings?.unitList||DEF_UNIT_LIST;
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
@@ -1047,6 +1050,11 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
             <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+              <Fld label="単位">
+                <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
+                  {unitList.map(u=><option key={u} value={u}>{u}</option>)}
+                </select>
+              </Fld>
               <Fld label="部品代（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
               <Fld label="技術料（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
             </div>
@@ -1078,7 +1086,7 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
     setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
     setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
-  if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null}/>;
+  if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
   if(print) return <PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} settings={settings} onClose={()=>setPrint(null)}/>;
   return(
     <div className="stk fu">
@@ -1100,10 +1108,11 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
 }
 
 // ── Repair Invoice Form ────────────────────────────────────
-function RepairForm({doc,customers,onSave,onClose}){
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
+function RepairForm({doc,customers,onSave,onClose,settings}){
+  const unitList=settings?.unitList||DEF_UNIT_LIST;
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
   const cust=customers.find(c=>c.id===Number(form.customerId));
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total}=calcItems(form.items,form.tax);
@@ -1134,6 +1143,11 @@ function RepairForm({doc,customers,onSave,onClose}){
               <input className="inp mb8" placeholder="バンパー修理・塗装など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="単位">
+                  <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
+                    {unitList.map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                </Fld>
                 <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
                 <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
               </div>
@@ -1160,6 +1174,7 @@ const DEF_SHAKKEN_ITEMS=[
   {desc:"OBD診断",qty:1,unit:0,gijutsu:0},
 ];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
+  const unitList=settings?.unitList||DEF_UNIT_LIST;
   const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax};
   const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
@@ -1167,7 +1182,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
   useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight)}}));},[form.vehicleId,auto]);
   const setS=(k,v)=>setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
-  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,gijutsu:0}]}));
+  const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
   const{sub,taxAmt,total:wT}=calcItems(form.items,form.tax);
@@ -1252,6 +1267,11 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               </div>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="単位">
+                  <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
+                    {unitList.map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                </Fld>
                 <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
                 <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
               </div>
@@ -1370,7 +1390,7 @@ function Invoices({invoices,setInvoices,customers,settings}){
     else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
     setModal(null);
   };
-  if(modal?.mode==="repair") return <div className="stk fu"><RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)}/></div>;
+  if(modal?.mode==="repair") return <div className="stk fu"><RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/></div>;
   if(modal?.mode==="shakken") return <div className="stk fu"><ShakkenForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/></div>;
   if(print){const c=customers.find(c=>c.id===print.customerId);const v=(c?.vehicles||[]).find(v=>v.id===print.vehicleId);return <PrintDoc type={printType} doc={print} customer={c} vehicle={v} settings={settings} onClose={()=>setPrint(null)}/>;}
   if(showTpl) return(
@@ -1381,7 +1401,7 @@ function Invoices({invoices,setInvoices,customers,settings}){
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:14,paddingTop:4}}>
         {[
-          {mode:"repair",icon:"🔧",iconBg:"rgba(0,122,255,.12)",title:"板金塗装・整備用",desc:"通常の修理・整備向け。部品代・技術料明細、課税合計、インボイス対応。",color:"var(--bl)"},
+          {mode:"repair",icon:"🔧",iconBg:"rgba(0,122,255,.12)",title:"鈑金塗装・整備用",desc:"通常の修理・整備向け。部品代・技術料明細、課税合計、インボイス対応。",color:"var(--bl)"},
           {mode:"shakken",icon:"🔍",iconBg:"rgba(255,149,0,.15)",title:"車検用",desc:"車検専用。法定費用エリア（重量税・自賠責等）を自動計算。課税・非課税を分離表示。",color:"var(--or)"},
         ].map(t=>(
           <div key={t.mode} onClick={()=>{setShowTpl(false);setModal({mode:t.mode,doc:null});}}
@@ -1527,7 +1547,7 @@ function Expenses({expenses,setExpenses}){
               if(!form.desc)return;
               setForm(f=>({...f,aiLoading:true}));
               try{
-                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`板金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
 カテゴリ: ${EXP_CAT.join("、")}
 摘要: ${form.desc}`}]})});
                 const d=await res.json();
@@ -1681,69 +1701,477 @@ function SalesReport({invoices,expenses,settings}){
 // ── White Declaration ──────────────────────────────────────
 function WhiteDeclaration({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear()-1);
+  const[showPrint,setShowPrint]=useState(false);
+  // 基本集計
   const gt=inv=>invTotal(inv,settings);
-  const yInv=invoices.filter(i=>yr(i.date)===year);
+  const yInv=invoices.filter(i=>yr(i.date)===year&&i.status!=="見積中");
   const yExp=expenses.filter(e=>yr(e.date)===year);
   const tS=yInv.reduce((s,i)=>s+gt(i),0);
   const tE=yExp.reduce((s,e)=>s+e.amount,0);
   const prof=tS-tE;
+  // 経費科目別
   const kGroup={};yExp.forEach(e=>{const k=KAMOKU[e.category]||"雑費";kGroup[k]=(kGroup[k]||0)+e.amount;});
-  const q4=Array.from({length:4},(_,q)=>({q:q+1,s:yInv.filter(i=>Math.floor((mo(i.date)-1)/3)===q).reduce((s,i)=>s+gt(i),0)}));
+  // 月別
+  const monthly=Array.from({length:12},(_,i)=>{
+    const m=i+1;
+    const s=yInv.filter(inv=>mo(inv.date)===m).reduce((sum,inv)=>sum+gt(inv),0);
+    const e=yExp.filter(ex=>mo(ex.date)===m).reduce((sum,ex)=>sum+ex.amount,0);
+    return{m,s,e,p:s-e};
+  });
+  const q4=Array.from({length:4},(_,q)=>({q:q+1,s:monthly.slice(q*3,q*3+3).reduce((sum,d)=>sum+d.s,0)}));
+  // 経費カテゴリ一覧（収支内訳書の科目順）
+  const EXP_ROWS=[
+    {label:"売上原価（材料費等）",key:"売上原価（仕入）"},
+    {label:"給料賃金",key:"給料賃金"},
+    {label:"外注工賃",key:"外注工賃"},
+    {label:"減価償却費",key:"減価償却費"},
+    {label:"貸倒金",key:"貸倒金"},
+    {label:"地代家賃",key:"地代家賃"},
+    {label:"利子割引料",key:"利子割引料"},
+    {label:"租税公課",key:"租税公課"},
+    {label:"水道光熱費",key:"水道光熱費"},
+    {label:"旅費交通費",key:"旅費交通費"},
+    {label:"通信費",key:"通信費"},
+    {label:"広告宣伝費",key:"広告宣伝費"},
+    {label:"損害保険料",key:"損害保険料"},
+    {label:"修繕費",key:"修繕費"},
+    {label:"消耗品費",key:"消耗品費"},
+    {label:"工具・器具・備品",key:"工具・器具・備品"},
+    {label:"雑費",key:"雑費"},
+  ];
+
+  // 印刷処理
+  const handlePrint=()=>{
+    const w=window.open("","_blank","width=900,height=1200");
+    if(!w)return;
+    const fmtN=n=>n?Number(n).toLocaleString():"";
+    const fmtR=n=>n?`¥${Number(n).toLocaleString()}`:"";
+    const shopName=settings.shopName||"";
+    const shopAddr=settings.shopAddress||"";
+    const shopTel=settings.shopTel||"";
+    const invNo=settings.invoiceNo||"";
+
+    const expRows=EXP_ROWS.map(r=>({...r,v:kGroup[r.key]||0}));
+    const expOther=tE-expRows.reduce((s,r)=>s+r.v,0);
+
+    w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<title>収支内訳書 ${year}年分</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+@page{size:A4 portrait;margin:8mm 10mm;}
+body{font-family:'MS Mincho','游明朝',serif;font-size:9px;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.page{width:100%;page-break-after:always;}
+.page:last-child{page-break-after:auto;}
+h1{font-size:15px;font-weight:bold;text-align:center;padding:7px 0 4px;border-bottom:2px solid #000;margin-bottom:5px;}
+h2{font-size:11px;font-weight:bold;border-bottom:1px solid #000;padding:3px 0;margin:8px 0 4px;}
+table{width:100%;border-collapse:collapse;}
+td,th{border:1px solid #666;padding:3px 5px;font-size:9px;vertical-align:top;}
+th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
+.num{text-align:right;font-family:'Courier New',monospace;}
+.center{text-align:center;}
+.total-row td{background:#e8e8e8;font-weight:bold;}
+.highlight td{background:#fff8e1;}
+.section{border:1.5px solid #333;margin-bottom:8px;padding:6px 8px;}
+.row2{display:flex;gap:8px;}
+.half{flex:1;}
+.info-grid{display:grid;grid-template-columns:90px 1fr;gap:2px 6px;font-size:9px;margin-bottom:4px;}
+.info-label{color:#555;white-space:nowrap;}
+.big-num{font-size:18px;font-weight:bold;font-family:'Courier New',monospace;color:#000;}
+.monthly-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.mcard{border:1px solid #ccc;padding:3px 5px;font-size:8px;}
+.mcard .mhd{font-weight:bold;border-bottom:1px solid #eee;margin-bottom:2px;}
+.sign-box{border:1.5px solid #333;height:60px;display:flex;align-items:flex-end;padding:4px 6px;font-size:8px;color:#888;margin-top:4px;}
+.note{font-size:8px;color:#555;margin-top:3px;line-height:1.5;}
+.caution{border:1px solid #e68a00;background:#fffbf0;padding:5px 8px;font-size:8px;margin-bottom:6px;line-height:1.6;}
+.blank-line{border-bottom:1px solid #aaa;min-height:18px;margin-bottom:2px;}
+.field-row{display:flex;align-items:flex-end;gap:4px;margin-bottom:5px;font-size:9px;}
+.field-row label{white-space:nowrap;color:#555;}
+.underline{flex:1;border-bottom:1px solid #333;min-height:16px;}
+.receipt-table td{font-size:8px;padding:2px 4px;}
+</style></head><body>
+
+<!-- ページ1: 収支内訳書 第1面 -->
+<div class="page">
+  <h1>収支内訳書（一般用）　${year}年分　白色申告用</h1>
+  <div class="caution">
+    ⚠️ この書類はシステムのデータから自動生成した下書きです。実際の申告前に数字を確認し、税務署または税理士に相談してください。
+    マイナンバー・控除額等は手書きで記入してください。提出前に確定申告書（第一表・第二表）も別途作成が必要です。
+  </div>
+
+  <!-- 事業者情報 -->
+  <div class="section">
+    <div class="row2">
+      <div class="half">
+        <table>
+          <tr><th style="width:90px">屋号・事業名</th><td>${shopName}</td></tr>
+          <tr><th>住所</th><td>${shopAddr}</td></tr>
+          <tr><th>電話番号</th><td>${shopTel}</td></tr>
+          <tr><th>業種</th><td>自動車鈑金塗装業</td></tr>
+          <tr><th>インボイス登録番号</th><td>${invNo}</td></tr>
+          <tr><th>氏名（署名）</th><td><div class="blank-line" style="width:160px"></div></td></tr>
+          <tr><th>マイナンバー</th><td><div class="blank-line" style="width:160px"></div><div class="note">※提出時に記入してください</div></td></tr>
+        </table>
+      </div>
+      <div class="half">
+        <table>
+          <tr><th>税務署名</th><td><div class="blank-line"></div></td></tr>
+          <tr><th>申告期限</th><td>${year+1}年3月17日（月）</td></tr>
+          <tr><th>帳簿種類</th><td>現金主義・簡易帳簿</td></tr>
+          <tr><th>消費税区分</th><td>簡易課税 / 本則課税 / 免税（○をつける）</td></tr>
+        </table>
+        <div class="note" style="margin-top:5px">
+          ※ 収支内訳書は確定申告書（第一表）に添付して提出してください<br>
+          ※ 電子申告（e-Tax）の場合は添付不要です
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 売上・所得 -->
+  <div class="section">
+    <h2>① 売上（収入）金額・仕入金額・経費</h2>
+    <table>
+      <tr>
+        <th style="width:30%">区分</th>
+        <th style="width:20%">第1期（1〜3月）</th>
+        <th style="width:20%">第2期（4〜6月）</th>
+        <th style="width:20%">第3期（7〜9月）</th>
+        <th style="width:20%">第4期（10〜12月）</th>
+      </tr>
+      <tr>
+        <td>売上金額（税込）</td>
+        ${q4.map(q=>`<td class="num">${fmtN(q.s)}</td>`).join("")}
+      </tr>
+      <tr class="total-row">
+        <td>年間売上合計</td>
+        <td class="num" colspan="4" style="font-size:14px;text-align:right">${fmtR(tS)}</td>
+      </tr>
+    </table>
+    <div class="note">※ 上記は請求書データから自動集計。入金ベースで確認・修正してください。消費税が含まれる場合は税抜きに修正が必要です。</div>
+  </div>
+
+  <!-- 経費内訳 -->
+  <div class="section">
+    <h2>② 必要経費の内訳</h2>
+    <table>
+      <tr><th style="width:50%">経費科目</th><th style="width:25%">金額</th><th style="width:25%">備考</th></tr>
+      ${expRows.map(r=>`<tr ${r.v?'class="highlight"':''}>
+        <td>${r.label}</td>
+        <td class="num">${r.v?fmtN(r.v):""}</td>
+        <td></td>
+      </tr>`).join("")}
+      ${expOther>0?`<tr class="highlight"><td>その他（未分類）</td><td class="num">${fmtN(expOther)}</td><td></td></tr>`:""}
+      <tr class="total-row"><td><strong>必要経費　合計</strong></td><td class="num">${fmtR(tE)}</td><td></td></tr>
+    </table>
+  </div>
+
+  <!-- 所得金額 -->
+  <div class="section" style="border:2px solid #333">
+    <table>
+      <tr>
+        <th style="width:33%">① 売上金額</th>
+        <th style="width:5%;border:none;background:none;font-size:14px">－</th>
+        <th style="width:33%">② 必要経費合計</th>
+        <th style="width:5%;border:none;background:none;font-size:14px">＝</th>
+        <th style="width:33%">③ 所得金額（概算）</th>
+      </tr>
+      <tr>
+        <td class="num big-num">${fmtR(tS)}</td>
+        <td style="border:none;background:none"></td>
+        <td class="num big-num">${fmtR(tE)}</td>
+        <td style="border:none;background:none"></td>
+        <td class="num big-num" style="color:${prof>=0?"#000":"#cc0000"}">${fmtR(prof)}</td>
+      </tr>
+    </table>
+    <div class="note" style="margin-top:4px">
+      ※ 所得金額から各種控除（基礎控除48万円・社会保険料控除等）を差し引いた「課税所得金額」に税率をかけて税額を計算します。<br>
+      ※ 「基礎控除申告書兼配偶者控除等申告書」も忘れずに作成してください。
+    </div>
+  </div>
+</div>
+
+<!-- ページ2: 月別売上明細 + 経費明細 -->
+<div class="page">
+  <h1>収支内訳書　付表　${year}年分　月別・経費明細</h1>
+
+  <h2>月別 売上・経費・利益 一覧</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>月</th>
+        <th>売上金額</th>
+        <th>必要経費</th>
+        <th>差引利益</th>
+        <th>利益率</th>
+        <th>件数</th>
+        <th>備考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${monthly.map(d=>`<tr ${d.s||d.e?'class="highlight"':''}>
+        <td class="center">${d.m}月</td>
+        <td class="num">${d.s?fmtN(d.s):""}</td>
+        <td class="num">${d.e?fmtN(d.e):""}</td>
+        <td class="num" style="${d.p<0?"color:#cc0000":""}">${d.s||d.e?fmtN(d.p):""}</td>
+        <td class="center">${d.s?Math.round(d.p/d.s*100)+"%":""}</td>
+        <td class="center">${yInv.filter(i=>mo(i.date)===d.m).length||""}</td>
+        <td></td>
+      </tr>`).join("")}
+      <tr class="total-row">
+        <td class="center">合計</td>
+        <td class="num">${fmtN(tS)}</td>
+        <td class="num">${fmtN(tE)}</td>
+        <td class="num">${fmtN(prof)}</td>
+        <td class="center">${tS?Math.round(prof/tS*100)+"%":""}</td>
+        <td class="center">${yInv.length}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:12px">経費　領収書一覧</h2>
+  <table class="receipt-table">
+    <thead>
+      <tr>
+        <th style="width:12%">日付</th>
+        <th style="width:20%">科目</th>
+        <th style="width:40%">内容・摘要</th>
+        <th style="width:18%">金額</th>
+        <th style="width:10%">領収書</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${yExp.length===0?`<tr><td colspan="5" class="center">経費データなし</td></tr>`
+        :yExp.sort((a,b)=>a.date>b.date?1:-1).map(e=>`<tr>
+        <td class="center">${e.date}</td>
+        <td>${e.category}</td>
+        <td>${e.desc||""}</td>
+        <td class="num">${fmtN(e.amount)}</td>
+        <td class="center">${e.receipt?"✓":""}</td>
+      </tr>`).join("")}
+      <tr class="total-row">
+        <td colspan="3">経費合計</td>
+        <td class="num">${fmtN(tE)}</td>
+        <td class="center">${yExp.filter(e=>e.receipt).length}/${yExp.length}件</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">※ 領収書のない経費は税務調査で否認されることがあります。領収書は7年間保存してください。</div>
+</div>
+
+<!-- ページ3: 売上明細 -->
+<div class="page">
+  <h1>売上明細　${year}年分（請求書データ）</h1>
+  <div class="note" style="margin-bottom:6px">※ この一覧は請求書データから自動生成しています。実際の入金日・金額と照合してください。</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">No.</th>
+        <th style="width:12%">請求日</th>
+        <th style="width:12%">種別</th>
+        <th style="width:30%">顧客</th>
+        <th style="width:15%">ステータス</th>
+        <th style="width:16%">請求金額</th>
+        <th style="width:10%">備考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${yInv.length===0?`<tr><td colspan="7" class="center">請求書データなし</td></tr>`
+        :yInv.sort((a,b)=>a.date>b.date?1:-1).map((inv,idx)=>{
+          const c=invoices&&inv.customerId?"":"";
+          const typeLabel=inv.type==="shakken"?"車検":inv.type==="repair"?"鈑金修理":"見積";
+          return`<tr>
+          <td class="center">${idx+1}</td>
+          <td class="center">${inv.date}</td>
+          <td class="center">${typeLabel}</td>
+          <td>${inv.note||""}</td>
+          <td class="center">${inv.status||""}</td>
+          <td class="num">${fmtN(gt(inv))}</td>
+          <td></td>
+        </tr>`;}).join("")}
+      <tr class="total-row">
+        <td colspan="5">合計 ${yInv.length}件</td>
+        <td class="num">${fmtN(tS)}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:14px">確定申告　提出書類チェックリスト</h2>
+  <table>
+    <tr><th style="width:5%">✓</th><th>書類名</th><th>入手方法</th><th>備考</th></tr>
+    ${[
+      ["確定申告書 B（第一表・第二表）","国税庁サイトまたは税務署","所得・控除を記入して提出"],
+      ["収支内訳書（本書）","本システムから印刷","売上・経費の内訳"],
+      ["マイナンバーカードまたは通知カード","お手元に準備","本人確認書類として必要"],
+      ["社会保険料（国民健康保険・国民年金）控除証明書","各機関から郵送","年間支払額を申告書に記入"],
+      ["生命保険料控除証明書","保険会社から郵送","加入している場合"],
+      ["医療費控除の明細書","自分で作成","10万円超の場合"],
+      ["青色申告承認申請書（翌年から青色の場合）","国税庁サイト","3月15日までに提出"],
+      ["源泉徴収票（給与所得がある場合）","勤務先から受け取り","兼業の場合"],
+    ].map(([name,how,note])=>`<tr><td class="center"><div class="blank-line" style="width:14px;height:14px;border:1px solid #333;display:inline-block"></div></td><td>${name}</td><td style="font-size:8px">${how}</td><td style="font-size:8px">${note}</td></tr>`).join("")}
+  </table>
+
+  <div class="section" style="margin-top:14px">
+    <h2 style="margin:0 0 6px">手書き記入欄（控除等）</h2>
+    ${[
+      ["基礎控除額","480,000円（所得2,400万円以下の場合）"],
+      ["社会保険料控除","国民健康保険＋国民年金の合計：　　　　　　円"],
+      ["生命保険料控除","　　　　　　　　　　　　　　　　　　　　　円"],
+      ["医療費控除","（総額）　　　　　　　円 ー10万円 ＝ 　　　　　　円"],
+      ["配偶者控除","　　　　　　　　　　　　　　　　　　　　　円"],
+      ["扶養控除","扶養人数　　　人 × 38万円 ＝ 　　　　　　円"],
+      ["課税所得金額","所得金額 ー 各種控除合計 ＝ 　　　　　　　　円"],
+      ["税額（所得税）","課税所得 × 税率 ー 控除額 ＝ 　　　　　　　円"],
+    ].map(([l,v])=>`<div class="field-row"><label style="width:130px">${l}</label><div class="underline" style="font-size:8px;color:#888;padding-bottom:1px">${v}</div></div>`).join("")}
+  </div>
+
+  <div class="note" style="margin-top:8px;padding:5px 8px;border:1px solid #ccc;">
+    <strong>所得税の税率表（参考）</strong><br>
+    195万円以下：5%　195〜330万円：10%（控除9.75万円）　330〜695万円：20%（控除42.75万円）<br>
+    695〜900万円：23%（控除63.6万円）　900〜1,800万円：33%（控除153.6万円）　1,800万円超：40%以上
+  </div>
+</div>
+
+</body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),600);
+  };
+
   return(
     <div className="stk fu">
       <div className="rb">
-        <div><div style={{fontSize:20,fontWeight:800}}>確定申告（白色）</div><div className="cmu sm mt4">申告データ参考資料</div></div>
-        <div className="row" style={{gap:6}}><button className="btn bs bsm" onClick={()=>setYear(y=>y-1)}>‹</button><span className="b7">{year}年分</span><button className="btn bs bsm" onClick={()=>setYear(y=>y+1)}>›</button></div>
-      </div>
-      <div className="g3" style={{gap:9}}>{[["売上金額",tS,"#007AFF"],["必要経費",tE,"#FF9500"],["所得金額（概算）",prof,prof>=0?"#34C759":"#FF3B30"]].map(([l,v,c])=>(
-        <div key={l} className="card" style={{borderTop:`3px solid ${c}`}}><div className="cmu sm">{l}</div><div style={{fontSize:20,fontWeight:800,color:c,marginTop:3}}>{fmt(v)}</div></div>
-      ))}</div>
-      <div className="card" style={{background:"rgba(255,149,0,.06)",border:"1px solid rgba(255,149,0,.25)"}}>
-        <div className="row mb8" style={{gap:7}}><Ico e="⚠️" bg="rgba(255,149,0,.12)" sz={14}/><span className="b6 sm">ご注意</span></div>
-        <div className="xs cmu">このデータは申告の参考資料です。実際の申告は税理士または税務署に確認してください。青色申告への切り替えで最大65万円の特別控除が受けられます。</div>
-      </div>
-      <div className="card">
-        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>📋 収支内訳書イメージ（{year}年分）</div>
-        <div style={{borderBottom:"2px solid var(--bl)",paddingBottom:8,marginBottom:11}}>
-          <div className="rb"><span className="b6">① 売上金額（収入金額）</span><span className="b7 cbl" style={{fontSize:16}}>{fmt(tS)}</span></div>
-          <div className="xs cmu mt4">請求 {yInv.length}件 / 車検 {yInv.filter(i=>i.type==="shakken").length}件 / 鈑金 {yInv.filter(i=>i.type==="repair").length}件</div>
+        <div>
+          <div style={{fontSize:20,fontWeight:800}}>確定申告（白色）</div>
+          <div className="cmu sm mt4">{year}年分 収支内訳書</div>
         </div>
-        <div className="g4" style={{gap:7,marginBottom:11}}>
-          {q4.map(q=><div key={q.q} style={{background:"var(--grp)",borderRadius:8,padding:"7px 9px"}}><div className="xs cmu">第{q.q}四半期</div><div className="b6 sm">{fmt(q.s)}</div></div>)}
-        </div>
-        <div style={{borderBottom:"2px solid var(--or)",paddingBottom:8,marginBottom:11}}>
-          <div className="rb"><span className="b6">② 必要経費合計</span><span className="b7" style={{fontSize:16,color:"var(--or)"}}>{fmt(tE)}</span></div>
-        </div>
-        <div className="stk" style={{gap:6}}>
-          {Object.entries(kGroup).map(([k,v])=>(
-            <div key={k} className="rb" style={{padding:"4px 0",borderBottom:"1px solid var(--sep)"}}><span className="sm">{k}</span><span className="sm b6">{fmt(v)}</span></div>
-          ))}
-        </div>
-        <div style={{borderTop:"2px solid var(--gr)",marginTop:11,paddingTop:9}} className="rb">
-          <span className="b7">③ 所得金額（①－②）</span>
-          <span className="b7" style={{fontSize:17,color:prof>=0?"var(--gr)":"var(--re)"}}>{fmt(prof)}</span>
+        <div className="row" style={{gap:6}}>
+          <button className="btn bs bsm" onClick={()=>setYear(y=>y-1)}>‹</button>
+          <span className="b7">{year}年分</span>
+          <button className="btn bs bsm" onClick={()=>setYear(y=>y+1)}>›</button>
+          <button className="btn bp bsm" onClick={handlePrint} style={{marginLeft:4}}>🖨️ 申告書類を印刷</button>
         </div>
       </div>
-      <div className="card">
-        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>月別売上内訳</div>
-        <table className="tbl">
-          <thead><tr><th>月</th><th style={{textAlign:"right"}}>売上</th><th style={{textAlign:"right"}}>経費</th><th style={{textAlign:"right"}}>差引</th></tr></thead>
-          <tbody>
-            {Array.from({length:12},(_,i)=>{const m=i+1;const s=yInv.filter(i=>mo(i.date)===m).reduce((sum,i)=>sum+gt(i),0);const e=yExp.filter(e=>mo(e.date)===m).reduce((sum,e)=>sum+e.amount,0);
-              return <tr key={m}><td className="b6">{m}月</td><td style={{textAlign:"right",color:"var(--bl)",fontWeight:600,fontSize:13}}>{s?fmt(s):"—"}</td><td style={{textAlign:"right",color:"var(--or)",fontSize:13}}>{e?fmt(e):"—"}</td><td style={{textAlign:"right",fontWeight:700,fontSize:13,color:(s-e)>=0?"var(--lb)":"var(--re)"}}>{s||e?fmt(s-e):"—"}</td></tr>;
-            })}
-            <tr style={{background:"var(--grp)",fontWeight:700}}><td>合計</td><td style={{textAlign:"right",color:"var(--bl)",fontSize:13}}>{fmt(tS)}</td><td style={{textAlign:"right",color:"var(--or)",fontSize:13}}>{fmt(tE)}</td><td style={{textAlign:"right",fontSize:13,color:prof>=0?"var(--lb)":"var(--re)"}}>{fmt(prof)}</td></tr>
-          </tbody>
-        </table>
+
+      {/* サマリーカード */}
+      <div className="g3" style={{gap:9}}>
+        {[["売上金額",tS,"#007AFF"],["必要経費",tE,"#FF9500"],["所得金額（概算）",prof,prof>=0?"#34C759":"#FF3B30"]].map(([l,v,c])=>(
+          <div key={l} className="card" style={{borderTop:`3px solid ${c}`}}>
+            <div className="cmu sm">{l}</div>
+            <div style={{fontSize:20,fontWeight:800,color:c,marginTop:3}}>{fmt(v)}</div>
+          </div>
+        ))}
       </div>
-      <div className="card" style={{background:"linear-gradient(135deg,rgba(0,122,255,.05),rgba(88,86,214,.05))",border:"1px solid rgba(0,122,255,.18)"}}>
-        <div className="row mb8" style={{gap:8}}><Ico e="💡" bg="rgba(0,122,255,.1)" sz={15}/><span className="b7 sm">青色申告に切り替えると？</span></div>
+
+      {/* 申告書印刷案内 */}
+      <div className="card" style={{background:"linear-gradient(135deg,rgba(0,122,255,.06),rgba(52,199,89,.06))",border:"1.5px solid rgba(0,122,255,.25)"}}>
+        <div className="row mb8" style={{gap:8}}><span style={{fontSize:20}}>📋</span><span style={{fontWeight:700,fontSize:14}}>印刷すると3ページ出力されます</span></div>
         <div className="stk" style={{gap:4}}>
-          {["65万円特別控除（電子申告の場合）","赤字の3年間繰り越し","家族への給与を必要経費に（青色専従者）","30万円未満の資産を一括経費計上可能"].map(t=>(
-            <div key={t} className="row" style={{gap:5}}><span className="cbl xs">✓</span><span className="xs">{t}</span></div>
+          {[
+            ["第1ページ","収支内訳書（第1面） — 売上・経費・所得金額"],
+            ["第2ページ","付表 — 月別集計・経費領収書一覧"],
+            ["第3ページ","売上明細・提出チェックリスト・控除記入欄"],
+          ].map(([p,d])=>(
+            <div key={p} className="row" style={{gap:8,padding:"4px 0",borderBottom:"1px solid var(--sep)"}}>
+              <span className="bdg dbl" style={{flexShrink:0,width:70,justifyContent:"center"}}>{p}</span>
+              <span className="sm">{d}</span>
+            </div>
           ))}
         </div>
-        <div className="xs cmu mt8">※ 開始年の3月15日までに「青色申告承認申請書」を税務署に提出が必要</div>
+        <button className="btn bp mt12" style={{width:"100%",fontSize:15,padding:"12px"}} onClick={handlePrint}>
+          🖨️　{year}年分 申告書類を印刷する
+        </button>
+        <div className="xs cmu mt8">※ 印刷後、マイナンバー・各種控除額を手書きで記入してください</div>
+      </div>
+
+      {/* 収支内訳書プレビュー */}
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>📊 収支内訳書　プレビュー（{year}年分）</div>
+        {/* 売上 */}
+        <div style={{marginBottom:12}}>
+          <div className="fl" style={{marginBottom:6}}>① 売上金額（四半期別）</div>
+          <div className="g4" style={{gap:6}}>
+            {q4.map(q=>(
+              <div key={q.q} style={{background:"rgba(0,122,255,.06)",borderRadius:8,padding:"7px 10px",border:"1px solid rgba(0,122,255,.15)"}}>
+                <div className="xs cmu">第{q.q}期</div>
+                <div className="b6 sm cbl">{fmt(q.s)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="rb mt8" style={{padding:"6px 10px",background:"rgba(0,122,255,.06)",borderRadius:8}}>
+            <span className="b6">年間売上合計</span><span className="b7 cbl" style={{fontSize:16}}>{fmt(tS)}</span>
+          </div>
+        </div>
+        {/* 経費 */}
+        <div style={{marginBottom:12}}>
+          <div className="fl" style={{marginBottom:6}}>② 必要経費の内訳</div>
+          <div className="lst">
+            {EXP_ROWS.filter(r=>kGroup[r.key]).map(r=>(
+              <div key={r.key} className="rb li" style={{padding:"7px 12px"}}>
+                <span className="sm">{r.label}</span>
+                <span className="sm b6">{fmt(kGroup[r.key])}</span>
+              </div>
+            ))}
+            {Object.keys(kGroup).filter(k=>!EXP_ROWS.find(r=>r.key===k)).map(k=>(
+              <div key={k} className="rb li" style={{padding:"7px 12px"}}>
+                <span className="sm">{k}</span><span className="sm b6">{fmt(kGroup[k])}</span>
+              </div>
+            ))}
+            {!Object.keys(kGroup).length&&<div className="li cmu" style={{justifyContent:"center"}}>経費データなし</div>}
+          </div>
+          <div className="rb mt6" style={{padding:"6px 10px",background:"rgba(255,149,0,.08)",borderRadius:8}}>
+            <span className="b6">必要経費合計</span><span className="b7" style={{fontSize:16,color:"var(--or)"}}>{fmt(tE)}</span>
+          </div>
+        </div>
+        {/* 所得 */}
+        <div style={{padding:"10px 14px",background:prof>=0?"rgba(52,199,89,.08)":"rgba(255,59,48,.06)",borderRadius:10,border:`2px solid ${prof>=0?"rgba(52,199,89,.3)":"rgba(255,59,48,.3)"}`}}>
+          <div className="rb">
+            <span style={{fontWeight:700}}>③ 所得金額（概算）</span>
+            <span style={{fontSize:22,fontWeight:800,color:prof>=0?"var(--gr)":"var(--re)"}}>{fmt(prof)}</span>
+          </div>
+          <div className="xs cmu mt4">売上 {fmt(tS)} ー 経費 {fmt(tE)}</div>
+          <div className="xs cmu mt4">※ 各種控除を差し引いた後の課税所得に税率をかけて税額が決まります</div>
+        </div>
+      </div>
+
+      {/* 月別テーブル */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"10px 14px 8px",fontWeight:700,fontSize:13,borderBottom:"1px solid var(--sep)"}}>月別 売上・経費・利益</div>
+        <div style={{overflowX:"auto"}}>
+          <table className="tbl" style={{minWidth:420}}>
+            <thead><tr>{["月","売上","経費","利益","利益率"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {monthly.map(d=>(
+                <tr key={d.m}>
+                  <td className="b6">{d.m}月</td>
+                  <td style={{textAlign:"right",color:"var(--bl)",fontWeight:600,fontSize:13}}>{d.s?fmt(d.s):"—"}</td>
+                  <td style={{textAlign:"right",color:"var(--or)",fontSize:13}}>{d.e?fmt(d.e):"—"}</td>
+                  <td style={{textAlign:"right",fontWeight:700,fontSize:13,color:d.p<0?"var(--re)":"var(--lb)"}}>{d.s||d.e?fmt(d.p):"—"}</td>
+                  <td style={{textAlign:"right",fontSize:11,color:"var(--lb2)"}}>{d.s?`${Math.round(d.p/d.s*100)}%`:"—"}</td>
+                </tr>
+              ))}
+              <tr style={{background:"var(--grp)",fontWeight:700}}>
+                <td>合計</td>
+                <td style={{textAlign:"right",color:"var(--bl)",fontSize:13}}>{fmt(tS)}</td>
+                <td style={{textAlign:"right",color:"var(--or)",fontSize:13}}>{fmt(tE)}</td>
+                <td style={{textAlign:"right",fontSize:13,color:prof>=0?"var(--lb)":"var(--re)"}}>{fmt(prof)}</td>
+                <td style={{textAlign:"right",fontSize:11}}>{tS?`${Math.round(prof/tS*100)}%`:"—"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 注意書き */}
+      <div className="card" style={{background:"rgba(255,149,0,.06)",border:"1px solid rgba(255,149,0,.25)"}}>
+        <div className="row mb6" style={{gap:6}}><Ico e="⚠️" bg="rgba(255,149,0,.12)" sz={13}/><span className="b6 sm">申告にあたっての注意事項</span></div>
+        <div className="stk xs cmu" style={{gap:4,lineHeight:1.7}}>
+          <div>・売上金額は「税抜き」で記入するのが原則です（消費税課税事業者の場合）</div>
+          <div>・領収書のない経費は否認されることがあります（7年間保存）</div>
+          <div>・所得金額から基礎控除48万円・社会保険料控除等を引いた「課税所得」に税率を適用します</div>
+          <div>・申告期限：{year+1}年3月17日（月）　納付期限：同日</div>
+          <div>・青色申告に切り替えると最大65万円の特別控除が受けられます（前年3月15日までに申請必要）</div>
+        </div>
       </div>
     </div>
   );
@@ -1820,7 +2248,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🏢 自社情報</div>
         <div className="stk">
-          <SettingsField label="会社名・屋号" placeholder="鈴木板金塗装" value={form.shopName} onChange={upd("shopName")}/>
+          <SettingsField label="会社名・屋号" placeholder="鈴木鈑金塗装" value={form.shopName} onChange={upd("shopName")}/>
           <SettingsField label="住所" placeholder="〒000-0000 東京都○○区" value={form.shopAddress} onChange={upd("shopAddress")}/>
           <SettingsField label="電話番号" placeholder="03-0000-0000" value={form.shopTel} onChange={upd("shopTel")}/>
           <SettingsField label="FAX番号" placeholder="03-0000-0001" value={form.shopFax} onChange={upd("shopFax")} opt/>
@@ -1861,6 +2289,34 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
             <div className="xs cmu mb4">代行料 税込プレビュー</div>
             <div className="b7 cbl">{fmt(calcDaiko(form.daiko||10000,form.daikoTax??0.1))}</div>
           </div>
+        </div>
+      </div>
+
+      {/* 単位管理 */}
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>📏 単位マスタ管理</div>
+        <div className="xs cmu" style={{marginBottom:11}}>見積・請求書の明細で使用できる単位を登録・削除できます。</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:12}}>
+          {(form.unitList||DEF_UNIT_LIST).map((u,i)=>(
+            <div key={i} style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--grp)",borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:600}}>
+              <span>{u}</span>
+              <button onClick={()=>setForm(f=>({...f,unitList:(f.unitList||DEF_UNIT_LIST).filter((_,idx)=>idx!==i)}))}
+                style={{background:"none",border:"none",cursor:"pointer",color:"var(--re)",fontSize:14,lineHeight:1,padding:"0 2px",fontWeight:700}}>×</button>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {(()=>{
+            const[newUnit,setNewUnit]=React.useState("");
+            return(
+              <>
+                <input className="inp" style={{flex:1}} placeholder="新しい単位を入力（例：箱）" value={newUnit}
+                  onChange={e=>setNewUnit(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&newUnit.trim()){setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),newUnit.trim()]}));setNewUnit("");}}}/>
+                <button className="btn bp bsm" onClick={()=>{if(newUnit.trim()){setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),newUnit.trim()]}));setNewUnit("");}}} style={{flexShrink:0}}>追加</button>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -1909,7 +2365,7 @@ function DataManager({db,onImport,onExport}){
 }
 
 // ── WorkLog ────────────────────────────────────────────────
-const WL_TAGS=["板金","塗装","車検","整備","板金塗装","外装","内装","エンジン","電装","タイヤ","ガラス","その他"];
+const WL_TAGS=["鈑金","塗装","車検","整備","鈑金塗装","外装","内装","エンジン","電装","タイヤ","ガラス","その他"];
 const WL_STATUS=["作業中","完了","保留"];
 
 function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
@@ -2214,7 +2670,7 @@ export default function App(){
       <G/>
       <div className="app">
         <nav className="sb np">
-          <div className="sbl"><h1>🔧 板金会計</h1><p>AutoRepair ERP · {settings.shopName}</p></div>
+          <div className="sbl"><h1>🔧 鈑金会計</h1><p>AutoRepair ERP · {settings.shopName}</p></div>
           <div style={{flex:1,overflow:"auto",padding:"5px 0"}}>
             <div className="ns">メニュー</div>
             {PAGES.map(p=>(
