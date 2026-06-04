@@ -410,11 +410,11 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:15mm 12mm;}
+@page{size:A4 portrait;margin:10mm 12mm;}
 html,body{height:100%;}
 body{
   font-family:'Noto Sans JP',-apple-system,sans-serif;
-  font-size:13px;color:#000;
+  font-size:12px;color:#000;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
   display:flex;flex-direction:column;min-height:100%;
 }
@@ -427,10 +427,10 @@ body{
 .detail-table thead{display:table-header-group;}
 .detail-table tfoot{display:table-footer-group;}
 .detail-table tbody tr{page-break-inside:avoid;}
-.detail-table td,.detail-table th{padding:8px 10px;font-size:12px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
+.detail-table td,.detail-table th{padding:6px 8px;font-size:11px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
 .detail-spacer{flex:1;border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
 .detail-spacer td{border-bottom:none;}
-.summary-block{page-break-inside:avoid;}
+.summary-block{page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 </style>`;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}</body></html>`);
@@ -453,8 +453,8 @@ body{
       <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
-        <div style={{background:theme.accent,padding:"8px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{color:"#fff",fontSize:20,fontWeight:800,letterSpacing:2}}>{ttl}</div>
+        <div style={{background:theme.accent,padding:"6px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{color:"#fff",fontSize:18,fontWeight:800,letterSpacing:2}}>{ttl}</div>
           <div style={{color:"rgba(255,255,255,.85)",fontSize:11,display:"flex",gap:18}}>
             <span>{doc.date||today()}</span>
             {doc.id&&<span>No. {doc.id}</span>}
@@ -462,7 +462,7 @@ body{
         </div>
 
         {/* ━━ 上段：左＝顧客情報、右＝会社情報 ━━ */}
-        <div style={{display:"flex",gap:0,padding:"18px 20px 0",borderBottom:`1px solid ${theme.border}`}}>
+        <div style={{display:"flex",gap:0,padding:"10px 16px 0",borderBottom:`1px solid ${theme.border}`}}>
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
@@ -471,7 +471,7 @@ body{
               車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
             </div>}
             {/* 文面ボックス */}
-            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"10px 12px",marginTop:8,marginBottom:14,fontSize:11,lineHeight:1.8,background:"#fafafa",minHeight:90}}>
+            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"7px 12px",marginTop:6,marginBottom:10,fontSize:11,lineHeight:1.7,background:"#fafafa",minHeight:70}}>
               <div>毎度お引き立てありがとうございます。</div>
               <div>下記の通りご請求申し上げます。</div>
               <div style={{marginTop:6}}>※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。</div>
@@ -560,7 +560,8 @@ body{
               {desc:"整備料", amt:null, note:"", isFixed:true, isSeparator:true},
             ]:[];
             const allRows=[...fixedRows,...(doc.items||[])];
-            const blankCount=Math.max(0, Math.min(10, 16-allRows.length));
+            const maxRows=type==="shakken"?8:type==="combined"?12:14;
+            const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+2));
             let rowIdx=0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
