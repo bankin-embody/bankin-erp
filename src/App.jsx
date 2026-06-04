@@ -782,7 +782,7 @@ function ShakkenShoOCR({onResult,onClose}){
       const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         model:"claude-sonnet-4-20250514",max_tokens:800,
         messages:[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:b64}},
+          {type:"image",source:{type:"base64",media_type:file.type&&file.type.startsWith("image/")?file.type:"image/jpeg",data:b64}},
           {type:"text",text:`この車検証の画像から以下の情報をJSONで抽出してください。必ずJSONのみ返してください（マークダウン不要）。
 {
   "carName": "車名＋型式（例: トヨタ プリウス ZVW50）",
@@ -794,12 +794,14 @@ function ShakkenShoOCR({onResult,onClose}){
 }`}
         ]}]
       })});
+      if(!resp.ok){const t=await resp.text();throw new Error(`API Error ${resp.status}: ${t.slice(0,200)}`);}
       const d=await resp.json();
+      if(d.error)throw new Error(d.error.message||JSON.stringify(d.error));
       const txt=(d.content||[]).map(c=>c.text||"").join("");
       const clean=txt.replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(clean);
       onResult(parsed);
-    }catch(e){setErr("読み取りに失敗しました。手動で入力してください。");}
+    }catch(e){setErr(`読み取り失敗: ${e.message}`);console.error(e);}
     setLoading(false);
   };
   return(
