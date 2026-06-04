@@ -185,10 +185,10 @@ const IC=[
   {id:3,lastName:"鈴木",firstName:"一郎",phone:"090-1111-2222",email:"suzuki@example.com",address:"埼玉県さいたま市7-8-9",note:"法人",
    vehicles:[{id:1,carName:"ハイエース",plateNo:"大宮100う9999",chassisNo:"TRH200K789",firstReg:"2018-03",carType:"貨物",weight:2.0}]},
 ];
-const IQ=[{id:"Q-2026-001",customerId:1,date:"2026-05-15",items:[{desc:"フロントバンパー修理",qty:1,unit:45000},{desc:"塗装（パール）",qty:1,unit:28000}],tax:0.1,status:"承認済",note:""}];
+const IQ=[{id:"1",customerId:1,date:"2026-05-15",items:[{desc:"フロントバンパー修理",qty:1,unit:45000},{desc:"塗装（パール）",qty:1,unit:28000}],tax:0.1,status:"承認済",note:""}];
 const II=[
-  {id:"INV-2026-001",type:"repair",customerId:1,vehicleId:1,date:"2026-05-01",dueDate:"2026-05-31",items:[{desc:"フェンダー修理一式",qty:1,unit:68000}],tax:0.1,status:"入金済",note:""},
-  {id:"INV-2026-002",type:"shakken",customerId:2,vehicleId:1,date:"2026-05-08",dueDate:"2026-05-31",items:[{desc:"車検整備一式",qty:1,unit:45000}],tax:0.1,status:"未入金",note:"",
+  {id:"1",type:"repair",customerId:1,vehicleId:1,date:"2026-05-01",dueDate:"2026-05-31",items:[{desc:"フェンダー修理一式",qty:1,unit:68000}],tax:0.1,status:"入金済",note:""},
+  {id:"2",type:"shakken",customerId:2,vehicleId:1,date:"2026-05-08",dueDate:"2026-05-31",items:[{desc:"車検整備一式",qty:1,unit:45000}],tax:0.1,status:"未入金",note:"",
    shakken:{jibaiseki:17650,juryozei:16400,kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1}},
 ];
 const IE=[
@@ -475,7 +475,6 @@ body{
               <div>毎度お引き立てありがとうございます。</div>
               <div>下記の通りご請求申し上げます。</div>
               <div style={{marginTop:6}}>※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。</div>
-              {settings.invoiceNo&&<div style={{marginTop:4}}>登録番号：{settings.invoiceNo}</div>}
             </div>
           </div>
 
@@ -1064,16 +1063,16 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv}){
 
 function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);
-  const mkQId=arr=>`Q-${new Date().getFullYear()}-${String(nextId(arr.map(q=>({id:q.id.replace(/\D/g,"")})))).padStart(3,"0")}`;
+  const mkQId=arr=>String(nextId(arr.map(q=>({id:q.id.replace(/\D/g,"")}))));
   const save=form=>{
     if(modal==="add")setQuotes(p=>[...p,{...form,id:mkQId(p)}]);
     else setQuotes(p=>p.map(q=>q.id===modal.id?{...form,id:q.id}:q));
     setModal(null);
   };
   const toInv=form=>{
-    const nid=`INV-${new Date().getFullYear()}-${String(nextId(invoices.map(i=>({id:i.id.replace(/\D/g,"")})))).padStart(3,"0")}`;
+    const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")}))));
     setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
-    setModal(null);alert(`請求書 ${nid} に変換しました`);
+    setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null}/>;
   if(print) return <PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} settings={settings} onClose={()=>setPrint(null)}/>;
@@ -1289,8 +1288,7 @@ function Invoices({invoices,setInvoices,customers,settings}){
     return true;
   });
   const save=form=>{
-    const ib=invoices.map(i=>({id:i.id.replace(/\D/g,"")}));
-    if(modal.doc===null)setInvoices(p=>[...p,{...form,id:`INV-${new Date().getFullYear()}-${String(nextId(ib)).padStart(3,"0")}`}]);
+    if(modal.doc===null)setInvoices(p=>[...p,{...form,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
     else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
     setModal(null);
   };
