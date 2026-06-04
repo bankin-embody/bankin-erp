@@ -914,12 +914,12 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:18}}>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>姓（会社名） <span style={{color:"var(--re)"}}>*</span></div>
-          <input className="inp" placeholder="例：山田" value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>顧客名・会社名 <span style={{color:"var(--re)"}}>*</span></div>
+          <input className="inp" placeholder="例：山田太郎 / 株式会社〇〇" value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>名（ふりがな） <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
-          <input className="inp" placeholder="例：太郎" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>読み仮名 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <input className="inp" placeholder="例：ヤマダタロウ" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{color:"var(--re)"}}>*</span></div>
