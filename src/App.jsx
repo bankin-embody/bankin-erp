@@ -560,7 +560,7 @@ body{
               {desc:"整備料", amt:null, note:"", isFixed:true, isSeparator:true},
             ]:[];
             const allRows=[...fixedRows,...(doc.items||[])];
-            const blankCount=Math.max(0, Math.min(15, 20-allRows.length));
+            const blankCount=Math.max(0, Math.min(10, 16-allRows.length));
             let rowIdx=0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
@@ -644,7 +644,7 @@ body{
 
         {/* ━━ 合計欄 ━━ */}
         {type!=="combined"&&(
-          <div className="summary-block" style={{display:"flex",justifyContent:"flex-end",padding:"16px 20px",pageBreakInside:"avoid"}}>
+          <div className="summary-block" style={{display:"flex",justifyContent:"flex-end",padding:"16px 20px",pageBreakInside:"avoid",pageBreakBefore:"avoid",breakBefore:"avoid",breakInside:"avoid"}}>
             <div style={{width:280,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden"}}>
               {isS?(
                 // 車検：整備費合計 + 合計のみ（内訳は明細に表示済み）
