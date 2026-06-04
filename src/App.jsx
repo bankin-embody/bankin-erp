@@ -105,6 +105,9 @@ const G = () => (
     .tbl tr:last-child td{border-bottom:none;}
     .tbl tr:hover td{background:var(--fi2);}
     @media print{
+      @page{margin:10mm;size:A4;}
+      @page{margin-top:10mm;margin-bottom:10mm;}
+      html,body{margin:0;padding:0;}
       @page{size:A4 portrait;margin:15mm 12mm;}
       *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
       .np{display:none!important;}
