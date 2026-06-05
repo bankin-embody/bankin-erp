@@ -174,7 +174,7 @@ const DEF_SETTINGS={
   shopTel:"03-0000-0000",shopFax:"",shopEmail:"info@suzuki-bankin.co.jp",
   invoiceNo:"T1234567890123",
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
-  kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,
+  kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,gaiChuDaiko:7000,gaiChuDaikoTax:0.1,
   unitList:DEF_UNIT_LIST,
 };
 
@@ -1168,7 +1168,7 @@ const DEF_SHAKKEN_ITEMS=[
 ];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1};
+  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1,_fromSettings:true};
   const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
@@ -1241,7 +1241,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             <div className="fr" style={{background:"rgba(255,149,0,.06)",borderRadius:8,margin:"4px 0"}}>
               <div style={{flex:1,minWidth:0}}>
                 <div className="sm b6">🔧 外注先への代行料 <span className="bdg dgy" style={{marginLeft:4}}>外注費</span></div>
-                <div className="xs cmu">外注先への支払額（税抜）— 保存時に経費へ自動登録</div>
+                <div className="xs cmu">設定のデフォルト値を反映 — 保存時に経費へ自動登録</div>
                 {(form.shakken.daiko||0)>(form.shakken.gaiChuDaiko||0)&&(form.shakken.gaiChuDaiko||0)>0&&(
                   <div className="xs" style={{color:"#34C759",fontWeight:700,marginTop:2}}>粗利: {fmt(calcDaiko(form.shakken.daiko,form.shakken.daikoTax??settings.daikoTax)-calcDaiko(form.shakken.gaiChuDaiko,form.shakken.gaiChuDaikoTax??0.1))}</div>
                 )}
@@ -2329,6 +2329,21 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
             <div className="xs cmu mb4">代行料 税込プレビュー</div>
             <div className="b7 cbl">{fmt(calcDaiko(form.daiko||10000,form.daikoTax??0.1))}</div>
+          </div>
+          <div style={{borderTop:"1px solid var(--sep)",paddingTop:12,marginTop:4}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔧 外注先への代行料（デフォルト）</div>
+            <div className="g2" style={{gap:9}}>
+              <SettingsField label="外注先代行料（税抜・円）" placeholder="7000" type="number" value={form.gaiChuDaiko||0} onChange={updN("gaiChuDaiko")}/>
+              <Fld label="外注先 消費税率">
+                <select className="sel" value={form.gaiChuDaikoTax??0.1} onChange={e=>setForm(f=>({...f,gaiChuDaikoTax:Number(e.target.value)}))}>
+                  <option value={0.1}>10%</option><option value={0.08}>8%</option>
+                </select>
+              </Fld>
+            </div>
+            <div className="card" style={{background:"rgba(255,149,0,.06)",border:"1px solid rgba(255,149,0,.2)"}}>
+              <div className="xs cmu mb4">粗利プレビュー（代行料 − 外注費）</div>
+              <div className="b7" style={{color:"#FF9500"}}>{fmt(calcDaiko(form.daiko||10000,form.daikoTax??0.1)-Math.floor((form.gaiChuDaiko||0)*(1+(form.gaiChuDaikoTax??0.1))))}</div>
+            </div>
           </div>
         </div>
       </div>
