@@ -147,7 +147,16 @@ const CAR_TYPE_GROUPS=[
 const CAR_TYPES=Object.keys(JIBAISEKI);
 const JURYOZEI={0.5:8200,1.0:16400,1.5:24600,2.0:32800,2.5:41000,3.0:49200,3.5:57400,4.0:65600};
 const WEIGHTS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0];
-const EXP_CAT=["材料費","消耗品費","光熱費","工具費","外注費","交通費","広告費","通信費","その他"];
+const EXP_CAT=[
+  // 売上原価・材料
+  "材料費","塗料・塗装材料費","部品・パーツ代","外注費・下請費",
+  // 労務・人件費
+  "給与・賃金","法定福利費","福利厚生費",
+  // 経費
+  "消耗品費","工具・器具費","修繕費","車両費","ガソリン代","駐車場代",
+  "地代家賃","水道光熱費","通信費","広告宣伝費","接待交際費",
+  "旅費交通費","新聞図書費","保険料","租税公課","減価償却費","雑費"
+];
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
@@ -1573,12 +1582,11 @@ function Expenses({expenses,setExpenses}){
               if(!form.desc)return;
               setForm(f=>({...f,aiLoading:true}));
               try{
-                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答。
-カテゴリ: ${EXP_CAT.join("、")}
-摘要: ${form.desc}`}]})});
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
-                const cat=d.content?.[0]?.text?.trim();
-                if(EXP_CAT.includes(cat))setForm(f=>({...f,category:cat,aiLoading:false}));
+                const cat=(d.content?.[0]?.text||"").trim();
+                const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
+                if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
                 else setForm(f=>({...f,aiLoading:false}));
               }catch{setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
