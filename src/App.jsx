@@ -554,17 +554,18 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
                 <colgroup>
                   <col style={{width:"auto"}}/>
-                  <col style={{width:52}}/>
-                  <col style={{width:52}}/>
+                  <col style={{width:44}}/>
+                  <col style={{width:44}}/>
+                  <col style={{width:72}}/>
+                  <col style={{width:72}}/>
                   <col style={{width:80}}/>
-                  <col style={{width:90}}/>
-                  <col style={{width:90}}/>
+                  <col style={{width:72}}/>
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
-                    {["品名","数量","単位","単価","金額","備考"].map(h=>(
+                    {["品名","数量","単位","部品代","技術料","金額","備考"].map(h=>(
                       <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
-                        textAlign:["金額","単価"].includes(h)?"right":"left",
+                        textAlign:["金額","部品代","技術料"].includes(h)?"right":"left",
                         borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
@@ -579,6 +580,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unitLabel||"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
                       </tr>
@@ -590,6 +592,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
                     return(
                       <tr key={`blank-${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:bgIdx%2===0?"#fff":theme.light}}>
                         <td style={{padding:"8px 10px",height:32}}/>
+                        <td style={{borderLeft:`1px solid ${theme.border}`}}/>
                         <td style={{borderLeft:`1px solid ${theme.border}`}}/>
                         <td style={{borderLeft:`1px solid ${theme.border}`}}/>
                         <td style={{borderLeft:`1px solid ${theme.border}`}}/>
