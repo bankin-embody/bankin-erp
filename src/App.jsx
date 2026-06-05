@@ -404,42 +404,35 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const grand=wT+gov+daikoWT;
   const theme=getDocTheme(type,doc);
   const ttl=theme.label;
-  const doPrint=(mono=false)=>{
+  const doPrint=()=>{
     const el=document.getElementById("print-area");
     if(!el)return;
     const w=window.open("","_blank","width=820,height=1100");
     if(!w)return;
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-    const monoStyle=mono?`*{color:#000!important;background:#fff!important;border-color:#999!important;}.copy-label{display:block!important;}`:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:10mm 12mm;}
 html,body{height:100%;}
-body{
-  font-family:'Noto Sans JP',-apple-system,sans-serif;
-  font-size:12px;color:#000;
-  -webkit-print-color-adjust:exact;print-color-adjust:exact;
-  display:flex;flex-direction:column;min-height:100%;
-}
-#print-area{
-  display:flex;flex-direction:column;flex:1;min-height:100%;
-  border-radius:0!important;border:none!important;box-shadow:none!important;
-}
+body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:12px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.page{display:flex;flex-direction:column;min-height:100vh;page-break-after:always;}
+.page:last-child{page-break-after:auto;}
+#print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .detail-wrap{flex:1;display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .detail-table thead{display:table-header-group;}
-.detail-table tfoot{display:table-footer-group;}
 .detail-table tbody tr{page-break-inside:avoid;}
 .detail-table td,.detail-table th{padding:6px 8px;font-size:11px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
 .detail-spacer{flex:1;border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
-.detail-spacer td{border-bottom:none;}
 .summary-block{page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
-.copy-label{display:none;position:fixed;top:8mm;left:10mm;font-size:14px;font-weight:800;color:#444;border:2px solid #444;padding:3px 12px;border-radius:4px;letter-spacing:2px;}
-${monoStyle}
+.copy-label{display:block;position:fixed;top:8mm;left:10mm;font-size:14px;font-weight:800;color:#444;border:2px solid #444;padding:3px 12px;border-radius:4px;letter-spacing:2px;}
+/* 2ページ目（控え）は白黒 */
+.mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
 </style>`;
-    const copyLabel=`<div class="copy-label">【控え】</div>`;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${el.innerHTML}${copyLabel}</body></html>`);
+    const colorPage=`<div class="page">${el.innerHTML}</div>`;
+    const monoPage=`<div class="page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`);
     w.document.close();
     w.onload=()=>{w.focus();w.print();};
   };
@@ -448,8 +441,7 @@ ${monoStyle}
       <div className="rb np">
         <div style={{fontSize:17,fontWeight:800}}>{theme.emoji} {ttl} 印刷プレビュー</div>
         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          <button className="btn bp" onClick={()=>doPrint(false)}>🖨️ お客様用（カラー）</button>
-          <button className="btn bs" onClick={()=>doPrint(true)}>🖨️ 控え（白黒）</button>
+          <button className="btn bp" onClick={doPrint}>🖨️ 印刷する（お客様用＋控え）</button>
           <button className="btn bs" onClick={onClose}>← 戻る</button>
         </div>
       </div>
@@ -672,9 +664,8 @@ ${monoStyle}
       </div>
 
       {/* 下部にも印刷ボタン */}
-      <div className="np" style={{display:"flex",gap:9,justifyContent:"center",paddingBottom:8,flexWrap:"wrap"}}>
-        <button className="btn bp" style={{padding:"12px 32px",fontSize:15}} onClick={()=>doPrint(false)}>🖨️ お客様用（カラー）</button>
-        <button className="btn bs" style={{padding:"12px 24px",fontSize:15}} onClick={()=>doPrint(true)}>🖨️ 控え（白黒）</button>
+      <div className="np" style={{display:"flex",gap:9,justifyContent:"center",paddingBottom:8}}>
+        <button className="btn bp" style={{padding:"12px 32px",fontSize:15}} onClick={doPrint}>🖨️ 印刷する（お客様用＋控え）</button>
         <button className="btn bs" onClick={onClose}>← 戻る</button>
       </div>
     </div>
