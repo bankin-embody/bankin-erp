@@ -1168,7 +1168,7 @@ const DEF_SHAKKEN_ITEMS=[
 ];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax};
+  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1};
   const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
@@ -1232,10 +1232,23 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               </div>
             ))}
             <div className="fr">
-              <div style={{flex:1,minWidth:0}}><div className="sm b6">車検代行料 <span className="bdg dor" style={{marginLeft:4}}>課税</span></div><div className="xs cmu">消費税が加算されます</div></div>
+              <div style={{flex:1,minWidth:0}}><div className="sm b6">車検代行料 <span className="bdg dor" style={{marginLeft:4}}>課税</span></div><div className="xs cmu">お客様への請求額（税抜）</div></div>
               <div className="row" style={{gap:6}}>
                 <input type="number" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.daiko||0} onChange={e=>setS("daiko",e.target.value)}/>
                 <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.daikoTax??settings.daikoTax} onChange={e=>setS("daikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
+              </div>
+            </div>
+            <div className="fr" style={{background:"rgba(255,149,0,.06)",borderRadius:8,margin:"4px 0"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div className="sm b6">🔧 外注先への代行料 <span className="bdg dgy" style={{marginLeft:4}}>外注費</span></div>
+                <div className="xs cmu">外注先への支払額（税抜）— 保存時に経費へ自動登録</div>
+                {(form.shakken.daiko||0)>(form.shakken.gaiChuDaiko||0)&&(form.shakken.gaiChuDaiko||0)>0&&(
+                  <div className="xs" style={{color:"#34C759",fontWeight:700,marginTop:2}}>粗利: {fmt(calcDaiko(form.shakken.daiko,form.shakken.daikoTax??settings.daikoTax)-calcDaiko(form.shakken.gaiChuDaiko,form.shakken.gaiChuDaikoTax??0.1))}</div>
+                )}
+              </div>
+              <div className="row" style={{gap:6}}>
+                <input type="number" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.gaiChuDaiko||0} onChange={e=>setS("gaiChuDaiko",e.target.value)}/>
+                <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.gaiChuDaikoTax??0.1} onChange={e=>setS("gaiChuDaikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
               </div>
             </div>
           </div>
@@ -1276,7 +1289,13 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
 
         <div className="card" style={{background:"var(--grp)"}}>
           <div className="xs cmu" style={{fontWeight:700,marginBottom:7}}>金額内訳</div>
-          {[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))]].map((row,i)=>
+          {(()=>{
+            const gaichu=form.shakken.gaiChuDaiko||0;
+            const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
+            const gaichuTotal=gaichu>0?Math.floor(gaichu*(1+gaichuTax)):0;
+            const profit=dWT-gaichuTotal;
+            return[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))],gaichu>0?null:undefined,gaichu>0?["🔧 外注先支払い（税込）",`-${fmt(gaichuTotal)}`]:undefined,gaichu>0?["　代行料粗利",fmt(profit)]:undefined].filter(r=>r!==undefined);
+          })().map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
             <div key={i} className="rb" style={{padding:"3px 0"}}><span className="xs cmu">{row[0]}</span><span className="sm">{row[1]}</span></div>
           )}
@@ -1365,7 +1384,7 @@ function PaymentModal({inv,total,onSave,onClose}){
   );
 }
 
-function Invoices({invoices,setInvoices,customers,settings}){
+function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);const[printType,setPType]=useState("invoice");
   const[tab,setTab]=useState("all");const[tTab,setTTab]=useState("all");
   const[showTpl,setShowTpl]=useState(false);
@@ -1381,6 +1400,20 @@ function Invoices({invoices,setInvoices,customers,settings}){
   const save=form=>{
     if(modal.doc===null)setInvoices(p=>[...p,{...form,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
     else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
+    // 車検の場合、外注先代行料を経費に自動登録
+    if(form.type==="shakken"&&form.shakken?.gaiChuDaiko>0){
+      const gaichu=form.shakken.gaiChuDaiko;
+      const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
+      const gaichuTotal=Math.floor(gaichu*(1+gaichuTax));
+      const c=customers.find(c=>c.id===form.customerId);
+      const desc=`車検外注代行料（${c?fullName(c):""}）`;
+      // 既存の同一請求書IDの外注費があれば上書き、なければ追加
+      const invId=modal.doc===null?null:modal.doc.id;
+      setExpenses(p=>{
+        const filtered=invId?p.filter(e=>e._invId!==invId):p;
+        return [...filtered,{id:nextId(filtered),date:form.date,category:"外注費",desc,amount:gaichuTotal,receipt:false,_invId:form.id}];
+      });
+    }
     setModal(null);
   };
   if(modal?.mode==="repair") return <div className="stk fu"><RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/></div>;
@@ -1599,7 +1632,22 @@ function CashBook({invoices,expenses,settings}){
   const[month,setMonth]=useState(new Date().getMonth()+1);
   const gt=inv=>invTotal(inv,settings);
   const entries=[];
-  invoices.filter(i=>yr(i.date)===year&&mo(i.date)===month).forEach(inv=>{entries.push({date:inv.date,type:"収入",cat:inv.type==="shakken"?"車検":"鈑金修理",desc:inv.items.map(i=>i.desc).join("、"),amount:gt(inv),status:inv.status});});
+  invoices.filter(i=>yr(i.date)===year&&mo(i.date)===month).forEach(inv=>{
+    if(inv.type==="shakken"){
+      // 車検は外注のため、代行料のみ収入計上
+      const daikoRaw=inv.shakken?.daiko??settings.daiko??0;
+      const daikoTx=inv.shakken?.daikoTax??settings.daikoTax??0.1;
+      const daikoAmt=calcDaiko(daikoRaw,daikoTx);
+      // 整備費（自社作業分）も収入に加える
+      const{total:seibiFee}=calcItems(inv.items||[],inv.tax||0.1);
+      entries.push({date:inv.date,type:"収入",cat:"車検代行料",desc:"車検代行料"+(seibiFee>0?"・整備費":""),amount:daikoAmt+seibiFee,status:inv.status});
+      // 法定費用は外注費として支出計上（預り金扱い）
+      const govAmt=calcGovFees(inv.shakken||{});
+      if(govAmt>0)entries.push({date:inv.date,type:"支出",cat:"外注費",desc:"車検法定費用（自賠責・重量税等）",amount:govAmt,status:"確定"});
+    } else {
+      entries.push({date:inv.date,type:"収入",cat:"鈑金修理",desc:inv.items.map(i=>i.desc).join("、"),amount:gt(inv),status:inv.status});
+    }
+  });
   expenses.filter(e=>yr(e.date)===year&&mo(e.date)===month).forEach(exp=>{entries.push({date:exp.date,type:"支出",cat:exp.category,desc:exp.desc,amount:exp.amount,status:"確定"});});
   entries.sort((a,b)=>a.date.localeCompare(b.date));
   let bal=0;const rows=entries.map(e=>{if(e.type==="収入")bal+=e.amount;else bal-=e.amount;return{...e,bal};});
@@ -2645,7 +2693,7 @@ export default function App(){
       case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
-      case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} customers={customers} settings={settings}/>;
+      case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
       case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
