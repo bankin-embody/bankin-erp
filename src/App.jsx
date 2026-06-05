@@ -467,7 +467,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
               車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
             </div>}
             {/* 文面ボックス */}
-            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"7px 12px",marginTop:6,marginBottom:10,fontSize:11,lineHeight:1.7,background:"#fafafa",minHeight:70}}>
+            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"5px 12px",marginTop:4,marginBottom:8,fontSize:11,lineHeight:1.6,background:"#fafafa",minHeight:60}}>
               <div>毎度お引き立てありがとうございます。</div>
               <div>下記の通りご請求申し上げます。</div>
               <div style={{marginTop:6}}>※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。</div>
@@ -547,7 +547,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
             const sk=doc.shakken||{};
             // 固定費は合計欄に移動するので明細には含めない
             const allRows=[...(doc.items||[])];
-            const maxRows=type==="shakken"?16:type==="combined"?12:14;
+            const maxRows=type==="shakken"?6:type==="combined"?12:14;
             const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+2));
             let rowIdx=0;
             return(
@@ -606,12 +606,11 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 
         {/* ━━ 合計欄 ━━ */}
         {type!=="combined"&&(
-          <div className="summary-block" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",padding:"12px 20px",pageBreakInside:"avoid",pageBreakBefore:"avoid",breakBefore:"avoid",breakInside:"avoid",gap:16}}>
+          <div className="summary-block" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",padding:"8px 16px",pageBreakInside:"avoid",pageBreakBefore:"avoid",breakBefore:"avoid",breakInside:"avoid",gap:12}}>
             {isS?(
-              // 車検：左に法定費用内訳、右に合計
               <>
-                <div style={{flex:1,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden",fontSize:11}}>
-                  <div style={{background:theme.accent,color:"#fff",padding:"5px 12px",fontWeight:700,fontSize:11}}>法定費用・諸費用</div>
+                <div style={{flex:1,border:`1px solid ${theme.border}`,borderRadius:6,overflow:"hidden",fontSize:10}}>
+                  <div style={{background:theme.accent,color:"#fff",padding:"4px 10px",fontWeight:700,fontSize:10}}>法定費用・諸費用</div>
                   {[
                     [(doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険"), doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],
                     ["重量税", fmt(doc.shakken?.juryozei||0)],
@@ -620,27 +619,27 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
                     ["車検代行手数料", fmt(daikoRaw)],
                     [`　消費税（${Math.round(daikoTx*100)}%）`, fmt(daikoWT-daikoRaw)],
                   ].map(([l,v])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 12px",borderBottom:`1px solid ${theme.border}`,background:"#fafafa"}}>
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 10px",borderBottom:`1px solid ${theme.border}`,background:"#fafafa"}}>
                       <span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
                     </div>
                   ))}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"5px 12px",background:theme.light,fontWeight:700}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"4px 10px",background:theme.light,fontWeight:700}}>
                     <span>法定費用合計</span><span>{fmt(gov+daikoWT)}</span>
                   </div>
                 </div>
-                <div style={{width:240,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden"}}>
+                <div style={{width:220,border:`1px solid ${theme.border}`,borderRadius:6,overflow:"hidden"}}>
                   {[
                     ["整備費（税抜）", fmt(sub)],
                     [`消費税（${Math.round((doc.tax||0.1)*100)}%）`, fmt(taxAmt)],
                     ["整備費合計（税込）", fmt(wT)],
                   ].map(([l,v])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 12px",borderBottom:`1px solid ${theme.border}`,fontSize:10,background:"#fafafa"}}>
                       <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
                     </div>
                   ))}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:theme.accent}}>
-                    <span style={{fontSize:13,fontWeight:800,color:"#fff"}}>お支払い合計</span>
-                    <span style={{fontSize:18,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:theme.accent}}>
+                    <span style={{fontSize:12,fontWeight:800,color:"#fff"}}>お支払い合計</span>
+                    <span style={{fontSize:16,fontWeight:800,color:"#fff"}}>{fmt(grand)}</span>
                   </div>
                 </div>
               </>
