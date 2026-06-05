@@ -185,6 +185,13 @@ const DEF_SETTINGS={
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
   kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,gaiChuDaiko:7000,gaiChuDaikoTax:0.1,
   unitList:DEF_UNIT_LIST,
+  workMaster:[
+    {id:1,desc:"バンパー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
+    {id:2,desc:"フェンダー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
+    {id:3,desc:"ドア修理・塗装",unit:"式",partsCost:0,gijutsu:0},
+    {id:4,desc:"塗装一式",unit:"式",partsCost:0,gijutsu:0},
+    {id:5,desc:"板金修理一式",unit:"式",partsCost:0,gijutsu:0},
+  ],
 };
 
 // ── Initial Data ───────────────────────────────────────────
@@ -462,7 +469,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
           <div style={{color:"#fff",fontSize:18,fontWeight:800,letterSpacing:2}}>{ttl}</div>
           <div style={{color:"rgba(255,255,255,.85)",fontSize:11,display:"flex",gap:18}}>
             <span>{doc.date||today()}</span>
-            {doc.id&&<span>No. {doc.id}</span>}
+            {doc.id&&<span>No. {String(doc.id).replace(/\D/g,"")}</span>}
           </div>
         </div>
 
@@ -1049,7 +1056,9 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
       <div><div className="fl">明細</div>
         <div className="lst">{form.items.map((it,i)=>(
           <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-            <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)} lang="ja" autoComplete="on" style={{imeMode:"active"}}/>
+            <div className="mb8" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+              <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.unit)setI(i,"unitLabel",w.unit);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
+            </div>
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
               <Fld label="単位">
@@ -1142,7 +1151,9 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
         <div><div className="fl">修理明細</div>
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-              <input className="inp mb8" placeholder="バンパー修理・塗装など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)} lang="ja" autoComplete="on" style={{imeMode:"active"}}/>
+              <div className="mb8" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
+              </div>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
                 <Fld label="単位">
@@ -1268,7 +1279,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
               <div className="rb mb8" style={{gap:8}}>
-                <input className="inp" style={{flex:1,imeMode:"active"}} placeholder="作業内容・品名" lang="ja" autoComplete="on" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
                 {it.inspType!==undefined&&(
                   <select className="sel" style={{width:110,flexShrink:0,fontSize:12}} value={it.inspType} onChange={e=>{
                     const t=e.target.value;
@@ -1584,11 +1595,14 @@ function Expenses({expenses,setExpenses}){
               try{
                 const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
+                console.log("AI仕分けレスポンス:",JSON.stringify(d));
                 const cat=(d.content?.[0]?.text||"").trim();
+                console.log("取得カテゴリ:",cat);
                 const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
+                console.log("マッチ結果:",matched);
                 if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
-                else setForm(f=>({...f,aiLoading:false}));
-              }catch{setForm(f=>({...f,aiLoading:false}));}
+                else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
+              }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
           </div>
         </Fld>
@@ -2227,7 +2241,96 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 }
 
 // ── Settings ───────────────────────────────────────────────
-// Settings用入力フィールド（React.memoでiPhoneキーボード対策）
+// ── 作業マスター サジェスト入力 ───────────────────────────
+function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業内容・品名"}){
+  const[show,setShow]=useState(false);
+  const[focused,setFocused]=useState(false);
+  const filtered=(workMaster||[]).filter(w=>w.desc.includes(value)&&value.length>0);
+  return(
+    <div style={{position:"relative",flex:1}}>
+      <input className="inp" placeholder={placeholder} value={value}
+        onChange={e=>{onChange(e.target.value);setShow(true);}}
+        onFocus={()=>{setFocused(true);setShow(true);}}
+        onBlur={()=>{setTimeout(()=>setShow(false),200);}}
+      />
+      {show&&focused&&filtered.length>0&&(
+        <div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--bg2)",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"var(--sh)",zIndex:500,maxHeight:200,overflowY:"auto"}}>
+          {filtered.map(w=>(
+            <div key={w.id} onMouseDown={()=>{onSelect(w);setShow(false);}}
+              style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13}}
+              onMouseEnter={e=>e.currentTarget.style.background="var(--fi)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{fontWeight:600}}>{w.desc}</div>
+              <div style={{fontSize:11,color:"var(--lb3)"}}>
+                {w.unit&&`単位: ${w.unit}`}
+                {w.partsCost>0&&` / 部品代: ¥${w.partsCost.toLocaleString()}`}
+                {w.gijutsu>0&&` / 技術料: ¥${w.gijutsu.toLocaleString()}`}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 作業マスター管理（設定内） ─────────────────────────────
+function WorkMasterSettings({workMaster=[],onChange}){
+  const[editId,setEditId]=useState(null);
+  const[form,setForm]=useState({desc:"",unit:"式",partsCost:0,gijutsu:0});
+  const startEdit=w=>{setEditId(w.id);setForm({desc:w.desc,unit:w.unit,partsCost:w.partsCost,gijutsu:w.gijutsu});};
+  const startAdd=()=>{setEditId("new");setForm({desc:"",unit:"式",partsCost:0,gijutsu:0});};
+  const save=()=>{
+    if(!form.desc)return;
+    if(editId==="new")onChange([...workMaster,{...form,id:Date.now(),partsCost:Number(form.partsCost),gijutsu:Number(form.gijutsu)}]);
+    else onChange(workMaster.map(w=>w.id===editId?{...w,...form,partsCost:Number(form.partsCost),gijutsu:Number(form.gijutsu)}:w));
+    setEditId(null);
+  };
+  const del=id=>onChange(workMaster.filter(w=>w.id!==id));
+  return(
+    <div className="card">
+      <div className="rb mb12">
+        <div style={{fontSize:14,fontWeight:800}}>🔧 作業マスター</div>
+        <button className="btn bp bsm" onClick={startAdd}>＋ 追加</button>
+      </div>
+      {editId&&(
+        <div style={{background:"var(--fi2)",borderRadius:10,padding:"12px",marginBottom:12}}>
+          <div className="stk" style={{gap:8}}>
+            <Fld label="作業内容・品名"><input className="inp" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: バンパー修理・塗装"/></Fld>
+            <div className="g3" style={{gap:8}}>
+              <Fld label="単位"><input className="inp" value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} placeholder="式"/></Fld>
+              <Fld label="部品代（税抜）"><input type="number" className="inp" value={form.partsCost} onChange={e=>setForm(f=>({...f,partsCost:e.target.value}))}/></Fld>
+              <Fld label="技術料（税抜）"><input type="number" className="inp" value={form.gijutsu} onChange={e=>setForm(f=>({...f,gijutsu:e.target.value}))}/></Fld>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button className="btn bs bsm" onClick={()=>setEditId(null)}>キャンセル</button>
+              <button className="btn bp bsm" onClick={save}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="lst">
+        {workMaster.length===0&&<div className="li cmu" style={{justifyContent:"center"}}>マスター未登録</div>}
+        {workMaster.map(w=>(
+          <div key={w.id} className="fr">
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700}}>{w.desc}</div>
+              <div style={{fontSize:11,color:"var(--lb3)"}}>
+                {w.unit&&`${w.unit}`}
+                {w.partsCost>0&&` / 部品代 ¥${Number(w.partsCost).toLocaleString()}`}
+                {w.gijutsu>0&&` / 技術料 ¥${Number(w.gijutsu).toLocaleString()}`}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button className="btn bs bsm" onClick={()=>startEdit(w)}>編集</button>
+              <button className="btn bd bsm" onClick={()=>del(w.id)}>削除</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 const SettingsField=React.memo(function SettingsField({label,value,onChange,placeholder,type="text",opt=false}){
   return(
     <Fld label={label} opt={opt}>
@@ -2383,11 +2486,10 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           })()}
         </div>
       </div>
+      <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
     </div>
   );
 }
-
-// ── Data Manager ───────────────────────────────────────────
 function DataManager({db,onImport,onExport}){
   const[msg,setMsg]=useState(null);const fr=useRef();
   const handle=async e=>{
