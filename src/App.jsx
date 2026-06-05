@@ -458,7 +458,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
         </div>
 
         {/* ━━ 上段：左＝顧客情報、右＝会社情報 ━━ */}
-        <div style={{display:"flex",gap:0,padding:"10px 16px 0",borderBottom:`1px solid ${theme.border}`}}>
+        <div style={{display:"flex",gap:0,padding:"6px 16px 0",borderBottom:`1px solid ${theme.border}`}}>
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
@@ -547,8 +547,8 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
             const sk=doc.shakken||{};
             // 固定費は合計欄に移動するので明細には含めない
             const allRows=[...(doc.items||[])];
-            const maxRows=type==="shakken"?6:type==="combined"?12:14;
-            const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+2));
+            const maxRows=type==="shakken"?3:type==="combined"?12:14;
+            const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+1));
             let rowIdx=0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
