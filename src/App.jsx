@@ -1040,16 +1040,16 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
       <div><div className="fl">明細</div>
         <div className="lst">{form.items.map((it,i)=>(
           <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-            <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+            <input className="inp mb8" placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)} lang="ja" autoComplete="on" style={{imeMode:"active"}}/>
             <div className="g3" style={{gap:7}}>
-              <Fld label="数量"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+              <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
               <Fld label="単位">
                 <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
                   {unitList.map(u=><option key={u} value={u}>{u}</option>)}
                 </select>
               </Fld>
-              <Fld label="部品代（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
-              <Fld label="技術料（税抜）"><input type="number" className="inp" style={{padding:"11px 13px",fontSize:15}} value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+              <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+              <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
             </div>
             <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
           </div>
@@ -1133,16 +1133,16 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
         <div><div className="fl">修理明細</div>
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-              <input className="inp mb8" placeholder="バンパー修理・塗装など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+              <input className="inp mb8" placeholder="バンパー修理・塗装など" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)} lang="ja" autoComplete="on" style={{imeMode:"active"}}/>
               <div className="g3" style={{gap:7}}>
-                <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
                 <Fld label="単位">
                   <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
                     {unitList.map(u=><option key={u} value={u}>{u}</option>)}
                   </select>
                 </Fld>
-                <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
-                <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+                <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+                <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
@@ -1246,7 +1246,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
               <div className="rb mb8" style={{gap:8}}>
-                <input className="inp" style={{flex:1}} placeholder="作業内容・品名" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
+                <input className="inp" style={{flex:1,imeMode:"active"}} placeholder="作業内容・品名" lang="ja" autoComplete="on" value={it.desc} onChange={e=>setI(i,"desc",e.target.value)}/>
                 {it.inspType!==undefined&&(
                   <select className="sel" style={{width:110,flexShrink:0,fontSize:12}} value={it.inspType} onChange={e=>{
                     const t=e.target.value;
@@ -1259,14 +1259,14 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                 )}
               </div>
               <div className="g3" style={{gap:7}}>
-                <Fld label="数量"><input type="number" className="inp" value={it.qty} onChange={e=>setI(i,"qty",Number(e.target.value))}/></Fld>
+                <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
                 <Fld label="単位">
                   <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
                     {unitList.map(u=><option key={u} value={u}>{u}</option>)}
                   </select>
                 </Fld>
-                <Fld label="部品代（税抜）"><input type="number" className="inp" value={it.unit} onChange={e=>setI(i,"unit",Number(e.target.value))}/></Fld>
-                <Fld label="技術料（税抜）"><input type="number" className="inp" value={it.gijutsu||0} onChange={e=>setI(i,"gijutsu",Number(e.target.value))}/></Fld>
+                <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+                <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
