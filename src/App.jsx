@@ -412,22 +412,21 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:10mm 12mm;}
-html,body{height:100%;}
-body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:12px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.page{display:flex;flex-direction:column;min-height:100vh;page-break-after:always;}
+@page{size:A4 portrait;margin:8mm 10mm;}
+html,body{margin:0;padding:0;}
+body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.page{width:100%;page-break-after:always;position:relative;}
 .page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
-.detail-wrap{flex:1;display:flex;flex-direction:column;}
+.detail-wrap{display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .detail-table thead{display:table-header-group;}
 .detail-table tbody tr{page-break-inside:avoid;}
-.detail-table td,.detail-table th{padding:6px 8px;font-size:11px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
-.detail-spacer{flex:1;border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
+.detail-table td,.detail-table th{padding:5px 7px;font-size:10px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
+.detail-spacer{border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
 .summary-block{page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
-.copy-label{display:block;position:fixed;top:8mm;left:10mm;font-size:14px;font-weight:800;color:#444;border:2px solid #444;padding:3px 12px;border-radius:4px;letter-spacing:2px;}
-/* 2ページ目（控え）は白黒 */
+.copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
 </style>`;
     const colorPage=`<div class="page">${el.innerHTML}</div>`;
@@ -618,7 +617,8 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:12px;color:#0
                     ["重量税", fmt(doc.shakken?.juryozei||0)],
                     ["検査登録・証紙代", fmt(doc.shakken?.kensaShomei||settings.kensaShomei||0)],
                     ["技術情報管理料", fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri||0)],
-                    ["車検代行手数料", fmt(daikoWT)],
+                    ["車検代行手数料", fmt(daikoRaw)],
+                    [`　消費税（${Math.round(daikoTx*100)}%）`, fmt(daikoWT-daikoRaw)],
                   ].map(([l,v])=>(
                     <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 12px",borderBottom:`1px solid ${theme.border}`,background:"#fafafa"}}>
                       <span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
@@ -1274,7 +1274,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
 
         <div className="card" style={{background:"var(--grp)"}}>
           <div className="xs cmu" style={{fontWeight:700,marginBottom:7}}>金額内訳</div>
-          {[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,[`車検代行料（税込${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT)]].map((row,i)=>
+          {[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))]].map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
             <div key={i} className="rb" style={{padding:"3px 0"}}><span className="xs cmu">{row[0]}</span><span className="sm">{row[1]}</span></div>
           )}
