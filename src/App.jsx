@@ -144,9 +144,9 @@ const CAR_TYPE_GROUPS=[
   {label:"小型貨物",types:["小型貨物・自家用","小型貨物・営業用"]},
   {label:"二輪",types:["小型二輪250cc超"]},
 ];
-const CAR_TYPES=Object.keys(JIBAISEKI);
+const _CAR_TYPES=Object.keys(JIBAISEKI);
 const JURYOZEI={0.5:8200,1.0:16400,1.5:24600,2.0:32800,2.5:41000,3.0:49200,3.5:57400,4.0:65600};
-const WEIGHTS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0];
+const _WEIGHTS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0];
 const EXP_CAT=[
   // 売上原価・材料
   "材料費","塗料・塗装材料費","部品・パーツ代","外注費・下請費",
@@ -229,7 +229,7 @@ const doExport=db=>{
   const u=URL.createObjectURL(b);const a=document.createElement("a");
   a.href=u;a.download=`bankin_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`;a.click();URL.revokeObjectURL(u);
 };
-const doImport=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{res(JSON.parse(e.target.result))}catch{rej(new Error("JSON解析失敗"))}};r.onerror=()=>rej(new Error("読み込みエラー"));r.readAsText(f);});
+const doImport=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{res(JSON.parse(e.target.result as string))}catch{rej(new Error("JSON解析失敗"))}};r.onerror=()=>rej(new Error("読み込みエラー"));r.readAsText(f);});
 
 // ── Supabase Sync Layer ────────────────────────────────────
 const SB_KEY="bankin_supabase";
@@ -265,7 +265,7 @@ const sbSave=async(conf,db)=>{
 };
 
 // Supabase Realtime (websocket) — minimal implementation
-let sbChannel=null;
+// sbChannel removed (unused)
 const sbSubscribe=(conf,onUpdate)=>{
   if(!conf.url||!conf.anonKey)return ()=>{};
   // Supabase Realtime v2 websocket URL
@@ -541,48 +541,68 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 
         {/* ━━ 明細テーブル ━━ */}
         <div className="detail-wrap" style={{padding:"0"}}>
-          {type==="combined"?(
-            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-              <colgroup>
-                <col style={{width:60}}/>
-                <col style={{width:80}}/>
-                <col style={{width:"auto"}}/>
-                <col style={{width:100}}/>
-              </colgroup>
-              <thead>
-                <tr style={{background:theme.accent}}>
-                  {["No.","日付","内容","金額"].map((h,i)=>(
-                    <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",textAlign:i===3?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+          {type==="combined"?(()=>{
+            // 各請求書の明細を1行ずつ展開
+            const allRows=[];
+            (doc.allItems||[]).forEach(ci=>{
+              if(ci.items&&ci.items.length>0){
+                ci.items.forEach((it,idx)=>{
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,total:idx===0?ci.total:null});
+                });
+              }else{
+                allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,total:ci.total});
+              }
+            });
+            const blankCount=Math.max(0,12-allRows.length);
+            return(
+              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+                <colgroup>
+                  <col style={{width:45}}/>
+                  <col style={{width:70}}/>
+                  <col style={{width:"auto"}}/>
+                  <col style={{width:45}}/>
+                  <col style={{width:40}}/>
+                  <col style={{width:80}}/>
+                  <col style={{width:80}}/>
+                  <col style={{width:90}}/>
+                </colgroup>
+                <thead>
+                  <tr style={{background:theme.accent}}>
+                    {["No.","日付","品名","数量","単位","部品代","技術料","金額"].map((h,i)=>(
+                      <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:i>=5?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRows.map((row,i)=>(
+                    <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                      <td style={{padding:"6px 6px",fontSize:11}}>{row.id}</td>
+                      <td style={{padding:"6px 6px",fontSize:10}}>{row.date}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,wordBreak:"break-all"}}>{row.desc}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.qty||""}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.unit}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmt(row.partsCost):"-"}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmt(row.gijutsu):"-"}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.total!=null?fmt(row.total):""}</td>
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(doc.allItems||[]).map((ci,i)=>(
-                  <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
-                    <td style={{padding:"8px 10px",fontSize:12}}>{String(ci.id).replace(/\D/g,"")}</td>
-                    <td style={{padding:"8px 10px",fontSize:12}}>{ci.date}</td>
-                    <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",lineHeight:1.5}}>{ci.desc}</td>
-                    <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmt(ci.total)}</td>
+                  {Array.from({length:blankCount},(_,i)=>(
+                    <tr key={`b${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:(allRows.length+i)%2===0?"#fff":theme.light}}>
+                      <td style={{padding:"6px 6px",height:28}}/><td/><td/><td/><td/><td/><td/><td/>
+                    </tr>
+                  ))}
+                  <tr style={{background:theme.accent}}>
+                    <td colSpan={7} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額</td>
+                    <td style={{padding:"8px 10px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
                   </tr>
-                ))}
-                {Array.from({length:Math.max(0,8-(doc.allItems||[]).length)},(_,i)=>(
-                  <tr key={`b${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:((doc.allItems||[]).length+i)%2===0?"#fff":theme.light}}>
-                    <td style={{padding:"8px 10px",height:30}}/><td/><td/><td/>
-                  </tr>
-                ))}
-                <tr style={{background:theme.accent}}>
-                  <td colSpan={3} style={{padding:"10px 12px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額</td>
-                  <td style={{padding:"10px 12px",fontSize:14,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
-                </tr>
-              </tbody>
-            </table>
-          ):(()=>{
-            const sk=doc.shakken||{};
-            // 固定費は合計欄に移動するので明細には含めない
+                </tbody>
+              </table>
+            );
+          })()
+          :(()=>{
             const allRows=[...(doc.items||[])];
             const maxRows=type==="shakken"?3:type==="combined"?12:14;
             const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+1));
-            let rowIdx=0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
                 <colgroup>
@@ -800,7 +820,7 @@ function ShakkenShoOCR({onResult,onClose}){
   const run=async(file)=>{
     setLoading(true);setErr("");
     try{
-      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const b64=await new Promise<string>((res,rej)=>{const r=new FileReader();r.onload=()=>res((r.result as string).split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
       const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         model:"claude-sonnet-4-20250514",max_tokens:800,
         messages:[{role:"user",content:[
@@ -1555,7 +1575,7 @@ function CombinedInvoice({invoices,customers,settings}){
   const filtered=invoices.filter(i=>{if(Number(cid)&&i.customerId!==Number(cid))return false;if(from&&i.date<from)return false;if(to&&i.date>to)return false;return true;});
   const grand=filtered.reduce((s,i)=>s+gt(i),0);
   const c=customers.find(c=>c.id===Number(cid));
-  const cd={date:today(),allItems:filtered.map(inv=>({id:inv.id,date:inv.date,desc:inv.items.map(i=>i.desc).join("、"),total:gt(inv)})),combinedTotal:grand};
+  const cd={date:today(),allItems:filtered.map(inv=>({id:inv.id,date:inv.date,items:inv.items,desc:inv.items.map(i=>i.desc).join("、"),total:gt(inv)})),combinedTotal:grand};
   if(print) return <PrintDoc type="combined" doc={cd} customer={c} settings={settings} onClose={()=>setPrint(false)}/>;
   return(
     <div className="stk fu">
@@ -1781,7 +1801,7 @@ function SalesReport({invoices,expenses,settings}){
 // ── White Declaration ──────────────────────────────────────
 function WhiteDeclaration({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear()-1);
-  const[showPrint,setShowPrint]=useState(false);
+  // showPrint removed (unused)
   // 基本集計
   const gt=inv=>invTotal(inv,settings);
   const yInv=invoices.filter(i=>yr(i.date)===year&&i.status!=="見積中");
@@ -2058,7 +2078,6 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
     <tbody>
       ${yInv.length===0?`<tr><td colspan="7" class="center">請求書データなし</td></tr>`
         :yInv.sort((a,b)=>a.date>b.date?1:-1).map((inv,idx)=>{
-          const c=invoices&&inv.customerId?"":"";
           const typeLabel=inv.type==="shakken"?"車検":inv.type==="repair"?"鈑金修理":"見積";
           return`<tr>
           <td class="center">${idx+1}</td>
