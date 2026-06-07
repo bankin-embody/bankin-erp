@@ -417,7 +417,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const daikoRaw=isS?(doc.shakken?.daiko??settings.daiko):0;
   const daikoTx=isS?(doc.shakken?.daikoTax??settings.daikoTax):0;
   const daikoWT=calcDaiko(daikoRaw,daikoTx);
-  const grand=wT+gov+daikoWT;
+  const grand=type==="combined"?(doc.combinedTotal||0):(wT+gov+daikoWT);
   const theme=getDocTheme(type,doc);
   const ttl=theme.label;
   const doPrint=()=>{
@@ -542,22 +542,39 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
         {/* ━━ 明細テーブル ━━ */}
         <div className="detail-wrap" style={{padding:"0"}}>
           {type==="combined"?(
-            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse"}}>
+            <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+              <colgroup>
+                <col style={{width:60}}/>
+                <col style={{width:80}}/>
+                <col style={{width:"auto"}}/>
+                <col style={{width:100}}/>
+              </colgroup>
               <thead>
                 <tr style={{background:theme.accent}}>
-                  {["書類番号","日付","内容","金額"].map((h,i)=>(
-                    <th key={h} style={{padding:"7px 12px",fontSize:11,fontWeight:700,color:"#fff",textAlign:i===3?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                  {["No.","日付","内容","金額"].map((h,i)=>(
+                    <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",textAlign:i===3?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>{(doc.allItems||[]).map((ci,i)=>(
-                <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light}}>
-                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.id}</td>
-                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.date}</td>
-                  <td style={{padding:"8px 12px",fontSize:12}}>{ci.desc}</td>
-                  <td style={{padding:"8px 12px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmt(ci.total)}</td>
+              <tbody>
+                {(doc.allItems||[]).map((ci,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                    <td style={{padding:"8px 10px",fontSize:12}}>{String(ci.id).replace(/\D/g,"")}</td>
+                    <td style={{padding:"8px 10px",fontSize:12}}>{ci.date}</td>
+                    <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",lineHeight:1.5}}>{ci.desc}</td>
+                    <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmt(ci.total)}</td>
+                  </tr>
+                ))}
+                {Array.from({length:Math.max(0,8-(doc.allItems||[]).length)},(_,i)=>(
+                  <tr key={`b${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:((doc.allItems||[]).length+i)%2===0?"#fff":theme.light}}>
+                    <td style={{padding:"8px 10px",height:30}}/><td/><td/><td/>
+                  </tr>
+                ))}
+                <tr style={{background:theme.accent}}>
+                  <td colSpan={3} style={{padding:"10px 12px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額</td>
+                  <td style={{padding:"10px 12px",fontSize:14,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
                 </tr>
-              ))}</tbody>
+              </tbody>
             </table>
           ):(()=>{
             const sk=doc.shakken||{};
