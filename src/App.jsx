@@ -1568,37 +1568,145 @@ function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}
 }
 
 // ── Combined Invoice ───────────────────────────────────────
-function CombinedInvoice({invoices,customers,settings}){
+function CombinedInvoice({customers,settings}){
+  const E_ROW=()=>({id:Date.now()+Math.random(),date:"",no:"",desc:"",qty:1,unitLabel:"式",unit:0,gijutsu:0});
   const[cid,setCid]=useState(customers[0]?.id||"");
-  const[from,setFrom]=useState("");const[to,setTo]=useState("");const[print,setPrint]=useState(false);
-  const gt=inv=>invTotal(inv,settings);
-  const filtered=invoices.filter(i=>{if(Number(cid)&&i.customerId!==Number(cid))return false;if(from&&i.date<from)return false;if(to&&i.date>to)return false;return true;});
-  const grand=filtered.reduce((s,i)=>s+gt(i),0);
+  const[docDate,setDocDate]=useState(today());
+  const[dueDate,setDueDate]=useState("");
+  const[docNo,setDocNo]=useState("");
+  const[subject,setSubject]=useState("");
+  const[note,setNote]=useState("");
+  const[rows,setRows]=useState([E_ROW(),E_ROW(),E_ROW()]);
+  const[tax,setTax]=useState(0.1);
+  const[print,setPrint]=useState(false);
   const c=customers.find(c=>c.id===Number(cid));
-  const cd={date:today(),allItems:filtered.map(inv=>({id:inv.id,date:inv.date,items:inv.items,desc:inv.items.map(i=>i.desc).join("、"),total:gt(inv)})),combinedTotal:grand};
+
+  const updRow=(i,k,v)=>setRows(r=>r.map((row,ri)=>ri===i?{...row,[k]:v}:row));
+  const addRow=()=>setRows(r=>[...r,E_ROW()]);
+  const delRow=(i)=>setRows(r=>r.filter((_,ri)=>ri!==i));
+
+  // 合計計算
+  const sub=rows.reduce((s,r)=>s+Number(r.qty||0)*Number(r.unit||0)+Number(r.gijutsu||0),0);
+  const taxAmt=Math.floor(sub*tax);
+  const grand=sub+taxAmt;
+
+  const cd={
+    date:docDate,id:docNo,dueDate,subject,note,tax,
+    // combinedモードの印刷では allItems を使う
+    allItems:rows.filter(r=>r.desc).map(r=>({
+      id:r.no,date:r.date,desc:r.desc,
+      qty:r.qty,unitLabel:r.unitLabel,
+      partsCost:Number(r.unit||0),gijutsu:Number(r.gijutsu||0),
+      total:Number(r.qty||0)*Number(r.unit||0)+Number(r.gijutsu||0)
+    })),
+    combinedTotal:grand,
+    // PrintDoc の計算用（combinedでは直接使わないが念のため）
+    items:rows.filter(r=>r.desc).map(r=>({
+      desc:r.desc,qty:Number(r.qty||0),unitLabel:r.unitLabel,
+      unit:Number(r.unit||0),gijutsu:Number(r.gijutsu||0)
+    })),
+  };
+
   if(print) return <PrintDoc type="combined" doc={cd} customer={c} settings={settings} onClose={()=>setPrint(false)}/>;
+
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>合計請求書</div>{filtered.length>0&&<button className="btn bp bsm" onClick={()=>setPrint(true)}>🖨️ 印刷</button>}</div>
+      <div className="rb">
+        <div style={{fontSize:20,fontWeight:800}}>📑 合計請求書</div>
+        <button className="btn bp bsm" onClick={()=>setPrint(true)}>🖨️ 印刷プレビュー</button>
+      </div>
+
+      {/* 顧客・基本情報 */}
       <div className="card">
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={cid} onChange={e=>setCid(e.target.value)}><option value="">全顧客</option>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld><div/>
-          <Fld label="開始日"><input type="date" className="inp" value={from} onChange={e=>setFrom(e.target.value)}/></Fld>
-          <Fld label="終了日"><input type="date" className="inp" value={to} onChange={e=>setTo(e.target.value)}/></Fld>
+          <Fld label="請求先顧客" style={{gridColumn:"1/-1"}}>
+            <select className="sel" value={cid} onChange={e=>setCid(e.target.value)}>
+              <option value="">顧客を選択</option>
+              {customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}
+            </select>
+          </Fld>
+          <Fld label="書類番号"><input className="inp" placeholder="例: C-2026-001" value={docNo} onChange={e=>setDocNo(e.target.value)}/></Fld>
+          <Fld label="発行日"><input type="date" className="inp" value={docDate} onChange={e=>setDocDate(e.target.value)}/></Fld>
+          <Fld label="支払期限"><input type="date" className="inp" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></Fld>
+          <Fld label="消費税率">
+            <select className="sel" value={tax} onChange={e=>setTax(Number(e.target.value))}>
+              <option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option>
+            </select>
+          </Fld>
+          <Fld label="件名" style={{gridColumn:"1/-1"}}><input className="inp" placeholder="例: ◯◯工事一式" value={subject} onChange={e=>setSubject(e.target.value)}/></Fld>
         </div>
       </div>
+
       {c&&<div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}><div className="xs cmu mb4">請求先</div><div className="b7 lg">{fullName(c)}</div>{c.address&&<div className="cmu sm mt4">{c.address}</div>}</div>}
-      <div className="lst">
-        {filtered.map(inv=>(
-          <div key={inv.id} className="li" style={{cursor:"default"}}>
-            <Ico e={inv.type==="shakken"?"🚗":"🔧"} bg="rgba(0,122,255,.08)"/>
-            <div style={{flex:1,minWidth:0}}><div className="b6 sm trn">{inv.items.map(i=>i.desc).join("、")}</div><div className="cmu xs">{inv.id} · {inv.date}</div></div>
-            <div style={{textAlign:"right"}}><div className="b7 sm">{fmt(gt(inv))}</div><span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`}>{inv.status}</span></div>
-          </div>
-        ))}
-        {!filtered.length&&<div className="li cmu" style={{justifyContent:"center"}}>対象データがありません</div>}
+
+      {/* 明細入力テーブル */}
+      <div className="card" style={{padding:"12px 8px",overflowX:"auto"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:8,paddingLeft:4}}>明細行</div>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
+          <thead>
+            <tr style={{background:"var(--grp)"}}>
+              {["日付","No.","内容","数量","単位","部品代","技術料",""].map((h,i)=>(
+                <th key={i} style={{padding:"6px 6px",fontSize:11,fontWeight:700,color:"var(--lb2)",textAlign:i>=5?"right":"left",borderBottom:"2px solid var(--sep)",whiteSpace:"nowrap",
+                  width:i===0?88:i===1?52:i===3?44:i===4?52:i>=5&&i<=6?72:i===7?32:"auto"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row,i)=>(
+              <tr key={row.id} style={{borderBottom:"1px solid var(--sep)"}}>
+                <td style={{padding:"4px 3px"}}>
+                  <input type="date" className="inp" style={{fontSize:11,padding:"5px 4px"}} value={row.date} onChange={e=>updRow(i,"date",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input className="inp" style={{fontSize:11,padding:"5px 4px"}} placeholder="No." value={row.no} onChange={e=>updRow(i,"no",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input className="inp" style={{fontSize:12,padding:"5px 6px"}} placeholder="作業内容・品目" value={row.desc} onChange={e=>updRow(i,"desc",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input type="number" className="inp" style={{fontSize:11,padding:"5px 4px",textAlign:"center"}} value={row.qty} onChange={e=>updRow(i,"qty",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input className="inp" style={{fontSize:11,padding:"5px 4px",textAlign:"center"}} placeholder="式" value={row.unitLabel} onChange={e=>updRow(i,"unitLabel",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input type="number" className="inp" style={{fontSize:11,padding:"5px 4px",textAlign:"right"}} inputMode="numeric" placeholder="0" value={row.unit||""} onChange={e=>updRow(i,"unit",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 3px"}}>
+                  <input type="number" className="inp" style={{fontSize:11,padding:"5px 4px",textAlign:"right"}} inputMode="numeric" placeholder="0" value={row.gijutsu||""} onChange={e=>updRow(i,"gijutsu",e.target.value)}/>
+                </td>
+                <td style={{padding:"4px 2px",textAlign:"center"}}>
+                  <button className="btn bd" style={{padding:"4px 7px",fontSize:13,borderRadius:7}} onClick={()=>delRow(i)}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button className="btn bg bsm" style={{marginTop:10,width:"100%"}} onClick={addRow}>＋ 行を追加</button>
       </div>
-      {filtered.length>0&&<div className="card" style={{background:"linear-gradient(135deg,#007AFF,#0055CC)",color:"#fff"}}><div className="rb"><div><div style={{fontSize:12,opacity:.8}}>{filtered.length}件の請求書</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-1}}>{fmt(grand)}</div></div><div style={{fontSize:42,opacity:.3}}>Σ</div></div></div>}
+
+      {/* 備考 */}
+      <div className="card">
+        <Fld label="備考">
+          <textarea className="inp" rows={2} style={{resize:"vertical"}} value={note} onChange={e=>setNote(e.target.value)}/>
+        </Fld>
+      </div>
+
+      {/* 合計カード */}
+      <div className="card" style={{background:"linear-gradient(135deg,#FFD60A,#F0B800)",color:"#000"}}>
+        <div className="rb" style={{marginBottom:6}}>
+          <span style={{fontSize:12,opacity:.7}}>小計（税抜）</span>
+          <span style={{fontWeight:700}}>{fmt(sub)}</span>
+        </div>
+        <div className="rb" style={{marginBottom:8}}>
+          <span style={{fontSize:12,opacity:.7}}>消費税（{Math.round(tax*100)}%）</span>
+          <span style={{fontWeight:700}}>{fmt(taxAmt)}</span>
+        </div>
+        <div className="rb">
+          <span style={{fontSize:15,fontWeight:800}}>合計請求額</span>
+          <span style={{fontSize:24,fontWeight:800,letterSpacing:-1}}>{fmt(grand)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2855,7 +2963,7 @@ export default function App(){
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
-      case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
+      case"combined":    return <CombinedInvoice customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
       case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
