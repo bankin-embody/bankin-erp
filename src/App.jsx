@@ -526,7 +526,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
           </div>
           <div style={{width:160,padding:"12px 16px",borderRight:`1px solid ${theme.border}`}}>
             <div style={{fontSize:10,color:"#888",marginBottom:3}}>消費税等</div>
-            <div style={{fontSize:18,fontWeight:700}}>¥{taxAmt.toLocaleString()}—</div>
+            <div style={{fontSize:18,fontWeight:700}}>¥{(type==="combined"?(doc.combinedTax||0):taxAmt).toLocaleString()}—</div>
           </div>
           {doc.dueDate&&(
             <div style={{width:160,padding:"12px 16px",background:theme.accent}}>
@@ -542,33 +542,34 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
         {/* ━━ 明細テーブル ━━ */}
         <div className="detail-wrap" style={{padding:"0"}}>
           {type==="combined"&&(()=>{
-            // 各請求書の明細を1行ずつ展開
             const allRows=[];
             (doc.allItems||[]).forEach(ci=>{
               if(ci.items&&ci.items.length>0){
                 ci.items.forEach((it,idx)=>{
-                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,total:idx===0?ci.total:null});
+                  const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,subtotal:idx===0?ci.subtotal:null});
                 });
               }else{
-                allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,total:ci.total});
+                allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,subtotal:ci.subtotal||ci.total});
               }
             });
-            const blankCount=Math.max(0,12-allRows.length);
+            const blankCount=Math.max(0,10-allRows.length);
+            const totalTax=doc.combinedTax||0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
                 <colgroup>
-                  <col style={{width:45}}/>
-                  <col style={{width:70}}/>
-                  <col style={{width:"auto"}}/>
-                  <col style={{width:45}}/>
                   <col style={{width:40}}/>
-                  <col style={{width:80}}/>
-                  <col style={{width:80}}/>
-                  <col style={{width:90}}/>
+                  <col style={{width:68}}/>
+                  <col style={{width:"auto"}}/>
+                  <col style={{width:40}}/>
+                  <col style={{width:38}}/>
+                  <col style={{width:78}}/>
+                  <col style={{width:78}}/>
+                  <col style={{width:88}}/>
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
-                    {["No.","日付","品名","数量","単位","部品代","技術料","金額"].map((h,i)=>(
+                    {["No.","日付","品名","数量","単位","部品代","技術料","金額(税抜)"].map((h,i)=>(
                       <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:i>=5?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
@@ -583,7 +584,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.unit}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmt(row.partsCost):"-"}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmt(row.gijutsu):"-"}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.total!=null?fmt(row.total):""}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmt(row.lineAmt):""}</td>
                     </tr>
                   ))}
                   {Array.from({length:blankCount},(_,i)=>(
@@ -591,8 +592,12 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
                       <td style={{padding:"6px 6px",height:28}}/><td/><td/><td/><td/><td/><td/><td/>
                     </tr>
                   ))}
+                  <tr style={{background:"#f5f5f5"}}>
+                    <td colSpan={7} style={{padding:"6px 10px",fontSize:11,textAlign:"right",color:"#555"}}>消費税合計</td>
+                    <td style={{padding:"6px 10px",fontSize:11,textAlign:"right",fontWeight:600}}>{fmt(totalTax)}</td>
+                  </tr>
                   <tr style={{background:theme.accent}}>
-                    <td colSpan={7} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額</td>
+                    <td colSpan={7} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額（税込）</td>
                     <td style={{padding:"8px 10px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
                   </tr>
                 </tbody>
@@ -1577,7 +1582,7 @@ function CombinedInvoice({invoices,customers,settings}){
   const filtered=invoices.filter(i=>{if(Number(cid)&&i.customerId!==Number(cid))return false;if(from&&i.date<from)return false;if(to&&i.date>to)return false;return true;});
   const grand=filtered.reduce((s,i)=>s+gt(i),0);
   const c=customers.find(c=>c.id===Number(cid));
-  const cd={date:today(),allItems:filtered.map(inv=>({id:inv.id,date:inv.date,items:inv.items,desc:inv.items.map(i=>i.desc).join("、"),total:gt(inv)})),combinedTotal:grand};
+  const cd={date:today(),allItems:filtered.map(inv=>({id:inv.id,date:inv.date,items:inv.items,desc:inv.items.map(i=>i.desc).join("、"),subtotal:calcItems(inv.items,inv.tax||0.1).sub,taxAmt:calcItems(inv.items,inv.tax||0.1).taxAmt,total:gt(inv)})),combinedTotal:grand,combinedTax:filtered.reduce((s,inv)=>s+calcItems(inv.items,inv.tax||0.1).taxAmt,0)};
   if(print) return <PrintDoc type="combined" doc={cd} customer={c} settings={settings} onClose={()=>setPrint(false)}/>;
   return(
     <div className="stk fu">
