@@ -5,83 +5,84 @@ const G = () => (
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     :root{
-      --bl:#007AFF;--bld:#0055CC;--gr:#34C759;--re:#FF3B30;--or:#FF9500;--pu:#AF52DE;
-      --bg:#F2F2F7;--bg2:#fff;--grp:#EFEFF4;
-      --lb:#000;--lb2:rgba(60,60,67,.6);--lb3:rgba(60,60,67,.3);
-      --sep:rgba(60,60,67,.12);--fi:rgba(120,120,128,.12);--fi2:rgba(120,120,128,.08);
-      --r:18px;--sh:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
-      --sh2:0 4px 16px rgba(0,0,0,.10);
+      --bl:#3D5A8A;--bld:#2C4470;--gr:#4A8C6A;--re:#B85450;--or:#9A6E3A;--pu:#6B5B8A;
+      --bg:#EEECEA;--bg2:#FAFAF8;--grp:#F0EDE9;
+      --lb:#1A1A1C;--lb2:rgba(40,40,46,.55);--lb3:rgba(40,40,46,.28);
+      --sep:rgba(40,40,46,.10);--fi:rgba(100,100,108,.10);--fi2:rgba(100,100,108,.06);
+      --r:14px;--sh:0 1px 4px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+      --sh2:0 6px 20px rgba(0,0,0,.09);
       --tr:.2s cubic-bezier(.4,0,.2,1);
       --f:'Noto Sans JP',-apple-system,BlinkMacSystemFont,sans-serif;
+      --sb-bg:#1E2535;--sb-act:rgba(255,255,255,.10);--sb-txt:rgba(255,255,255,.75);--sb-txt2:rgba(255,255,255,.38);
     }
     html,body{height:100%;background:var(--bg);font-family:var(--f);color:var(--lb);-webkit-font-smoothing:antialiased;}
     #root{height:100%;}
-    ::-webkit-scrollbar{width:5px;height:5px;}
-    ::-webkit-scrollbar-thumb{background:var(--lb3);border-radius:3px;}
-    @keyframes fU{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-thumb{background:var(--lb3);border-radius:2px;}
+    @keyframes fU{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes fI{from{opacity:0}to{opacity:1}}
-    @keyframes sI{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
-    .fu{animation:fU .35s var(--tr) both;} .si{animation:sI .28s var(--tr) both;}
-    .card{background:var(--bg2);border-radius:var(--r);box-shadow:var(--sh);padding:18px;transition:box-shadow var(--tr);}
+    @keyframes sI{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+    .fu{animation:fU .3s var(--tr) both;} .si{animation:sI .25s var(--tr) both;}
+    .card{background:var(--bg2);border-radius:var(--r);box-shadow:var(--sh);padding:18px;transition:box-shadow var(--tr);border:1px solid var(--sep);}
     .card:hover{box-shadow:var(--sh2);}
-    .lst{background:var(--bg2);border-radius:var(--r);overflow:hidden;}
+    .lst{background:var(--bg2);border-radius:var(--r);overflow:hidden;border:1px solid var(--sep);}
     .li{padding:12px 15px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--sep);cursor:pointer;transition:background var(--tr);}
     .li:last-child{border-bottom:none;} .li:hover{background:var(--fi2);}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:9px 17px;border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all var(--tr);white-space:nowrap;font-family:var(--f);}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:9px 17px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all var(--tr);white-space:nowrap;font-family:var(--f);letter-spacing:.01em;}
     .btn:active{transform:scale(.97);}
     .bp{background:var(--bl);color:#fff;} .bp:hover{background:var(--bld);}
-    .bs{background:var(--fi);color:var(--bl);}
-    .bd{background:rgba(255,59,48,.12);color:var(--re);}
-    .bg{background:rgba(52,199,89,.12);color:#1a8f3a;}
-    .bo{background:rgba(255,149,0,.12);color:var(--or);}
-    .bsm{padding:5px 12px;font-size:12px;border-radius:8px;}
-    .bdg{display:inline-flex;align-items:center;padding:2px 8px;border-radius:16px;font-size:11px;font-weight:700;white-space:nowrap;}
-    .dbl{background:rgba(0,122,255,.12);color:var(--bl);}
-    .dgr{background:rgba(52,199,89,.14);color:#1a8f3a;}
-    .drd{background:rgba(255,59,48,.12);color:var(--re);}
-    .dor{background:rgba(255,149,0,.14);color:#b36500;}
+    .bs{background:var(--fi);color:var(--bl);border:1px solid rgba(61,90,138,.18);}
+    .bd{background:rgba(184,84,80,.09);color:var(--re);}
+    .bg{background:rgba(74,140,106,.10);color:#2d7050;}
+    .bo{background:rgba(154,110,58,.10);color:var(--or);}
+    .bsm{padding:5px 11px;font-size:12px;border-radius:7px;}
+    .bdg{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;white-space:nowrap;letter-spacing:.02em;}
+    .dbl{background:rgba(61,90,138,.10);color:var(--bl);}
+    .dgr{background:rgba(74,140,106,.12);color:#2d7050;}
+    .drd{background:rgba(184,84,80,.10);color:var(--re);}
+    .dor{background:rgba(154,110,58,.10);color:var(--or);}
     .dgy{background:var(--fi);color:var(--lb2);}
-    .inp{width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;transition:border-color var(--tr),box-shadow var(--tr);}
-    .inp:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(0,122,255,.13);}
-    .sel{width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;appearance:none;cursor:pointer;}
-    .sel:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(0,122,255,.13);}
-    .fl{font-size:12px;font-weight:700;color:var(--lb2);margin-bottom:5px;}
-    .mbg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:1000;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;animation:fI .18s ease both;}
+    .inp{width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;transition:border-color var(--tr),box-shadow var(--tr);}
+    .inp:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(61,90,138,.12);}
+    .sel{width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--sep);background:var(--bg2);font-size:15px;font-family:var(--f);color:var(--lb);outline:none;appearance:none;cursor:pointer;}
+    .sel:focus{border-color:var(--bl);box-shadow:0 0 0 3px rgba(61,90,138,.12);}
+    .fl{font-size:11px;font-weight:700;color:var(--lb2);margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase;}
+    .mbg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,12,20,.45);backdrop-filter:blur(6px);z-index:1000;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;animation:fI .18s ease both;}
     @media(min-width:600px){.mbg{justify-content:center;}}
     .mbg.tall{align-items:stretch!important;}
-    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sI .28s var(--tr) both;max-height:94vh;overflow:hidden;}
-    @media(min-width:600px){.msh{border-radius:22px;max-height:90vh;}}
+    .msh{background:var(--bg2);width:100%;max-width:660px;border-radius:20px 20px 0 0;display:flex;flex-direction:column;animation:sI .25s var(--tr) both;max-height:94vh;overflow:hidden;border:1px solid var(--sep);}
+    @media(min-width:600px){.msh{border-radius:16px;max-height:90vh;}}
     .msh.print-wide{max-width:820px!important;}
     .msh.tall{flex:1!important;max-height:none!important;}
-    .mhd{width:36px;height:5px;background:var(--lb3);border-radius:3px;margin:10px auto 0;flex-shrink:0;}
-    .mttl{font-size:15px;font-weight:700;padding:10px 12px;border-bottom:1px solid var(--sep);flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
-    .mttl .btn{padding:6px 14px;font-size:13px;border-radius:10px;font-weight:700;white-space:nowrap;}
+    .mhd{width:32px;height:4px;background:var(--lb3);border-radius:2px;margin:10px auto 0;flex-shrink:0;}
+    .mttl{font-size:15px;font-weight:700;padding:10px 14px;border-bottom:1px solid var(--sep);flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;}
+    .mttl .btn{padding:6px 13px;font-size:13px;border-radius:8px;font-weight:700;white-space:nowrap;}
     .mbdy{padding:16px 16px 20px;overflow-y:scroll;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch;}
     .mft{display:none;}
-    .seg{display:flex;background:var(--fi);border-radius:9px;padding:2px;gap:2px;}
-    .st{flex:1;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all var(--tr);border:none;background:transparent;color:var(--lb2);font-family:var(--f);}
+    .seg{display:flex;background:var(--fi);border-radius:8px;padding:2px;gap:2px;}
+    .st{flex:1;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all var(--tr);border:none;background:transparent;color:var(--lb2);font-family:var(--f);}
     .st.on{background:var(--bg2);color:var(--lb);box-shadow:var(--sh);}
-    .sb{width:252px;min-width:252px;background:var(--bg2);border-right:1px solid var(--sep);display:flex;flex-direction:column;height:100vh;position:sticky;top:0;}
-    .sbl{padding:20px 17px 13px;border-bottom:1px solid var(--sep);}
-    .sbl h1{font-size:18px;font-weight:800;color:var(--bl);}
-    .sbl p{font-size:11px;color:var(--lb2);margin-top:2px;}
-    .ns{font-size:10px;font-weight:700;color:var(--lb3);letter-spacing:.8px;text-transform:uppercase;padding:13px 17px 5px;}
-    .ni{display:flex;align-items:center;gap:10px;padding:9px 13px;margin:1px 6px;border-radius:10px;cursor:pointer;transition:all var(--tr);color:var(--lb);font-size:13px;font-weight:500;}
-    .ni:hover{background:var(--fi2);} .ni.on{background:rgba(0,122,255,.11);color:var(--bl);font-weight:700;}
-    .nic{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
-    .nb{margin-left:auto;background:var(--re);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:1px 6px;}
-    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid var(--sep);display:flex;padding:5px 0 env(safe-area-inset-bottom,10px);z-index:90;}
-    .bi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 5px;cursor:pointer;flex:1;color:var(--lb3);transition:color var(--tr);}
-    .bi.on{color:var(--bl);}
+    .sb{width:240px;min-width:240px;background:var(--sb-bg);border-right:none;display:flex;flex-direction:column;height:100vh;position:sticky;top:0;}
+    .sbl{padding:20px 17px 14px;border-bottom:1px solid rgba(255,255,255,.07);}
+    .sbl h1{font-size:17px;font-weight:800;color:#fff;}
+    .sbl p{font-size:11px;color:var(--sb-txt2);margin-top:2px;}
+    .ns{font-size:9px;font-weight:700;color:var(--sb-txt2);letter-spacing:1px;text-transform:uppercase;padding:14px 17px 5px;}
+    .ni{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:1px 6px;border-radius:8px;cursor:pointer;transition:all var(--tr);color:var(--sb-txt);font-size:13px;font-weight:500;}
+    .ni:hover{background:var(--sb-act);color:#fff;} .ni.on{background:rgba(255,255,255,.14);color:#fff;font-weight:700;}
+    .nic{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+    .nb{margin-left:auto;background:var(--re);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;}
+    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(30,37,53,.94);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid rgba(255,255,255,.08);display:flex;padding:5px 0 env(safe-area-inset-bottom,10px);z-index:90;}
+    .bi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 5px;cursor:pointer;flex:1;color:rgba(255,255,255,.38);transition:color var(--tr);}
+    .bi.on{color:rgba(255,255,255,.90);}
     .sc{border-radius:var(--r);padding:15px 17px;color:#fff;position:relative;overflow:hidden;}
-    .sc::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.15),transparent 60%);}
+    .sc::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.12),transparent 55%);}
     .app{display:flex;height:100vh;overflow:hidden;}
     .mn{flex:1;overflow-y:auto;padding-bottom:75px;}
     @media(min-width:768px){.mn{padding-bottom:14px;}.bn{display:none;}}
     @media(max-width:767px){.sb{display:none;}}
     .pw{padding:16px 13px;max-width:1100px;margin:0 auto;}
     @media(min-width:768px){.pw{padding:24px 24px;}}
-    .th{display:flex;align-items:center;justify-content:space-between;padding:13px;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--sep);position:sticky;top:0;z-index:50;}
+    .th{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:rgba(30,37,53,.95);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;color:#fff;}
     @media(min-width:768px){.th{display:none;}}
     .g2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
     .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;}
@@ -100,7 +101,7 @@ const G = () => (
     .fr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--sep);}
     .fr:last-child{border-bottom:none;}
     .tbl{width:100%;border-collapse:collapse;}
-    .tbl th{font-size:11px;font-weight:700;color:var(--lb2);padding:8px 11px;text-align:left;background:var(--grp);border-bottom:1px solid var(--sep);}
+    .tbl th{font-size:10px;font-weight:700;color:var(--lb2);padding:8px 11px;text-align:left;background:var(--grp);border-bottom:1px solid var(--sep);letter-spacing:.05em;text-transform:uppercase;}
     .tbl td{padding:10px 11px;font-size:13px;border-bottom:1px solid var(--sep);}
     .tbl tr:last-child td{border-bottom:none;}
     .tbl tr:hover td{background:var(--fi2);}
@@ -1196,7 +1197,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
               <div className="mb8" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
+                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.unit)setI(i,"unitLabel",w.unit);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
               </div>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
@@ -1323,7 +1324,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="lst">{form.items.map((it,i)=>(
             <div key={i} style={{padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
               <div className="rb mb8" style={{gap:8}}>
-                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
+                <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.unit)setI(i,"unitLabel",w.unit);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
                 {it.inspType!==undefined&&(
                   <select className="sel" style={{width:110,flexShrink:0,fontSize:12}} value={it.inspType} onChange={e=>{
                     const t=e.target.value;
@@ -2855,7 +2856,7 @@ export default function App(){
   const unpaid=invoices.filter(i=>i.status==="未入金").length;
   const cur=PAGES.find(p=>p.id===page);
 
-  const syncDot={ok:"#34C759",error:"#FF3B30",syncing:"#FF9500",idle:"var(--lb3)"}[syncState]||"var(--lb3)";
+  const syncDot={ok:"#7ec49a",error:"#e07570",syncing:"#c4a46a",idle:"rgba(255,255,255,.25)"}[syncState]||"rgba(255,255,255,.25)";
 
   const render=()=>{
     switch(page){
@@ -2885,25 +2886,25 @@ export default function App(){
             <div className="ns">メニュー</div>
             {PAGES.map(p=>(
               <div key={p.id} className={`ni ${page===p.id?"on":""}`} onClick={()=>setPage(p.id)}>
-                <div className="nic" style={{background:page===p.id?"rgba(0,122,255,.11)":"var(--fi2)"}}>{p.icon}</div>
+                <div className="nic" style={{background:page===p.id?"rgba(255,255,255,.15)":"rgba(255,255,255,.06)"}}>{p.icon}</div>
                 {p.label}
                 {p.id==="invoices"&&unpaid>0&&<span className="nb">{unpaid}</span>}
               </div>
             ))}
           </div>
-          <div style={{padding:"9px 9px 17px",borderTop:"1px solid var(--sep)"}}>
+          <div style={{padding:"9px 9px 17px",borderTop:"1px solid rgba(255,255,255,.07)"}}>
             {sbEnabled&&(
-              <div onClick={()=>setPage("settings")} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 8px",borderRadius:9,background:syncState==="error"?"rgba(255,59,48,.08)":syncState==="ok"?"rgba(52,199,89,.07)":"var(--fi2)",marginBottom:8,cursor:"pointer"}}>
-                <span style={{width:8,height:8,borderRadius:4,background:syncDot,display:"inline-block",flexShrink:0}}/>
+              <div onClick={()=>setPage("settings")} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 8px",borderRadius:7,background:syncState==="error"?"rgba(184,84,80,.18)":syncState==="ok"?"rgba(74,140,106,.15)":"rgba(255,255,255,.06)",marginBottom:8,cursor:"pointer"}}>
+                <span style={{width:7,height:7,borderRadius:3.5,background:syncDot,display:"inline-block",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:11,fontWeight:700,color:syncState==="error"?"var(--re)":syncState==="ok"?"#1a8f3a":"var(--lb2)"}}>{syncState==="syncing"?"同期中…":syncState==="ok"?"クラウド同期中":syncState==="error"?"同期エラー":"Supabase未接続"}</div>
-                  {syncMsg&&<div style={{fontSize:10,color:"var(--lb3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{syncMsg}</div>}
+                  <div style={{fontSize:11,fontWeight:600,color:syncState==="error"?"#e07570":syncState==="ok"?"#7ec49a":"rgba(255,255,255,.55)"}}>{syncState==="syncing"?"同期中…":syncState==="ok"?"クラウド同期中":syncState==="error"?"同期エラー":"Supabase未接続"}</div>
+                  {syncMsg&&<div style={{fontSize:10,color:"rgba(255,255,255,.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{syncMsg}</div>}
                 </div>
               </div>
             )}
-            <div className="cmu xs mb8" style={{paddingLeft:3}}>{db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
-            <button className="btn bp bsm" style={{width:"100%",marginBottom:5}} onClick={()=>doExport(db)}>💾 JSONを保存</button>
-            <button className="btn bs bsm" style={{width:"100%"}} onClick={()=>setPage("data")}>📂 データ管理</button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.3)",marginBottom:8,paddingLeft:3}}>{db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
+            <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db)}>💾 JSONを保存</button>
+            <button className="btn bsm" style={{width:"100%",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.55)",border:"1px solid rgba(255,255,255,.06)"}} onClick={()=>setPage("data")}>📂 データ管理</button>
           </div>
         </nav>
         <div className="mn">
