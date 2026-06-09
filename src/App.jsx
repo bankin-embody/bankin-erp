@@ -2982,7 +2982,7 @@ function LoginScreen({onLogin,shopName}){
   const[password,setPassword]=useState("");
   const[error,setError]=useState("");
   const[loading,setLoading]=useState(false);
-  const[showPw,setShowPw]=useState(true);
+  const[showPw,setShowPw]=useState(false);
 
   const handleLogin=async()=>{
     if(!email||!password){setError("メールアドレスとパスワードを入力してください");return;}
@@ -3015,14 +3015,22 @@ function LoginScreen({onLogin,shopName}){
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",marginBottom:5,letterSpacing:".04em",textTransform:"uppercase"}}>パスワード</div>
             <div style={{position:"relative"}}>
-              <input className="inp" type={showPw?"text":"password"} placeholder="••••••••" value={password}
-                onChange={e=>{setPassword(e.target.value);setError("");}}
+              <input className="inp" type="text" placeholder="パスワードを入力" value={showPw?password:"●".repeat(password.length)}
+                onChange={e=>{
+                  if(!showPw){
+                    // ●表示中は実際の入力を管理
+                    const newLen=e.target.value.replace(/●/g,"").length;
+                    if(e.target.value.length<password.length){setPassword(p=>p.slice(0,-1));}
+                    else{const added=e.target.value.replace(/●/g,"");if(added)setPassword(p=>p+added);}
+                  }else{setPassword(e.target.value);}
+                  setError("");
+                }}
                 onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44}}
-                autoComplete="current-password"/>
+                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44,letterSpacing:showPw?"normal":"4px"}}
+                autoComplete="off" inputMode="text"/>
               <button type="button" onClick={()=>setShowPw(p=>!p)}
                 style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"rgba(255,255,255,.45)"}}>
-                {showPw?"👁️":"🙈"}
+                {showPw?"🙈":"👁️"}
               </button>
             </div>
           </div>
@@ -3136,14 +3144,14 @@ export default function App(){
   const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
   const cur=PAGES.find(p=>p.id===page);
   // Supabase Auth ログイン
-  const[loggedIn,setLoggedIn]=useState(()=>!!getSbSession());
   const sbEnabled2=!!(getSbConf().url&&getSbConf().anonKey);
-  // Supabase有効時はログイン必須
-  if(sbEnabled2&&!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/>;
-  // PINロック（Supabase未接続時のフォールバック）
+  const[loggedIn,setLoggedIn]=useState(()=>!!getSbSession());
+  // PINロック
   const hasPin=!!getPin();
-  const[unlocked,setUnlocked]=useState(()=>loggedIn||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
+  const[unlocked,setUnlocked]=useState(()=>!!getSbSession()||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
   const[showPinSetup,setShowPinSetup]=useState(false);
+  // hooksの後にreturn（Reactのルール順守）
+  if(sbEnabled2&&!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/>;
   if(!loggedIn&&!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
   if(showPinSetup) return <PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/>;
 
