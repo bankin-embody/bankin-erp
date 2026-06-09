@@ -193,6 +193,11 @@ const DEF_SETTINGS={
     {id:4,desc:"塗装一式",unit:"式",partsCost:0,gijutsu:0},
     {id:5,desc:"板金修理一式",unit:"式",partsCost:0,gijutsu:0},
   ],
+  templateMemos:[
+    {id:1,title:"車検案内",body:"拝啓\nいつもご利用いただきありがとうございます。\nお客様の車両の車検が近づいてまいりました。\nお気軽にご連絡ください。\nよろしくお願いいたします。"},
+    {id:2,title:"入金お礼",body:"この度はお支払いいただきありがとうございます。\n今後ともよろしくお願いいたします。"},
+    {id:3,title:"修理完了連絡",body:"お客様の車両の修理が完了いたしました。\nご来店の際はお電話にてご連絡ください。\nお待ちしております。"},
+  ],
 };
 
 // ── Initial Data ───────────────────────────────────────────
@@ -802,7 +807,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   const now=new Date();const m=now.getMonth()+1;const y=now.getFullYear();
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
-  const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail}=useMemo(()=>{
+  const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts}=useMemo(()=>{
     const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
     const mS=mInv.reduce((s,i)=>s+gt(i),0);
     const unpaidInvs=invoices.filter(i=>i.status==="未入金");
@@ -820,8 +825,15 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const rec=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
     const mInvDetail=[...mInv].sort((a,b)=>b.date.localeCompare(a.date));
     const unpaidDetail=[...unpaidInvs].sort((a,b)=>b.date.localeCompare(a.date));
-    return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail};
-  },[invoices,expenses,gt,m,y]);
+    // 次回車検アラート（3ヶ月以内）
+    const nowStr=`${y}-${String(m).padStart(2,"0")}`;
+    const threeMonthsLater=new Date(y,m+2,1);
+    const limitStr=`${threeMonthsLater.getFullYear()}-${String(threeMonthsLater.getMonth()+1).padStart(2,"0")}`;
+    const shakkenAlerts=[];
+    customers.forEach(c=>{(c.vehicles||[]).forEach(v=>{if(v.nextShakken&&v.nextShakken>=nowStr&&v.nextShakken<=limitStr){shakkenAlerts.push({customer:c,vehicle:v,nextShakken:v.nextShakken});}});});
+    shakkenAlerts.sort((a,b)=>a.nextShakken.localeCompare(b.nextShakken));
+    return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts};
+  },[invoices,expenses,customers,gt,m,y]);
   const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
@@ -934,6 +946,29 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
       {uCnt>0&&<div className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)"}}>
         <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div className="cre b7 lg">{fmt(uAmt)}</div></div>
       </div>}
+      {shakkenAlerts.length>0&&(
+        <div className="card" style={{background:"linear-gradient(135deg,#FFFBE6,#FFF 60%)",border:"1px solid rgba(255,149,0,.3)"}}>
+          <div className="row mb8" style={{gap:9}}><Ico e="🚗" bg="rgba(255,149,0,.15)"/><div><div className="b7">車検まもなく</div><div className="cmu sm">3ヶ月以内に車検を迎える車両</div></div></div>
+          <div className="stk" style={{gap:6}}>
+            {shakkenAlerts.map((a,i)=>{
+              const nowStr=`${y}-${String(m).padStart(2,"0")}`;
+              const isThisMonth=a.nextShakken===nowStr;
+              return(
+                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:isThisMonth?"rgba(255,59,48,.06)":"var(--fi2)",borderRadius:9,padding:"8px 12px",border:isThisMonth?"1px solid rgba(255,59,48,.2)":"1px solid transparent"}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700}}>{fullName(a.customer)}</div>
+                    <div style={{fontSize:11,color:"var(--lb2)"}}>🚗 {a.vehicle.carName} {a.vehicle.plateNo}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <span className={`bdg ${isThisMonth?"drd":"dor"}`}>{a.nextShakken.replace("-","年")}月</span>
+                    {isThisMonth&&<div style={{fontSize:10,color:"var(--re)",fontWeight:700,marginTop:2}}>今月！</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 });
@@ -1012,7 +1047,7 @@ function ShakkenShoOCR({onResult,onClose}){
 
 // ── VehicleModal ───────────────────────────────────────────
 function VehicleModal({v,onSave,onClose,onDel}){
-  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1.5});
+  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1.5,nextShakken:v?.nextShakken||""});
   const[showOCR,setShowOCR]=useState(false);
   const handleOCR=(parsed)=>{
     setF(p=>({...p,...parsed,weight:Number(parsed.weight)||p.weight}));
@@ -1039,6 +1074,9 @@ function VehicleModal({v,onSave,onClose,onDel}){
           </Fld>
           <Fld label="車両重量（t）">
             <input type="number" className="inp" step="0.1" min="0" placeholder="例: 1.5" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}/>
+          </Fld>
+          <Fld label="次回車検年月" opt>
+            <input type="month" className="inp" value={f.nextShakken} onChange={e=>setF(p=>({...p,nextShakken:e.target.value}))}/>
           </Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
@@ -1148,6 +1186,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（t）</div><input type="number" className="inp" step="0.1" min="0" placeholder="例: 1.5" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
+                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検年月</div><input type="month" className="inp" value={v.nextShakken||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,nextShakken:e.target.value}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1.5))]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
@@ -1706,6 +1745,121 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
   );
 });
 
+// ── 入金消込ページ ─────────────────────────────────────────
+function PaymentKesikomi({invoices,setInvoices,customers,settings}){
+  const gt=inv=>invTotal(inv,settings);
+  const unpaid=invoices.filter(i=>i.status==="未入金").sort((a,b)=>a.date.localeCompare(b.date));
+  const[selectedId,setSelectedId]=useState(null);
+  const[date,setDate]=useState(today());
+  const[amount,setAmount]=useState("");
+  const[memo,setMemo]=useState("");
+
+  const selected=unpaid.find(i=>i.id===selectedId)||invoices.find(i=>i.id===selectedId);
+  const total=selected?gt(selected):0;
+  const paid=(selected?.payments||[]).reduce((s,p)=>s+p.amount,0);
+  const remaining=total-paid;
+
+  const handleAdd=()=>{
+    if(!selectedId||!amount||Number(amount)<=0)return;
+    setInvoices(p=>p.map(inv=>{
+      if(inv.id!==selectedId)return inv;
+      const newPayments=[...(inv.payments||[]),{id:Date.now(),date,amount:Number(amount),memo}];
+      const newPaid=newPayments.reduce((s,p)=>s+p.amount,0);
+      const newStatus=newPaid>=gt(inv)?"入金済":"未入金";
+      return{...inv,payments:newPayments,status:newStatus};
+    }));
+    setAmount("");setMemo("");
+    // 消込完了したら選択解除
+    if(Number(amount)>=remaining)setSelectedId(null);
+  };
+
+  const totalUnpaid=unpaid.reduce((s,i)=>s+gt(i)-(i.payments||[]).reduce((ss,p)=>ss+p.amount,0),0);
+
+  return(
+    <div className="stk fu">
+      <div style={{fontSize:20,fontWeight:800}}>💰 入金消込</div>
+      <div className="g2" style={{gap:9}}>
+        <div className="card" style={{borderTop:"3px solid var(--re)"}}>
+          <div className="cmu sm">未入金件数</div>
+          <div style={{fontSize:22,fontWeight:800,color:"var(--re)",marginTop:3}}>{unpaid.length}件</div>
+        </div>
+        <div className="card" style={{borderTop:"3px solid var(--re)"}}>
+          <div className="cmu sm">未収金合計</div>
+          <div style={{fontSize:22,fontWeight:800,color:"var(--re)",marginTop:3}}>{fmt(totalUnpaid)}</div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:11,flexWrap:"wrap",alignItems:"flex-start"}}>
+        {/* 未入金一覧 */}
+        <div style={{flex:"1 1 280px",minWidth:0}}>
+          <div className="fl mb8">未入金請求書</div>
+          <div className="lst">
+            {unpaid.length===0&&<div className="li cmu" style={{justifyContent:"center"}}>未入金なし</div>}
+            {unpaid.map(inv=>{
+              const c=customers.find(c=>c.id===inv.customerId);
+              const t=gt(inv);
+              const p=(inv.payments||[]).reduce((s,pp)=>s+pp.amount,0);
+              const rem=t-p;
+              const isSelected=selectedId===inv.id;
+              return(
+                <div key={inv.id} onClick={()=>{setSelectedId(inv.id);setAmount(String(rem));setMemo("");}}
+                  style={{padding:"11px 13px",borderBottom:"1px solid var(--sep)",cursor:"pointer",background:isSelected?"rgba(61,90,138,.07)":"transparent",transition:"background .15s"}}>
+                  <div className="rb mb4">
+                    <div style={{fontSize:13,fontWeight:700}}>{fullName(c)}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"var(--re)"}}>{fmt(rem)}</div>
+                  </div>
+                  <div style={{fontSize:11,color:"var(--lb2)"}}>
+                    <span className={`bdg ${inv.type==="shakken"?"dbl":"dor"}`} style={{marginRight:5}}>{inv.type==="shakken"?"車検":"鈑金"}</span>
+                    {inv.date} · No.{inv.id}
+                    {p>0&&<span style={{marginLeft:6,color:"var(--gr)"}}>一部入金済 {fmt(p)}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 入金入力エリア */}
+        <div style={{flex:"1 1 260px",minWidth:0}}>
+          {selected?(
+            <div className="card" style={{border:"1.5px solid rgba(52,199,89,.3)"}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>{fullName(customers.find(c=>c.id===selected.customerId))} の入金を記録</div>
+              <div style={{background:"var(--grp)",borderRadius:9,padding:"10px 12px",marginBottom:12}}>
+                {[["請求合計",fmt(total),"var(--lb)"],["入金済",fmt(paid),"var(--gr)"],["残金",fmt(remaining),remaining>0?"var(--re)":"var(--gr)"]].map(([l,v,c])=>(
+                  <div key={l} className="rb" style={{padding:"3px 0"}}><span className="xs cmu">{l}</span><span style={{fontSize:13,fontWeight:700,color:c}}>{v}</span></div>
+                ))}
+              </div>
+              <div className="stk" style={{gap:9}}>
+                <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+                <Fld label="メモ" opt><input className="inp" placeholder="現金・振込など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
+                <button className="btn bp" style={{width:"100%"}} onClick={handleAdd}>✅ 入金を記録する</button>
+                <button className="btn bs bsm" style={{width:"100%"}} onClick={()=>setSelectedId(null)}>キャンセル</button>
+              </div>
+              {(selected.payments||[]).length>0&&(
+                <div style={{marginTop:14}}>
+                  <div className="fl">入金履歴</div>
+                  {selected.payments.map(p=>(
+                    <div key={p.id} className="rb" style={{padding:"5px 0",borderBottom:"1px solid var(--sep)"}}>
+                      <div style={{fontSize:12,color:"var(--lb2)"}}>{p.date}{p.memo?` · ${p.memo}`:""}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:"var(--gr)"}}>{fmt(p.amount)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ):(
+            <div className="card" style={{textAlign:"center",padding:"28px 16px",color:"var(--lb2)"}}>
+              <div style={{fontSize:32,marginBottom:8}}>←</div>
+              <div className="sm">左の一覧から請求書を選択すると入金を記録できます</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Combined Invoice ───────────────────────────────────────
 function CombinedInvoice({invoices,customers,settings}){
   const[cid,setCid]=useState(customers[0]?.id||"");
@@ -1789,6 +1943,20 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
         </Fld>
         <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
+        <div>
+          <div className="fl">領収書写真 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          {form.receiptPhoto?(
+            <div style={{position:"relative",display:"inline-block"}}>
+              <img src={form.receiptPhoto} alt="領収書" style={{maxWidth:"100%",maxHeight:200,borderRadius:10,objectFit:"contain",border:"1px solid var(--sep)"}}/>
+              <button onClick={()=>setForm(f=>({...f,receiptPhoto:null}))} style={{position:"absolute",top:5,right:5,background:"rgba(0,0,0,.6)",color:"#fff",border:"none",borderRadius:6,width:22,height:22,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            </div>
+          ):(
+            <label style={{display:"flex",alignItems:"center",gap:9,padding:"11px 14px",border:"2px dashed var(--lb3)",borderRadius:10,cursor:"pointer",color:"var(--lb2)",fontSize:13,background:"var(--fi2)"}}>
+              <span style={{fontSize:20}}>📷</span> カメラ/ファイルを選択
+              <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{const file=e.target.files?.[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,receiptPhoto:ev.target.result,receipt:true}));r.readAsDataURL(file);e.target.value="";}}/>
+            </label>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1801,6 +1969,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
           <div key={e.id} className="li" onClick={()=>{setForm({...e});setModal(e);}}>
             <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{e.desc}</div><div className="cmu sm">{e.date} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div></div>
+            {e.receiptPhoto&&<img src={e.receiptPhoto} alt="領収書" style={{width:32,height:32,borderRadius:6,objectFit:"cover",border:"1px solid var(--sep)",flexShrink:0}}/>}
             <div className="b7 sm">{fmt(e.amount)}</div>
           </div>
         ))}{!expenses.length&&<div className="li cmu" style={{justifyContent:"center"}}>経費データがありません</div>}</div>
@@ -2518,6 +2687,61 @@ const SettingsField=React.memo(function SettingsField({label,value,onChange,plac
   );
 });
 
+// ── テンプレートメモ管理 ───────────────────────────────────
+function TemplateMemoSettings({templateMemos=[],onChange}){
+  const[editId,setEditId]=useState(null);
+  const[form,setForm]=useState({title:"",body:""});
+  const[copied,setCopied]=useState(null);
+  const startEdit=t=>{setEditId(t.id);setForm({title:t.title,body:t.body});};
+  const startAdd=()=>{setEditId("new");setForm({title:"",body:""});};
+  const save=()=>{
+    if(!form.title)return;
+    if(editId==="new")onChange([...templateMemos,{...form,id:Date.now()}]);
+    else onChange(templateMemos.map(t=>t.id===editId?{...t,...form}:t));
+    setEditId(null);
+  };
+  const copy=(text,id)=>{
+    navigator.clipboard?.writeText(text).catch(()=>{});
+    setCopied(id);setTimeout(()=>setCopied(null),1500);
+  };
+  return(
+    <div className="card">
+      <div className="rb mb12">
+        <div style={{fontSize:14,fontWeight:800}}>📝 テンプレートメモ</div>
+        <button className="btn bp bsm" onClick={startAdd}>＋ 追加</button>
+      </div>
+      {editId&&(
+        <div style={{background:"var(--fi2)",borderRadius:10,padding:"12px",marginBottom:12}}>
+          <div className="stk" style={{gap:8}}>
+            <Fld label="タイトル"><input className="inp" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="例: 車検案内"/></Fld>
+            <Fld label="本文"><textarea className="inp" rows={5} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="テンプレート本文を入力..."/></Fld>
+            <div style={{display:"flex",gap:6}}>
+              <button className="btn bs bsm" onClick={()=>setEditId(null)}>キャンセル</button>
+              <button className="btn bp bsm" onClick={save}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="lst">
+        {templateMemos.length===0&&<div className="li cmu" style={{justifyContent:"center"}}>テンプレート未登録</div>}
+        {templateMemos.map(t=>(
+          <div key={t.id} style={{padding:"10px 13px",borderBottom:"1px solid var(--sep)"}}>
+            <div className="rb mb6">
+              <div style={{fontSize:13,fontWeight:700}}>{t.title}</div>
+              <div style={{display:"flex",gap:5}}>
+                <button className="btn bs bsm" onClick={()=>copy(t.body,t.id)}>{copied===t.id?"✅ コピー済":"📋 コピー"}</button>
+                <button className="btn bs bsm" onClick={()=>startEdit(t)}>編集</button>
+                <button className="btn bd bsm" onClick={()=>onChange(templateMemos.filter(x=>x.id!==t.id))}>削除</button>
+              </div>
+            </div>
+            <div style={{fontSize:12,color:"var(--lb2)",whiteSpace:"pre-wrap",lineHeight:1.6,background:"var(--fi2)",borderRadius:7,padding:"7px 10px"}}>{t.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
@@ -2672,6 +2896,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
         </div>
       </div>
       <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
+      <TemplateMemoSettings templateMemos={form.templateMemos||[]} onChange={tm=>setForm(f=>({...f,templateMemos:tm}))}/>
     </div>
   );
 }
@@ -2797,7 +3022,7 @@ function WorkLogModal({log,customers,onSave,onClose}){
   );
 }
 
-function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
+function WorkLogDetail({log,customer,vehicle,onClose,onEdit,onToInvoice}){
   const[photo,setPhoto]=useState(null);
   const sColor={完了:"dgr",作業中:"dbl",保留:"dor"}[log.status]||"dgy";
   return(
@@ -2806,6 +3031,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
         <div style={{fontSize:18,fontWeight:800}}>作業記録</div>
         <div style={{display:"flex",gap:6}}>
           <button className="btn bs bsm" onClick={onClose}>閉じる</button>
+          {onToInvoice&&<button className="btn bg bsm" onClick={onToInvoice}>📄 請求書へ</button>}
           <button className="btn bp bsm" onClick={onEdit}>✏️ 編集</button>
         </div>
       </div>
@@ -2852,7 +3078,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
   );
 }
 
-const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
+const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers,setInvoices,invoices,settings}){
   const[modal,setModal]=useState(null);// null | "add" | log object
   const[detail,setDetail]=useState(null);
   const[search,setSearch]=useState("");
@@ -2867,6 +3093,15 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
     setModal(null);setDetail(null);
   };
   const del=id=>{if(confirm("削除しますか？")){setWorklogs(p=>p.filter(w=>w.id!==id));setDetail(null);}};
+
+  const toInvoice=log=>{
+    if(!setInvoices||!invoices)return;
+    const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")})))); 
+    const newInv={id:nid,type:"repair",customerId:log.customerId,vehicleId:log.vehicleId||"",date:log.date,dueDate:"",items:[{desc:log.title||"作業一式",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:0.1,status:"未入金",note:log.memo||""};
+    setInvoices(p=>[...p,newInv]);
+    setDetail(null);
+    alert(`請求書 No.${nid} を作成しました。請求書ページで金額を入力してください。`);
+  };
 
   const filtered=[...worklogs].filter(w=>{
     if(filterCid&&w.customerId!==Number(filterCid))return false;
@@ -2883,7 +3118,7 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
   const allTags=[...new Set(worklogs.flatMap(w=>w.tags||[]))];
 
   if(modal) return <WorkLogModal log={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)}/>;
-  if(detail) return(()=>{const c=customers.find(c=>c.id===detail.customerId);const v=(c?.vehicles||[]).find(v=>v.id===detail.vehicleId);return <WorkLogDetail log={detail} customer={c} vehicle={v} onClose={()=>setDetail(null)} onEdit={()=>{setModal(detail);setDetail(null);}}/>;})();
+  if(detail) return(()=>{const c=customers.find(c=>c.id===detail.customerId);const v=(c?.vehicles||[]).find(v=>v.id===detail.vehicleId);return <WorkLogDetail log={detail} customer={c} vehicle={v} onClose={()=>setDetail(null)} onEdit={()=>{setModal(detail);setDetail(null);}} onToInvoice={()=>toInvoice(detail)}/>;})();
   return(
     <div className="stk fu">
       <div className="rb">
@@ -3034,8 +3269,6 @@ function LoginScreen({onLogin,shopName}){
   );
 }
 
-
-
 // ── Navigation & App ───────────────────────────────────────
 const PAGES=[
   {id:"dashboard",label:"ダッシュボード",icon:"🏠"},
@@ -3043,6 +3276,7 @@ const PAGES=[
   {id:"quotes",label:"見積書",icon:"📋"},
   {id:"invoices",label:"請求書",icon:"📄"},
   {id:"combined",label:"合計請求書",icon:"📑"},
+  {id:"payment",label:"入金消込",icon:"💰"},
   {id:"worklog",label:"作業記録",icon:"📸"},
   {id:"expenses",label:"経費管理",icon:"💳"},
   {id:"cashbook",label:"金銭出納帳",icon:"📒"},
@@ -3051,8 +3285,8 @@ const PAGES=[
   {id:"settings",label:"設定",icon:"⚙️"},
   {id:"data",label:"データ管理",icon:"🗄️"},
 ];
-const BNAV_IDS=["dashboard","customers","worklog","expenses","invoices","quotes","cashbook","settings"];
-const BNAV_LABELS={"dashboard":"ホーム","customers":"顧客","worklog":"作業記録","expenses":"経費","quotes":"見積書","invoices":"請求書","cashbook":"出納帳","settings":"設定"};
+const BNAV_IDS=["dashboard","customers","worklog","expenses","invoices","payment","cashbook","settings"];
+const BNAV_LABELS={"dashboard":"ホーム","customers":"顧客","worklog":"作業記録","expenses":"経費","quotes":"見積書","invoices":"請求書","payment":"消込","cashbook":"出納帳","settings":"設定"};
 
 export default function App(){
   const[page,setPage]=useState("dashboard");
@@ -3081,7 +3315,8 @@ export default function App(){
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
-      case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
+      case"payment":     return <PaymentKesikomi invoices={invoices} setInvoices={set("invoices")} customers={customers} settings={settings}/>;
+      case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
