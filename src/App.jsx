@@ -246,13 +246,66 @@ const SB_KEY="bankin_supabase";
 const getSbConf=()=>{try{const s=JSON.parse(localStorage.getItem(SB_KEY)||"{}");return{url:s.url||"https://txosxdjdicgalxhmwzqz.supabase.co",anonKey:s.anonKey||"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4b3N4ZGpkaWNnYWx4aG13enF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjQ0MzUsImV4cCI6MjA5NTQwMDQzNX0.Gp2YE-7_tmzqLsS-yP5ioGGu3jZ3vpwkiUJhbEFdVT8"};}catch{return{url:"https://txosxdjdicgalxhmwzqz.supabase.co",anonKey:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4b3N4ZGpkaWNnYWx4aG13enF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjQ0MzUsImV4cCI6MjA5NTQwMDQzNX0.Gp2YE-7_tmzqLsS-yP5ioGGu3jZ3vpwkiUJhbEFdVT8"};}};
 const setSbConf=c=>localStorage.setItem(SB_KEY,JSON.stringify(c));
 
+// ── Supabase Auth ───────────────────────────────────────────
+const SB_SESSION_KEY="bankin_sb_session";
+const getSbSession=()=>{try{return JSON.parse(localStorage.getItem(SB_SESSION_KEY)||"null");}catch{return null;}};
+const setSbSession=s=>localStorage.setItem(SB_SESSION_KEY,JSON.stringify(s));
+const clearSbSession=()=>localStorage.removeItem(SB_SESSION_KEY);
+
+const sbSignIn=async(email,password)=>{
+  const conf=getSbConf();
+  const res=await fetch(`${conf.url}/auth/v1/token?grant_type=password`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":conf.anonKey},
+    body:JSON.stringify({email,password}),
+  });
+  if(!res.ok){const t=await res.json();throw new Error(t.error_description||t.msg||"ログイン失敗");}
+  const data=await res.json();
+  setSbSession({accessToken:data.access_token,refreshToken:data.refresh_token,expiresAt:Date.now()+data.expires_in*1000});
+  return data.access_token;
+};
+
+const sbRefreshToken=async()=>{
+  const session=getSbSession();
+  if(!session?.refreshToken)return null;
+  const conf=getSbConf();
+  const res=await fetch(`${conf.url}/auth/v1/token?grant_type=refresh_token`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":conf.anonKey},
+    body:JSON.stringify({refresh_token:session.refreshToken}),
+  });
+  if(!res.ok){clearSbSession();return null;}
+  const data=await res.json();
+  setSbSession({accessToken:data.access_token,refreshToken:data.refresh_token,expiresAt:Date.now()+data.expires_in*1000});
+  return data.access_token;
+};
+
+const getAccessToken=async()=>{
+  const session=getSbSession();
+  if(!session)return null;
+  // 5分前に期限切れなら更新
+  if(Date.now()>session.expiresAt-300000)return await sbRefreshToken();
+  return session.accessToken;
+};
+
+const sbSignOut=async()=>{
+  try{
+    const token=await getAccessToken();
+    const conf=getSbConf();
+    if(token)await fetch(`${conf.url}/auth/v1/logout`,{method:"POST",headers:{"Content-Type":"application/json","apikey":conf.anonKey,"Authorization":`Bearer ${token}`}});
+  }catch{}
+  clearSbSession();
+};
+
 // Supabase REST helpers — no SDK, pure fetch
 const sbFetch=async(conf,method,path,body)=>{
   const{url,anonKey}=conf;
   if(!url||!anonKey)throw new Error("Supabase未設定");
+  // 認証トークンがあればそれを使う、なければanonKey
+  const token=(await getAccessToken())||anonKey;
   const res=await fetch(`${url}/rest/v1/${path}`,{
     method,
-    headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":`Bearer ${anonKey}`,"Prefer":"return=representation"},
+    headers:{"Content-Type":"application/json","apikey":anonKey,"Authorization":`Bearer ${token}`,"Prefer":"return=representation"},
     body:(body!=null&&method!=="GET")?JSON.stringify(body):undefined,
   });
   if(!res.ok){const t=await res.text();throw new Error(`${res.status}: ${t}`);}
@@ -2537,6 +2590,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
             </div>
           </div>
           {hasPin&&<button className="btn bs bsm" style={{alignSelf:"flex-start"}} onClick={()=>{sessionStorage.removeItem(PIN_SESSION);window.location.reload();}}>🔒 今すぐロック</button>}
+          {sbEnabled&&<button className="btn bd bsm" style={{alignSelf:"flex-start"}} onClick={async()=>{if(window.confirm("ログアウトしますか？")){await sbSignOut();window.location.reload();}}}>🚪 ログアウト</button>}
         </div>
       </div>
       <div className="card">
@@ -2922,6 +2976,67 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
   );
 });
 
+// ── Login Screen ───────────────────────────────────────────
+function LoginScreen({onLogin,shopName}){
+  const[email,setEmail]=useState("");
+  const[password,setPassword]=useState("");
+  const[error,setError]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[showPw,setShowPw]=useState(false);
+
+  const handleLogin=async()=>{
+    if(!email||!password){setError("メールアドレスとパスワードを入力してください");return;}
+    setLoading(true);setError("");
+    try{
+      await sbSignIn(email,password);
+      onLogin();
+    }catch(e){
+      setError(e.message||"ログインに失敗しました");
+    }finally{setLoading(false);}
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"var(--sb-bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:9999,padding:24}}>
+      <div style={{width:"100%",maxWidth:380}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontSize:36,marginBottom:8}}>🔐</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{shopName||"鈑金ERP"}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.45)",marginTop:4}}>ログインしてください</div>
+        </div>
+        <div className="stk" style={{gap:12}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",marginBottom:5,letterSpacing:".04em",textTransform:"uppercase"}}>メールアドレス</div>
+            <input className="inp" type="email" placeholder="your@email.com" value={email}
+              onChange={e=>{setEmail(e.target.value);setError("");}}
+              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+              style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff"}}
+              autoComplete="email"/>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",marginBottom:5,letterSpacing:".04em",textTransform:"uppercase"}}>パスワード</div>
+            <div style={{position:"relative"}}>
+              <input className="inp" type={showPw?"text":"password"} placeholder="••••••••" value={password}
+                onChange={e=>{setPassword(e.target.value);setError("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44}}
+                autoComplete="current-password"/>
+              <button onClick={()=>setShowPw(p=>!p)}
+                style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"rgba(255,255,255,.45)"}}>
+                {showPw?"🙈":"👁️"}
+              </button>
+            </div>
+          </div>
+          {error&&<div style={{fontSize:13,color:"#e07570",fontWeight:600,textAlign:"center"}}>{error}</div>}
+          <button className="btn bp" style={{width:"100%",padding:"13px",fontSize:15,marginTop:4,background:"#3D5A8A",opacity:loading?.6:1}}
+            onClick={handleLogin} disabled={loading}>
+            {loading?"ログイン中…":"ログイン"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── PIN Lock ───────────────────────────────────────────────
 const PIN_KEY="bankin_pin";
 const PIN_SESSION="bankin_unlocked";
@@ -3020,11 +3135,16 @@ export default function App(){
   const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
   const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
   const cur=PAGES.find(p=>p.id===page);
-  // PINロック
+  // Supabase Auth ログイン
+  const[loggedIn,setLoggedIn]=useState(()=>!!getSbSession());
+  const sbEnabled2=!!(getSbConf().url&&getSbConf().anonKey);
+  // Supabase有効時はログイン必須
+  if(sbEnabled2&&!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/>;
+  // PINロック（Supabase未接続時のフォールバック）
   const hasPin=!!getPin();
-  const[unlocked,setUnlocked]=useState(()=>!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
+  const[unlocked,setUnlocked]=useState(()=>loggedIn||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
   const[showPinSetup,setShowPinSetup]=useState(false);
-  if(!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
+  if(!loggedIn&&!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
   if(showPinSetup) return <PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/>;
 
   const syncDot={ok:"#7ec49a",error:"#e07570",syncing:"#c4a46a",idle:"rgba(255,255,255,.25)"}[syncState]||"rgba(255,255,255,.25)";
