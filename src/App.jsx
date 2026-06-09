@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 const G = () => (
   <style>{`
@@ -225,6 +225,15 @@ const IW=[
 const DK="bankin_v4";
 const loadDB=init=>{try{const r=localStorage.getItem(DK);if(r)return{...init,...JSON.parse(r)};}catch{}return init;};
 const saveDB=db=>{try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));}catch{}};
+// debounce付き保存hook（1秒待ってから書き込み）
+function useSaveDB(db){
+  const t=useRef(null);
+  useEffect(()=>{
+    clearTimeout(t.current);
+    t.current=setTimeout(()=>saveDB(db),1000);
+    return()=>clearTimeout(t.current);
+  },[db]);
+}
 const doExport=db=>{
   const b=new Blob([JSON.stringify({...db,meta:{...db.meta,ex:new Date().toISOString()}},null,2)],{type:"application/json"});
   const u=URL.createObjectURL(b);const a=document.createElement("a");
@@ -736,35 +745,104 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-function Dashboard({customers,invoices,quotes,expenses,settings}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings}){
   const now=new Date();const m=now.getMonth()+1;const y=now.getFullYear();
-  const gt=inv=>invTotal(inv,settings);
-  const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
-  const mS=mInv.reduce((s,i)=>s+gt(i),0);
-  const uAmt=invoices.filter(i=>i.status==="未入金").reduce((s,i)=>s+gt(i),0);
-  const uCnt=invoices.filter(i=>i.status==="未入金").length;
-  const yS=invoices.filter(i=>yr(i.date)===y).reduce((s,i)=>s+gt(i),0);
-  const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y).reduce((s,e)=>s+e.amount,0);
-  const monthly=Array.from({length:6},(_,i)=>{
-    const d=new Date(y,m-1-(5-i),1);const mm=d.getMonth()+1;const yy=d.getFullYear();
-    const s=invoices.filter(inv=>mo(inv.date)===mm&&yr(inv.date)===yy).reduce((s,i)=>s+gt(i),0);
-    const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy).reduce((s,e)=>s+e.amount,0);
-    return{label:`${mm}月`,s,e};
-  });
-  const mx=Math.max(...monthly.map(d=>Math.max(d.s,d.e)),1);
-  const rec=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail}=useMemo(()=>{
+    const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
+    const mS=mInv.reduce((s,i)=>s+gt(i),0);
+    const unpaidInvs=invoices.filter(i=>i.status==="未入金");
+    const uAmt=unpaidInvs.reduce((s,i)=>s+gt(i),0);
+    const uCnt=unpaidInvs.length;
+    const yS=invoices.filter(i=>yr(i.date)===y).reduce((s,i)=>s+gt(i),0);
+    const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y).reduce((s,e)=>s+e.amount,0);
+    const monthly=Array.from({length:6},(_,i)=>{
+      const d=new Date(y,m-1-(5-i),1);const mm=d.getMonth()+1;const yy=d.getFullYear();
+      const s=invoices.filter(inv=>mo(inv.date)===mm&&yr(inv.date)===yy).reduce((s,i)=>s+gt(i),0);
+      const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy).reduce((s,e)=>s+e.amount,0);
+      return{label:`${mm}月`,s,e};
+    });
+    const mx=Math.max(...monthly.map(d=>Math.max(d.s,d.e)),1);
+    const rec=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+    const mInvDetail=[...mInv].sort((a,b)=>b.date.localeCompare(a.date));
+    const unpaidDetail=[...unpaidInvs].sort((a,b)=>b.date.localeCompare(a.date));
+    return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail};
+  },[invoices,expenses,gt,m,y]);
+  const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
       <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>おはようございます 👋</div></div>
       <div className="g4" style={{gap:9}}>
-        {[{label:"今月の売上",value:fmt(mS),sub:`経費 ${fmt(mE)}`,c:"#007AFF"},{label:"未収金",value:fmt(uAmt),sub:`${uCnt}件未入金`,c:"#FF3B30"},{label:"今月の件数",value:`${mInv.length}件`,sub:`車検${mInv.filter(i=>i.type==="shakken").length} 修理${mInv.filter(i=>i.type==="repair").length}`,c:"#34C759"},{label:"今年度累計",value:fmt(yS),sub:`${y}年1〜${m}月`,c:"#AF52DE"}].map((k,i)=>(
-          <div key={i} className="sc" style={{background:k.c}}>
-            <div style={{fontSize:11,fontWeight:600,opacity:.85}}>{k.label}</div>
-            <div style={{fontSize:k.value.length>10?17:23,fontWeight:800,letterSpacing:-.5,margin:"3px 0 2px"}}>{k.value}</div>
-            <div style={{fontSize:11,opacity:.75}}>{k.sub}</div>
-          </div>
-        ))}
+        {/* 今月の売上カード */}
+        <div onClick={()=>toggle("sales")} className="sc" style={{background:"#3D5A8A",cursor:"pointer",userSelect:"none"}}>
+          <div style={{fontSize:11,fontWeight:600,opacity:.85}}>今月の売上</div>
+          <div style={{fontSize:fmt(mS).length>10?17:23,fontWeight:800,letterSpacing:-.5,margin:"3px 0 2px"}}>{fmt(mS)}</div>
+          <div style={{fontSize:11,opacity:.75,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span>経費 {fmt(mE)}</span><span style={{opacity:.7}}>{openCard==="sales"?"▲":"▼"}</span></div>
+        </div>
+        {/* 未収金カード */}
+        <div onClick={()=>toggle("unpaid")} className="sc" style={{background:"#B85450",cursor:"pointer",userSelect:"none"}}>
+          <div style={{fontSize:11,fontWeight:600,opacity:.85}}>未収金</div>
+          <div style={{fontSize:fmt(uAmt).length>10?17:23,fontWeight:800,letterSpacing:-.5,margin:"3px 0 2px"}}>{fmt(uAmt)}</div>
+          <div style={{fontSize:11,opacity:.75,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span>{uCnt}件未入金</span><span style={{opacity:.7}}>{openCard==="unpaid"?"▲":"▼"}</span></div>
+        </div>
+        {/* 今月の件数 */}
+        <div className="sc" style={{background:"#4A8C6A"}}>
+          <div style={{fontSize:11,fontWeight:600,opacity:.85}}>今月の件数</div>
+          <div style={{fontSize:23,fontWeight:800,letterSpacing:-.5,margin:"3px 0 2px"}}>{mInv.length}件</div>
+          <div style={{fontSize:11,opacity:.75}}>車検{mInv.filter(i=>i.type==="shakken").length} 修理{mInv.filter(i=>i.type==="repair").length}</div>
+        </div>
+        {/* 今年度累計 */}
+        <div className="sc" style={{background:"#6B5B8A"}}>
+          <div style={{fontSize:11,fontWeight:600,opacity:.85}}>今年度累計</div>
+          <div style={{fontSize:fmt(yS).length>10?17:23,fontWeight:800,letterSpacing:-.5,margin:"3px 0 2px"}}>{fmt(yS)}</div>
+          <div style={{fontSize:11,opacity:.75}}>{y}年1〜{m}月</div>
+        </div>
       </div>
+      {/* 売上内訳アコーディオン */}
+      {openCard==="sales"&&(
+        <div className="card fu" style={{padding:0,overflow:"hidden"}}>
+          <div style={{padding:"11px 14px",borderBottom:"1px solid var(--sep)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontWeight:700,fontSize:13}}>今月の売上内訳 <span className="cmu xs">({mInvDetail.length}件)</span></div>
+            <span style={{fontSize:11,color:"var(--bl)",fontWeight:600}}>{fmt(mS)}</span>
+          </div>
+          {mInvDetail.length===0&&<div className="cmu sm" style={{padding:"14px 16px"}}>今月の請求書はありません</div>}
+          {mInvDetail.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);return(
+            <div key={inv.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{fullName(c)}</div>
+                <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.date}　{inv.type==="shakken"?"車検":"鈑金"}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:13,fontWeight:700}}>{fmt(gt(inv))}</div>
+                <span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`}>{inv.status}</span>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+      {/* 未収金内訳アコーディオン */}
+      {openCard==="unpaid"&&(
+        <div className="card fu" style={{padding:0,overflow:"hidden"}}>
+          <div style={{padding:"11px 14px",borderBottom:"1px solid var(--sep)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontWeight:700,fontSize:13}}>未収金内訳 <span className="cmu xs">({unpaidDetail.length}件)</span></div>
+            <span style={{fontSize:11,color:"var(--re)",fontWeight:600}}>{fmt(uAmt)}</span>
+          </div>
+          {unpaidDetail.length===0&&<div className="cmu sm" style={{padding:"14px 16px"}}>未入金の請求書はありません</div>}
+          {unpaidDetail.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);return(
+            <div key={inv.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{fullName(c)}</div>
+                <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.date}　{inv.type==="shakken"?"車検":"鈑金"}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--re)"}}>{fmt(gt(inv))}</div>
+                <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.id}</div>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}} className="dg">
         <style>{`@media(max-width:700px){.dg{grid-template-columns:1fr!important;}}`}</style>
         <div className="card">
@@ -805,7 +883,7 @@ function Dashboard({customers,invoices,quotes,expenses,settings}){
       </div>}
     </div>
   );
-}
+});
 
 // 車種区分セレクト（グループ化）
 function CarTypeSelect({value,onChange}){
@@ -925,7 +1003,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
   );
 }
 
-function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
+const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
   const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
@@ -1072,7 +1150,7 @@ function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
       {vModal&&<VehicleModal v={vModal.v} onSave={vd=>saveV(vModal.cid,vModal.v?.id,vd)} onClose={()=>setVModal(null)} onDel={()=>{if(confirm("削除？")){setCustomers(p=>p.map(c=>c.id===vModal.cid?{...c,vehicles:(c.vehicles||[]).filter(v=>v.id!==vModal.v.id)}:c));setVModal(null);}}}/>}
     </div>
   );
-}
+});
 
 // ── Quote ──────────────────────────────────────────────────
 function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
@@ -1129,7 +1207,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
   );
 }
 
-function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
+const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);
   const mkQId=arr=>String(nextId(arr.map(q=>({id:q.id.replace(/\D/g,"")}))));
   const save=form=>{
@@ -1161,7 +1239,7 @@ function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
       </div>
     </div>
   );
-}
+});
 
 // ── Repair Invoice Form ────────────────────────────────────
 function RepairForm({doc,customers,onSave,onClose,settings}){
@@ -1449,7 +1527,7 @@ function PaymentModal({inv,total,onSave,onClose}){
   );
 }
 
-function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}){
+const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);const[printType,setPType]=useState("invoice");
   const[tab,setTab]=useState("all");const[tTab,setTTab]=useState("all");
   const[showTpl,setShowTpl]=useState(false);
@@ -1573,7 +1651,7 @@ function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}
       {payModal&&<PaymentModal inv={payModal} total={gt(payModal)} onSave={updated=>{setInvoices(p=>p.map(i=>i.id===updated.id?updated:i));setPayModal(updated);}} onClose={()=>setPayModal(null)}/>}
     </div>
   );
-}
+});
 
 // ── Combined Invoice ───────────────────────────────────────
 function CombinedInvoice({invoices,customers,settings}){
@@ -1612,7 +1690,7 @@ function CombinedInvoice({invoices,customers,settings}){
 }
 
 // ── Expenses ───────────────────────────────────────────────
-function Expenses({expenses,setExpenses}){
+const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
   const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
   const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
@@ -1691,35 +1769,35 @@ function Expenses({expenses,setExpenses}){
       )}
     </div>
   );
-}
+});
 
 // ── CashBook ───────────────────────────────────────────────
-function CashBook({invoices,expenses,settings}){
+const CashBook=React.memo(function CashBook({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear());
   const[month,setMonth]=useState(new Date().getMonth()+1);
-  const gt=inv=>invTotal(inv,settings);
-  const entries=[];
-  invoices.filter(i=>yr(i.date)===year&&mo(i.date)===month).forEach(inv=>{
-    if(inv.type==="shakken"){
-      // 車検は外注のため、代行料のみ収入計上
-      const daikoRaw=inv.shakken?.daiko??settings.daiko??0;
-      const daikoTx=inv.shakken?.daikoTax??settings.daikoTax??0.1;
-      const daikoAmt=calcDaiko(daikoRaw,daikoTx);
-      // 整備費（自社作業分）も収入に加える
-      const{total:seibiFee}=calcItems(inv.items||[],inv.tax||0.1);
-      entries.push({date:inv.date,type:"収入",cat:"車検代行料",desc:"車検代行料"+(seibiFee>0?"・整備費":""),amount:daikoAmt+seibiFee,status:inv.status});
-      // 法定費用は外注費として支出計上（預り金扱い）
-      const govAmt=calcGovFees(inv.shakken||{});
-      if(govAmt>0)entries.push({date:inv.date,type:"支出",cat:"外注費",desc:"車検法定費用（自賠責・重量税等）",amount:govAmt,status:"確定"});
-    } else {
-      entries.push({date:inv.date,type:"収入",cat:"鈑金修理",desc:inv.items.map(i=>i.desc).join("、"),amount:gt(inv),status:inv.status});
-    }
-  });
-  expenses.filter(e=>yr(e.date)===year&&mo(e.date)===month).forEach(exp=>{entries.push({date:exp.date,type:"支出",cat:exp.category,desc:exp.desc,amount:exp.amount,status:"確定"});});
-  entries.sort((a,b)=>a.date.localeCompare(b.date));
-  let bal=0;const rows=entries.map(e=>{if(e.type==="収入")bal+=e.amount;else bal-=e.amount;return{...e,bal};});
-  const tIn=entries.filter(e=>e.type==="収入").reduce((s,e)=>s+e.amount,0);
-  const tOut=entries.filter(e=>e.type==="支出").reduce((s,e)=>s+e.amount,0);
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const{rows,tIn,tOut}=useMemo(()=>{
+    const entries=[];
+    invoices.filter(i=>yr(i.date)===year&&mo(i.date)===month).forEach(inv=>{
+      if(inv.type==="shakken"){
+        const daikoRaw=inv.shakken?.daiko??settings.daiko??0;
+        const daikoTx=inv.shakken?.daikoTax??settings.daikoTax??0.1;
+        const daikoAmt=calcDaiko(daikoRaw,daikoTx);
+        const{total:seibiFee}=calcItems(inv.items||[],inv.tax||0.1);
+        entries.push({date:inv.date,type:"収入",cat:"車検代行料",desc:"車検代行料"+(seibiFee>0?"・整備費":""),amount:daikoAmt+seibiFee,status:inv.status});
+        const govAmt=calcGovFees(inv.shakken||{});
+        if(govAmt>0)entries.push({date:inv.date,type:"支出",cat:"外注費",desc:"車検法定費用（自賠責・重量税等）",amount:govAmt,status:"確定"});
+      } else {
+        entries.push({date:inv.date,type:"収入",cat:"鈑金修理",desc:inv.items.map(i=>i.desc).join("、"),amount:gt(inv),status:inv.status});
+      }
+    });
+    expenses.filter(e=>yr(e.date)===year&&mo(e.date)===month).forEach(exp=>{entries.push({date:exp.date,type:"支出",cat:exp.category,desc:exp.desc,amount:exp.amount,status:"確定"});});
+    entries.sort((a,b)=>a.date.localeCompare(b.date));
+    let bal=0;const rows=entries.map(e=>{if(e.type==="収入")bal+=e.amount;else bal-=e.amount;return{...e,bal};});
+    const tIn=entries.filter(e=>e.type==="収入").reduce((s,e)=>s+e.amount,0);
+    const tOut=entries.filter(e=>e.type==="支出").reduce((s,e)=>s+e.amount,0);
+    return{rows,tIn,tOut};
+  },[invoices,expenses,settings,year,month,gt]);
   return(
     <div className="stk fu">
       <div className="rb">
@@ -1763,15 +1841,18 @@ function CashBook({invoices,expenses,settings}){
       </div>
     </div>
   );
-}
+});
 
 // ── Sales Report ───────────────────────────────────────────
-function SalesReport({invoices,expenses,settings}){
+const SalesReport=React.memo(function SalesReport({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear());
-  const gt=inv=>invTotal(inv,settings);
-  const data=Array.from({length:12},(_,i)=>{const m=i+1;const s=invoices.filter(inv=>yr(inv.date)===year&&mo(inv.date)===m).reduce((sum,i)=>sum+gt(i),0);const e=expenses.filter(e=>yr(e.date)===year&&mo(e.date)===m).reduce((sum,e)=>sum+e.amount,0);return{m,s,e,p:s-e};});
-  const tots=data.reduce((t,d)=>({s:t.s+d.s,e:t.e+d.e,p:t.p+d.p}),{s:0,e:0,p:0});
-  const mx=Math.max(...data.map(d=>d.s),1);
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const{data,tots,mx}=useMemo(()=>{
+    const data=Array.from({length:12},(_,i)=>{const m=i+1;const s=invoices.filter(inv=>yr(inv.date)===year&&mo(inv.date)===m).reduce((sum,i)=>sum+gt(i),0);const e=expenses.filter(e=>yr(e.date)===year&&mo(e.date)===m).reduce((sum,e)=>sum+e.amount,0);return{m,s,e,p:s-e};});
+    const tots=data.reduce((t,d)=>({s:t.s+d.s,e:t.e+d.e,p:t.p+d.p}),{s:0,e:0,p:0});
+    const mx=Math.max(...data.map(d=>d.s),1);
+    return{data,tots,mx};
+  },[invoices,expenses,year,gt]);
   return(
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>売上・集計</div><div className="row" style={{gap:6}}><button className="btn bs bsm" onClick={()=>setYear(y=>y-1)}>‹</button><span className="b7">{year}年</span><button className="btn bs bsm" onClick={()=>setYear(y=>y+1)}>›</button></div></div>
@@ -1804,29 +1885,29 @@ function SalesReport({invoices,expenses,settings}){
       </div></div>
     </div>
   );
-}
+});
 
 // ── White Declaration ──────────────────────────────────────
-function WhiteDeclaration({invoices,expenses,settings}){
+const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear()-1);
   const[showPrint,setShowPrint]=useState(false);
-  // 基本集計
-  const gt=inv=>invTotal(inv,settings);
-  const yInv=invoices.filter(i=>yr(i.date)===year&&i.status!=="見積中");
-  const yExp=expenses.filter(e=>yr(e.date)===year);
-  const tS=yInv.reduce((s,i)=>s+gt(i),0);
-  const tE=yExp.reduce((s,e)=>s+e.amount,0);
-  const prof=tS-tE;
-  // 経費科目別
-  const kGroup={};yExp.forEach(e=>{const k=KAMOKU[e.category]||"雑費";kGroup[k]=(kGroup[k]||0)+e.amount;});
-  // 月別
-  const monthly=Array.from({length:12},(_,i)=>{
-    const m=i+1;
-    const s=yInv.filter(inv=>mo(inv.date)===m).reduce((sum,inv)=>sum+gt(inv),0);
-    const e=yExp.filter(ex=>mo(ex.date)===m).reduce((sum,ex)=>sum+ex.amount,0);
-    return{m,s,e,p:s-e};
-  });
-  const q4=Array.from({length:4},(_,q)=>({q:q+1,s:monthly.slice(q*3,q*3+3).reduce((sum,d)=>sum+d.s,0)}));
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const{yInv,yExp,tS,tE,prof,kGroup,monthly,q4}=useMemo(()=>{
+    const yInv=invoices.filter(i=>yr(i.date)===year&&i.status!=="見積中");
+    const yExp=expenses.filter(e=>yr(e.date)===year);
+    const tS=yInv.reduce((s,i)=>s+gt(i),0);
+    const tE=yExp.reduce((s,e)=>s+e.amount,0);
+    const prof=tS-tE;
+    const kGroup={};yExp.forEach(e=>{const k=KAMOKU[e.category]||"雑費";kGroup[k]=(kGroup[k]||0)+e.amount;});
+    const monthly=Array.from({length:12},(_,i)=>{
+      const m=i+1;
+      const s=yInv.filter(inv=>mo(inv.date)===m).reduce((sum,inv)=>sum+gt(inv),0);
+      const e=yExp.filter(ex=>mo(ex.date)===m).reduce((sum,ex)=>sum+ex.amount,0);
+      return{m,s,e,p:s-e};
+    });
+    const q4=Array.from({length:4},(_,q)=>({q:q+1,s:monthly.slice(q*3,q*3+3).reduce((sum,d)=>sum+d.s,0)}));
+    return{yInv,yExp,tS,tE,prof,kGroup,monthly,q4};
+  },[invoices,expenses,year,gt]);
   // 経費カテゴリ一覧（収支内訳書の科目順）
   const EXP_ROWS=[
     {label:"売上原価（材料費等）",key:"売上原価（仕入）"},
@@ -2283,7 +2364,7 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
       </div>
     </div>
   );
-}
+});
 
 // ── Settings ───────────────────────────────────────────────
 // ── 作業マスター サジェスト入力 ───────────────────────────
@@ -2384,7 +2465,7 @@ const SettingsField=React.memo(function SettingsField({label,value,onChange,plac
   );
 });
 
-function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled}){
+function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
   const[sbForm,setSbForm]=useState(()=>getSbConf());
@@ -2440,6 +2521,22 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           </div>
           <div className="xs cmu mb8">Supabase → SQL Editor に貼り付けて実行してください（初回のみ）</div>
           {showSql&&<pre style={{background:"#1a1a2e",color:"#a8dadc",padding:"12px 14px",borderRadius:10,fontSize:11,overflowX:"auto",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{SETUP_SQL}</pre>}
+        </div>
+      </div>
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🔒 セキュリティ</div>
+        <div className="stk">
+          <div className="rb">
+            <div>
+              <div className="b6 sm">{hasPin?"PINコード設定済み":"PINコード未設定"}</div>
+              <div className="cmu xs mt4">{hasPin?"アプリ起動時にPINが必要です":"設定するとアプリをロックできます"}</div>
+            </div>
+            <div className="row" style={{gap:7}}>
+              {hasPin&&<button className="btn bd bsm" onClick={()=>{if(window.confirm("PINを削除しますか？")){localStorage.removeItem(PIN_KEY);window.location.reload();}}}>削除</button>}
+              <button className="btn bp bsm" onClick={()=>setShowPinSetup(true)}>{hasPin?"変更":"PINを設定"}</button>
+            </div>
+          </div>
+          {hasPin&&<button className="btn bs bsm" style={{alignSelf:"flex-start"}} onClick={()=>{sessionStorage.removeItem(PIN_SESSION);window.location.reload();}}>🔒 今すぐロック</button>}
         </div>
       </div>
       <div className="card">
@@ -2712,7 +2809,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
   );
 }
 
-function WorkLog({worklogs,setWorklogs,customers}){
+const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
   const[modal,setModal]=useState(null);// null | "add" | log object
   const[detail,setDetail]=useState(null);
   const[search,setSearch]=useState("");
@@ -2823,6 +2920,74 @@ function WorkLog({worklogs,setWorklogs,customers}){
 
     </div>
   );
+});
+
+// ── PIN Lock ───────────────────────────────────────────────
+const PIN_KEY="bankin_pin";
+const PIN_SESSION="bankin_unlocked";
+const getPin=()=>localStorage.getItem(PIN_KEY)||"";
+const setPin=p=>localStorage.setItem(PIN_KEY,p);
+
+function PinLock({onUnlock,isSetup=false,shopName=""}){
+  const[input,setInput]=useState("");
+  const[error,setError]=useState("");
+  const[newPin,setNewPin]=useState("");
+  const[step,setStep]=useState(isSetup?"new":"enter");// "enter"|"new"|"confirm"
+  const MAX=4;
+
+  const tap=n=>{
+    if(step==="enter"){
+      const next=input+n;
+      setInput(next);setError("");
+      if(next.length===MAX){
+        if(next===getPin()){
+          sessionStorage.setItem(PIN_SESSION,"1");
+          onUnlock();
+        } else {
+          setTimeout(()=>{setInput("");setError("PINが違います");},300);
+        }
+      }
+    } else if(step==="new"){
+      const next=input+n;setInput(next);setError("");
+      if(next.length===MAX){setNewPin(next);setInput("");setStep("confirm");}
+    } else if(step==="confirm"){
+      const next=input+n;setInput(next);setError("");
+      if(next.length===MAX){
+        if(next===newPin){setPin(next);sessionStorage.setItem(PIN_SESSION,"1");onUnlock();}
+        else{setTimeout(()=>{setInput("");setError("一致しません。もう一度");setStep("new");setNewPin("");},300);}
+      }
+    }
+  };
+  const del=()=>{setInput(p=>p.slice(0,-1));setError("");};
+
+  const title=step==="enter"?"PINを入力":step==="new"?"新しいPINを入力（4桁）":"もう一度入力（確認）";
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"var(--sb-bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:9999,gap:28}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:28,marginBottom:6}}>🔒</div>
+        <div style={{fontSize:17,fontWeight:700,color:"#fff"}}>{shopName||"エムボディ 鈑金ERP"}</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginTop:4}}>{title}</div>
+      </div>
+      <div style={{display:"flex",gap:14}}>
+        {Array.from({length:MAX},(_,i)=>(
+          <div key={i} style={{width:14,height:14,borderRadius:7,background:i<input.length?"#fff":"rgba(255,255,255,.2)",transition:"background .15s"}}/>
+        ))}
+      </div>
+      {error&&<div style={{fontSize:13,color:"#e07570",fontWeight:600}}>{error}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,72px)",gap:10}}>
+        {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((k,i)=>(
+          k===""?<div key={i}/>:
+          <button key={i} onClick={()=>k==="⌫"?del():tap(String(k))}
+            style={{width:72,height:72,borderRadius:36,border:"none",cursor:"pointer",fontSize:k==="⌫"?20:22,fontWeight:600,
+              background:k==="⌫"?"rgba(255,255,255,.08)":"rgba(255,255,255,.12)",color:"#fff",
+              transition:"background .12s",fontFamily:"var(--f)"}}>
+            {k}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ── Navigation & App ───────────────────────────────────────
@@ -2849,12 +3014,18 @@ export default function App(){
     customers:IC,quotes:IQ,invoices:II,expenses:IE,worklogs:IW,
     settings:DEF_SETTINGS,meta:{savedAt:null},
   }));
-  useEffect(()=>saveDB(db),[db]);
-  const set=k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn}));
+  useSaveDB(db);
+  const set=useCallback(k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn})),[]);
   const{customers,quotes,invoices,expenses,worklogs,settings}=db;
   const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
-  const unpaid=invoices.filter(i=>i.status==="未入金").length;
+  const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
   const cur=PAGES.find(p=>p.id===page);
+  // PINロック
+  const hasPin=!!getPin();
+  const[unlocked,setUnlocked]=useState(()=>!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
+  const[showPinSetup,setShowPinSetup]=useState(false);
+  if(!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
+  if(showPinSetup) return <PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/>;
 
   const syncDot={ok:"#7ec49a",error:"#e07570",syncing:"#c4a46a",idle:"rgba(255,255,255,.25)"}[syncState]||"rgba(255,255,255,.25)";
 
@@ -2870,7 +3041,7 @@ export default function App(){
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
-      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled}/>;
+      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
       case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db)}/>;
       default: return null;
     }
