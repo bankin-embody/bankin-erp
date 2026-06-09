@@ -2982,7 +2982,7 @@ function LoginScreen({onLogin,shopName}){
   const[password,setPassword]=useState("");
   const[error,setError]=useState("");
   const[loading,setLoading]=useState(false);
-  const[showPw,setShowPw]=useState(false);
+  const[showPw,setShowPw]=useState(true);
 
   const handleLogin=async()=>{
     if(!email||!password){setError("メールアドレスとパスワードを入力してください");return;}
@@ -3020,9 +3020,9 @@ function LoginScreen({onLogin,shopName}){
                 onKeyDown={e=>e.key==="Enter"&&handleLogin()}
                 style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44}}
                 autoComplete="current-password"/>
-              <button onClick={()=>setShowPw(p=>!p)}
+              <button type="button" onClick={()=>setShowPw(p=>!p)}
                 style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"rgba(255,255,255,.45)"}}>
-                {showPw?"🙈":"👁️"}
+                {showPw?"👁️":"🙈"}
               </button>
             </div>
           </div>
