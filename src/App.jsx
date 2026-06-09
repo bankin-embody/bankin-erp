@@ -2518,7 +2518,7 @@ const SettingsField=React.memo(function SettingsField({label,value,onChange,plac
   );
 });
 
-function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
+function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
   const[sbForm,setSbForm]=useState(()=>getSbConf());
@@ -2579,17 +2579,6 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
       <div className="card">
         <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>🔒 セキュリティ</div>
         <div className="stk">
-          <div className="rb">
-            <div>
-              <div className="b6 sm">{hasPin?"PINコード設定済み":"PINコード未設定"}</div>
-              <div className="cmu xs mt4">{hasPin?"アプリ起動時にPINが必要です":"設定するとアプリをロックできます"}</div>
-            </div>
-            <div className="row" style={{gap:7}}>
-              {hasPin&&<button className="btn bd bsm" onClick={()=>{if(window.confirm("PINを削除しますか？")){localStorage.removeItem(PIN_KEY);window.location.reload();}}}>削除</button>}
-              <button className="btn bp bsm" onClick={()=>setShowPinSetup(true)}>{hasPin?"変更":"PINを設定"}</button>
-            </div>
-          </div>
-          {hasPin&&<button className="btn bs bsm" style={{alignSelf:"flex-start"}} onClick={()=>{sessionStorage.removeItem(PIN_SESSION);window.location.reload();}}>🔒 今すぐロック</button>}
           {sbEnabled&&<button className="btn bd bsm" style={{alignSelf:"flex-start"}} onClick={async()=>{if(window.confirm("ログアウトしますか？")){await sbSignOut();window.location.reload();}}}>🚪 ログアウト</button>}
         </div>
       </div>
@@ -3045,73 +3034,7 @@ function LoginScreen({onLogin,shopName}){
   );
 }
 
-// ── PIN Lock ───────────────────────────────────────────────
-const PIN_KEY="bankin_pin";
-const PIN_SESSION="bankin_unlocked";
-const getPin=()=>localStorage.getItem(PIN_KEY)||"";
-const setPin=p=>localStorage.setItem(PIN_KEY,p);
 
-function PinLock({onUnlock,isSetup=false,shopName=""}){
-  const[input,setInput]=useState("");
-  const[error,setError]=useState("");
-  const[newPin,setNewPin]=useState("");
-  const[step,setStep]=useState(isSetup?"new":"enter");// "enter"|"new"|"confirm"
-  const MAX=4;
-
-  const tap=n=>{
-    if(step==="enter"){
-      const next=input+n;
-      setInput(next);setError("");
-      if(next.length===MAX){
-        if(next===getPin()){
-          sessionStorage.setItem(PIN_SESSION,"1");
-          onUnlock();
-        } else {
-          setTimeout(()=>{setInput("");setError("PINが違います");},300);
-        }
-      }
-    } else if(step==="new"){
-      const next=input+n;setInput(next);setError("");
-      if(next.length===MAX){setNewPin(next);setInput("");setStep("confirm");}
-    } else if(step==="confirm"){
-      const next=input+n;setInput(next);setError("");
-      if(next.length===MAX){
-        if(next===newPin){setPin(next);sessionStorage.setItem(PIN_SESSION,"1");onUnlock();}
-        else{setTimeout(()=>{setInput("");setError("一致しません。もう一度");setStep("new");setNewPin("");},300);}
-      }
-    }
-  };
-  const del=()=>{setInput(p=>p.slice(0,-1));setError("");};
-
-  const title=step==="enter"?"PINを入力":step==="new"?"新しいPINを入力（4桁）":"もう一度入力（確認）";
-
-  return(
-    <div style={{position:"fixed",inset:0,background:"var(--sb-bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:9999,gap:28}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontSize:28,marginBottom:6}}>🔒</div>
-        <div style={{fontSize:17,fontWeight:700,color:"#fff"}}>{shopName||"エムボディ 鈑金ERP"}</div>
-        <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginTop:4}}>{title}</div>
-      </div>
-      <div style={{display:"flex",gap:14}}>
-        {Array.from({length:MAX},(_,i)=>(
-          <div key={i} style={{width:14,height:14,borderRadius:7,background:i<input.length?"#fff":"rgba(255,255,255,.2)",transition:"background .15s"}}/>
-        ))}
-      </div>
-      {error&&<div style={{fontSize:13,color:"#e07570",fontWeight:600}}>{error}</div>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,72px)",gap:10}}>
-        {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((k,i)=>(
-          k===""?<div key={i}/>:
-          <button key={i} onClick={()=>k==="⌫"?del():tap(String(k))}
-            style={{width:72,height:72,borderRadius:36,border:"none",cursor:"pointer",fontSize:k==="⌫"?20:22,fontWeight:600,
-              background:k==="⌫"?"rgba(255,255,255,.08)":"rgba(255,255,255,.12)",color:"#fff",
-              transition:"background .12s",fontFamily:"var(--f)"}}>
-            {k}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── Navigation & App ───────────────────────────────────────
 const PAGES=[
@@ -3146,14 +3069,8 @@ export default function App(){
   // Supabase Auth ログイン
   const sbEnabled2=!!(getSbConf().url&&getSbConf().anonKey);
   const[loggedIn,setLoggedIn]=useState(()=>!!getSbSession());
-  // PINロック
-  const hasPin=!!getPin();
-  const[unlocked,setUnlocked]=useState(()=>!!getSbSession()||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
-  const[showPinSetup,setShowPinSetup]=useState(false);
   // hooksの後にreturn（Reactのルール順守）
   if(sbEnabled2&&!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/>;
-  if(!loggedIn&&!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
-  if(showPinSetup) return <PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/>;
 
   const syncDot={ok:"#7ec49a",error:"#e07570",syncing:"#c4a46a",idle:"rgba(255,255,255,.25)"}[syncState]||"rgba(255,255,255,.25)";
 
@@ -3169,7 +3086,7 @@ export default function App(){
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
-      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
+      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled}/>;
       case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db)}/>;
       default: return null;
     }
