@@ -171,82 +171,6 @@ const JURYOZEI_TRUCK={
   8.0: {n:65600, y13:131200, y18:144000},
 };
 
-// ── 和暦ユーティリティ ──────────────────────────────────────
-const GENGO=[
-  {name:"令和", start:2019, startMonth:5},  // 2019年5月〜
-  {name:"平成", start:1989, startMonth:1},  // 1989年1月〜
-  {name:"昭和", start:1926, startMonth:12}, // 1926年12月〜
-  {name:"大正", start:1912, startMonth:7},  // 1912年7月〜
-];
-// YYYY-MM → "令和6年4月" 形式
-const toWareki=(yyyymm)=>{
-  if(!yyyymm)return"";
-  const[y,m]=yyyymm.split("-").map(Number);
-  for(const g of GENGO){
-    const startDate=new Date(g.start,g.startMonth-1,1);
-    const targetDate=new Date(y,m-1,1);
-    if(targetDate>=startDate){
-      const nen=y-g.start+1;
-      return`${g.name}${nen}年${m}月`;
-    }
-  }
-  return`${y}年${m}月`;
-};
-// "令和6年4月" → "2024-04" 形式
-const fromWareki=(gengo,nen,month)=>{
-  if(!gengo||!nen||!month)return"";
-  const g=GENGO.find(g=>g.name===gengo);
-  if(!g)return"";
-  const y=g.start+Number(nen)-1;
-  return`${y}-${String(month).padStart(2,"0")}`;
-};
-
-// 和暦入力コンポーネント
-function WarekiInput({value,onChange,style={}}){
-  // value: "YYYY-MM" または ""
-  const parse=(v)=>{
-    if(!v)return{gengo:"令和",nen:"",month:""};
-    const[y,m]=v.split("-").map(Number);
-    for(const g of GENGO){
-      const startDate=new Date(g.start,g.startMonth-1,1);
-      const targetDate=new Date(y,m-1,1);
-      if(targetDate>=startDate){
-        return{gengo:g.name,nen:String(y-g.start+1),month:String(m)};
-      }
-    }
-    return{gengo:"令和",nen:"",month:""};
-  };
-  const{gengo,nen,month}=parse(value);
-
-  const update=(g,n,mo)=>{
-    const result=fromWareki(g,n,mo);
-    onChange(result);
-  };
-
-  // 選択中の元号の年数範囲
-  const g=GENGO.find(x=>x.name===gengo)||GENGO[0];
-  const maxNen=gengo==="令和"?new Date().getFullYear()-g.start+2:
-               gengo==="平成"?31:
-               gengo==="昭和"?64:
-               gengo==="大正"?15:99;
-
-  return(
-    <div style={{display:"flex",gap:4,alignItems:"center",...style}}>
-      <select className="inp" style={{flex:"0 0 72px",padding:"0 4px"}} value={gengo} onChange={e=>{update(e.target.value,nen,month);}}>
-        {GENGO.map(g=><option key={g.name} value={g.name}>{g.name}</option>)}
-      </select>
-      <select className="inp" style={{flex:"0 0 58px",padding:"0 4px"}} value={nen} onChange={e=>update(gengo,e.target.value,month)}>
-        <option value="">年</option>
-        {Array.from({length:maxNen},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}年</option>)}
-      </select>
-      <select className="inp" style={{flex:"0 0 52px",padding:"0 4px"}} value={month} onChange={e=>update(gengo,nen,e.target.value)}>
-        <option value="">月</option>
-        {Array.from({length:12},(_,i)=>i+1).map(mo=><option key={mo} value={mo}>{mo}月</option>)}
-      </select>
-    </div>
-  );
-}
-
 // 経過年数を判定（firstReg: "YYYY-MM"）
 // 登録車：12年10ヶ月後から13年経過扱い
 // 軽自動車：13年経過した年の11月1日から13年経過扱い
@@ -305,6 +229,7 @@ const EXPENSE_CATEGORIES=[
   "地代家賃","水道光熱費","通信費","広告宣伝費","接待交際費",
   "旅費交通費","新聞図書費","保険料","租税公課","減価償却費","雑費"
 ];
+const EXP_CAT=EXPENSE_CATEGORIES;// エイリアス（コード内参照名）
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
@@ -1179,7 +1104,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
           <Fld label="車種名"><input className="inp" placeholder="プリウス" value={f.carName} onChange={e=>setF(p=>({...p,carName:e.target.value}))}/></Fld>
           <Fld label="ナンバー"><input className="inp" placeholder="品川300あ1234" value={f.plateNo} onChange={e=>setF(p=>({...p,plateNo:e.target.value}))}/></Fld>
           <Fld label="車台番号"><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
-          <Fld label="初度登録年月"><WarekiInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
+          <Fld label="初度登録年月"><input type="month" className="inp" value={f.firstReg} onChange={e=>setF(p=>({...p,firstReg:e.target.value}))}/></Fld>
           <Fld label="車種区分（自賠責に影響）" style={{gridColumn:"1/-1"}}>
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
           </Fld>
@@ -1291,7 +1216,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div><input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><WarekiInput value={v.firstReg||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:val}:x)}))}/></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><input type="month" className="inp" value={v.firstReg||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/></div>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
@@ -1338,7 +1263,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 {(c.vehicles||[]).length===0&&<div className="cmu sm">車両未登録</div>}
                 {(c.vehicles||[]).map(v=>(
                   <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
-                    <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {toWareki(v.firstReg)} · {v.carType} {v.weight}kg</div></div>
+                    <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType} {v.weight}kg</div></div>
                     <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,24))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight,v.carType,v.firstReg))}{getElapsedClass(v.firstReg,v.carType?.includes("軽"))!=="n"?" ⚠️":""}</div></div></div>
                   </div>
                 ))}
