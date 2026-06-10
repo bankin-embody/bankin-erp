@@ -161,8 +161,14 @@ const EXP_CAT=[
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
-// weight は kg 単位で受け取り、t に変換して計算
-const calcJuryozei=wKg=>{const wT=Number(wKg)/1000;return JURYOZEI[Math.ceil(wT/0.5)*0.5]||16400;};
+// weight は kg 単位。carType が軽自動車なら一律 6600円（2年）
+// 普通車は kg→t変換して 0.5t 刻みのテーブルで引く
+const calcJuryozei=(wKg,carType="")=>{
+  if(carType&&carType.includes("軽"))return 6600;
+  const wT=Number(wKg)/1000;
+  const key=Math.ceil(wT/0.5)*0.5;
+  return JURYOZEI[key]||16400;
+};
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
 const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+(i.qty*(i.unit||0))+(i.gijutsu||0),0);return{sub,taxAmt:Math.floor(sub*tax),total:Math.floor(sub*(1+tax))};};
@@ -224,10 +230,10 @@ const IW=[
 
 // ── Storage (localStorage) ─────────────────────────────────
 const DK="bankin_v4";
-// t単位→kg単位マイグレーション（weight<=20ならt単位と判定してkg変換）
+// t単位→kg単位マイグレーション（weight が 20 以下なら t 単位と判定）
 const migrateWeightToKg=db=>{
   if(!db.customers)return db;
-  return{...db,customers:db.customers.map(c=>({...c,vehicles:(c.vehicles||[]).map(v=>({...v,weight:v.weight&&v.weight<=20?Math.round(v.weight*1000):v.weight}))}))};
+  return{...db,customers:db.customers.map(c=>({...c,vehicles:(c.vehicles||[]).map(v=>({...v,weight:v.weight&&v.weight<=20?Math.round(v.weight*1000):v.weight}))}))}
 };
 const loadDB=init=>{try{const r=localStorage.getItem(DK);if(r)return migrateWeightToKg({...init,...JSON.parse(r)});}catch{}return init;};
 const saveDB=db=>{try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));}catch{}};
@@ -1021,7 +1027,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
   const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1500});
   const[showOCR,setShowOCR]=useState(false);
   const handleOCR=(parsed)=>{
-    // OCR結果のweightはt単位で来る可能性があるので1000倍してkg化
+    // OCR結果 weight は t 単位で来る場合があるので 100 以下なら ×1000 して kg 化
     const wRaw=Number(parsed.weight)||0;
     const wKg=wRaw>100?wRaw:Math.round(wRaw*1000);
     setF(p=>({...p,...parsed,weight:wKg||p.weight}));
@@ -1053,7 +1059,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
           <div className="g2" style={{gap:7}}>
-            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight))]].map(([l,val])=>(
+            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight,f.carType))]].map(([l,val])=>(
               <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{val}</div></div>
             ))}
           </div>
@@ -1091,7 +1097,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
   if(modal) return(
     <>
     {form._ocrTarget!=null&&<ShakkenShoOCR
-      onResult={parsed=>{const wRaw=Number(parsed.weight)||0;const wKg=wRaw>100?wRaw:Math.round(wRaw*1000);setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed,weight:wKg||v.weight}:v)}));}}
+      onResult={parsed=>{setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed,weight:Number(parsed.weight)||v.weight}:v)}));}}
       onClose={()=>setForm(f=>({...f,_ocrTarget:null}))}/>}
     <div className="stk fu">
       <div className="rb">
@@ -1158,7 +1164,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500))]].map(([l,val])=>(
+                  {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500,v.carType))]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
                       <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
                       <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
@@ -1200,7 +1206,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 {(c.vehicles||[]).map(v=>(
                   <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
                     <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType} {v.weight}kg</div></div>
-                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,24))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight))}</div></div></div>
+                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,24))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight,v.carType))}</div></div></div>
                   </div>
                 ))}
               </div>
@@ -1378,7 +1384,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
-  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight)}}));},[form.vehicleId,auto]);
+  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight,vehicle.carType)}}));},[form.vehicleId,auto]);
   const setS=(k,v)=>setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
@@ -1419,7 +1425,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             </div>
           </div>
           <div className="lst">
-            {[{key:"jibaiseki",label:"自賠責保険（24ヶ月）",hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,24))}`:"車両選択で自動入力"},{key:"juryozei",label:"重量税（2年）",hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
+            {[{key:"jibaiseki",label:"自賠責保険（24ヶ月）",hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,24))}`:"車両選択で自動入力"},{key:"juryozei",label:"重量税（2年）",hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight,vehicle.carType))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
               <div key={key} className="fr">
                 <div style={{flex:1,minWidth:0}}>
                   <div className="sm b6">{label}</div>
