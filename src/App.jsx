@@ -146,9 +146,80 @@ const CAR_TYPE_GROUPS=[
   {label:"二輪",types:["小型二輪250cc超"]},
 ];
 const CAR_TYPES=Object.keys(JIBAISEKI);
-const JURYOZEI={0.5:8200,1.0:16400,1.5:24600,2.0:32800,2.5:41000,3.0:49200,3.5:57400,4.0:65600};
-const WEIGHTS=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0];
-const EXP_CAT=[
+// ── 自動車重量税テーブル（2026年5月以降・継続検査・エコカー外） ──
+// 乗用車 2年自家用（本則税率・右以外・13年経過・18年経過）単位:円
+const JURYOZEI_PASSENGER={
+  0.5: {n:8200,  y13:16400, y18:18000},
+  1.0: {n:16400, y13:32800, y18:36000},
+  1.5: {n:24600, y13:49200, y18:54000},
+  2.0: {n:32800, y13:65600, y18:72000},
+  2.5: {n:41000, y13:82000, y18:90000},
+  3.0: {n:49200, y13:98400, y18:108000},
+};
+// 軽自動車（検査対象・二輪除く）2年自家用
+const JURYOZEI_KEI={n:6600, y13:8200, y18:8800};
+// 貨物（トラック 車両総重量8t以下）2年自家用（本則税率・右以外・13年経過・18年経過）
+const JURYOZEI_TRUCK={
+  1.0: {n:10000, y13:20000, y18:22000},
+  2.0: {n:16400, y13:32800, y18:36000},
+  2.5: {n:20000, y13:40000, y18:44000},
+  3.0: {n:24600, y13:49200, y18:54000},
+  4.0: {n:32800, y13:65600, y18:72000},
+  5.0: {n:41000, y13:82000, y18:90000},
+  6.0: {n:49200, y13:98400, y18:108000},
+  7.0: {n:57400, y13:114800, y18:126000},
+  8.0: {n:65600, y13:131200, y18:144000},
+};
+
+// 経過年数を判定（firstReg: "YYYY-MM"）
+// 登録車：12年10ヶ月後から13年経過扱い
+// 軽自動車：13年経過した年の11月1日から13年経過扱い
+const getElapsedClass=(firstReg,isKei=false)=>{
+  if(!firstReg)return"n";
+  const now=new Date();
+  const [y,m]=firstReg.split("-").map(Number);
+  if(isKei){
+    // 軽自動車：初度検査年から13/18年経過した年の11月以降
+    const regYear=y;
+    const y13nov=new Date(regYear+13,10,1);// 11月=10
+    const y18nov=new Date(regYear+18,10,1);
+    if(now>=y18nov)return"y18";
+    if(now>=y13nov)return"y13";
+    return"n";
+  }else{
+    // 登録車：初度登録年月から12年10ヶ月後の翌月1日から13年経過扱い
+    const y13=new Date(y+12,m-1+10,1);// 12年10ヶ月後の月の1日
+    const y18=new Date(y+17,m-1+10,1);
+    if(now>=y18)return"y18";
+    if(now>=y13)return"y13";
+    return"n";
+  }
+};
+
+// wKg: 重量(kg)、carType: 車種区分文字列、firstReg: "YYYY-MM"
+const calcJuryozei=(wKg,carType="",firstReg="")=>{
+  const isKei=carType.includes("軽");
+  const isTruck=carType.includes("貨物")||carType.includes("トラック");
+  const cls=getElapsedClass(firstReg,isKei);
+
+  if(isKei){
+    return JURYOZEI_KEI[cls]??JURYOZEI_KEI.n;
+  }
+
+  const wT=Number(wKg)/1000;
+  if(isTruck){
+    // 車両総重量ではなく車両重量で近似（車両重量での区分）
+    const keys=Object.keys(JURYOZEI_TRUCK).map(Number).sort((a,b)=>a-b);
+    const key=keys.find(k=>wT<=k)||keys[keys.length-1];
+    return JURYOZEI_TRUCK[key]?.[cls]??JURYOZEI_TRUCK[key]?.n??16400;
+  }
+
+  // 乗用車
+  const keys=Object.keys(JURYOZEI_PASSENGER).map(Number).sort((a,b)=>a-b);
+  const key=keys.find(k=>wT<=k)||keys[keys.length-1];
+  return JURYOZEI_PASSENGER[key]?.[cls]??JURYOZEI_PASSENGER[key]?.n??16400;
+};
+const EXPENSE_CATEGORIES=[
   // 売上原価・材料
   "材料費","塗料・塗装材料費","部品・パーツ代","外注費・下請費",
   // 労務・人件費
@@ -161,14 +232,7 @@ const EXP_CAT=[
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
-// weight は kg 単位。carType が軽自動車なら一律 6600円（2年）
-// 普通車は kg→t変換して 0.5t 刻みのテーブルで引く
-const calcJuryozei=(wKg,carType="")=>{
-  if(carType&&carType.includes("軽"))return 6600;
-  const wT=Number(wKg)/1000;
-  const key=Math.ceil(wT/0.5)*0.5;
-  return JURYOZEI[key]||16400;
-};
+
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
 const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+(i.qty*(i.unit||0))+(i.gijutsu||0),0);return{sub,taxAmt:Math.floor(sub*tax),total:Math.floor(sub*(1+tax))};};
@@ -976,15 +1040,7 @@ function ShakkenShoOCR({onResult,onClose}){
         model:"claude-sonnet-4-20250514",max_tokens:800,
         messages:[{role:"user",content:[
           {type:"image",source:{type:"base64",media_type:file.type&&file.type.startsWith("image/")?file.type:"image/jpeg",data:b64}},
-          {type:"text",text:`この車検証の画像から以下の情報をJSONで抽出してください。必ずJSONのみ返してください（マークダウン不要）。
-{
-  "carName": "車名＋型式（例: トヨタ プリウス ZVW50）",
-  "plateNo": "ナンバープレート（例: 宮城483い1920）",
-  "chassisNo": "車台番号",
-  "firstReg": "初度登録年月 YYYY-MM形式",
-  "weight": 車両重量kg（数値のみ、例: 1500）,
-  "carType": 以下から最も近いものを1つ選択: "自家用乗用（普通・小型）","軽自動車（検査対象）","普通貨物・自家用2t超","普通貨物・自家用2t以下","普通貨物・営業用2t超","普通貨物・営業用2t以下","小型貨物・自家用","小型貨物・営業用","小型二輪250cc超"
-}`}
+          {type:"text",text:"この車検証の画像から以下の情報をJSONで抽出してください。必ずJSONのみ返してください（マークダウン不要）。\n{\n  \"carName\": \"車名＋型式（例: トヨタ プリウス ZVW50）\",\n  \"plateNo\": \"ナンバープレート（例: 宮城483い1920）\",\n  \"chassisNo\": \"車台番号\",\n  \"firstReg\": \"初度登録年月 YYYY-MM形式\",\n  \"weight\": 1500,\n  \"carType\": \"自家用乗用（普通・小型）または 軽自動車（検査対象）または 普通貨物・自家用2t超 または 普通貨物・自家用2t以下 または 普通貨物・営業用2t超 または 普通貨物・営業用2t以下 または 小型貨物・自家用 または 小型貨物・営業用 または 小型二輪250cc超 の中から最も近いものを1つ\"\n}"}
         ]}]
       })});
       if(!resp.ok){const t=await resp.text();throw new Error(`API Error ${resp.status}: ${t.slice(0,200)}`);}
@@ -1027,7 +1083,6 @@ function VehicleModal({v,onSave,onClose,onDel}){
   const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1500});
   const[showOCR,setShowOCR]=useState(false);
   const handleOCR=(parsed)=>{
-    // OCR結果 weight は t 単位で来る場合があるので 100 以下なら ×1000 して kg 化
     const wRaw=Number(parsed.weight)||0;
     const wKg=wRaw>100?wRaw:Math.round(wRaw*1000);
     setF(p=>({...p,...parsed,weight:wKg||p.weight}));
@@ -1059,10 +1114,11 @@ function VehicleModal({v,onSave,onClose,onDel}){
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
           <div className="g2" style={{gap:7}}>
-            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight,f.carType))]].map(([l,val])=>(
+            {[["自賠責（24ヶ月）",fmt(calcJibaiseki(f.carType,24))],["重量税（2年）",fmt(calcJuryozei(f.weight,f.carType,f.firstReg))]].map(([l,val])=>(
               <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{val}</div></div>
             ))}
           </div>
+          {(()=>{const cls=getElapsedClass(f.firstReg,f.carType?.includes("軽"));return cls!=="n"&&<div style={{fontSize:11,color:"var(--re)",fontWeight:700,marginTop:6}}>{cls==="y18"?"⚠️ 18年超：割増税率適用":"⚠️ 13年超：割増税率適用"}</div>;})()}
         </div>
       </div>
     </Modal>
@@ -1164,13 +1220,14 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500,v.carType))]].map(([l,val])=>(
+                  {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500,v.carType,v.firstReg))]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
                       <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
                       <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
                     </div>
                   ))}
                 </div>
+                {(()=>{const cls=getElapsedClass(v.firstReg,v.carType?.includes("軽"));return cls!=="n"&&<div style={{fontSize:11,color:"var(--re)",fontWeight:700}}>{cls==="y18"?"⚠️ 18年超":"⚠️ 13年超"}：割増税率</div>;})()}
               </div>
             </div>
           ))}
@@ -1206,7 +1263,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 {(c.vehicles||[]).map(v=>(
                   <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
                     <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType} {v.weight}kg</div></div>
-                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,24))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight,v.carType))}</div></div></div>
+                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,24))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight,v.carType,v.firstReg))}{getElapsedClass(v.firstReg,v.carType?.includes("軽"))!=="n"?" ⚠️":""}</div></div></div>
                   </div>
                 ))}
               </div>
@@ -1384,7 +1441,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
-  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight,vehicle.carType)}}));},[form.vehicleId,auto]);
+  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg)}}));},[form.vehicleId,auto]);
   const setS=(k,v)=>setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
@@ -1420,12 +1477,12 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="rb mb8">
             <div className="fl" style={{margin:0}}>法定諸費用（非課税）</div>
             <div className="row" style={{gap:6}}>
-              {vehicle&&<span className="xs cmu">{vehicle.carName}/{vehicle.carType} {vehicle.weight}kg</span>}
+              {vehicle&&<span className="xs cmu">{vehicle.carName}/{vehicle.carType} {vehicle.weight}kg{getElapsedClass(vehicle.firstReg,vehicle.carType?.includes("軽"))!=="n"?" ⚠️割増":""}</span>}
               <button className="btn bsm" style={{background:auto?"rgba(0,122,255,.12)":"var(--fi)",color:auto?"var(--bl)":"var(--lb2)",fontSize:11}} onClick={()=>setAuto(a=>!a)}>🔄 {auto?"自動ON":"自動OFF"}</button>
             </div>
           </div>
           <div className="lst">
-            {[{key:"jibaiseki",label:"自賠責保険（24ヶ月）",hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,24))}`:"車両選択で自動入力"},{key:"juryozei",label:"重量税（2年）",hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight,vehicle.carType))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
+            {[{key:"jibaiseki",label:"自賠責保険（24ヶ月）",hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,24))}`:"車両選択で自動入力"},{key:"juryozei",label:"重量税（2年）",hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
               <div key={key} className="fr">
                 <div style={{flex:1,minWidth:0}}>
                   <div className="sm b6">{label}</div>
