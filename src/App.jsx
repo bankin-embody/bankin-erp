@@ -229,7 +229,7 @@ const EXPENSE_CATEGORIES=[
   "地代家賃","水道光熱費","通信費","広告宣伝費","接待交際費",
   "旅費交通費","新聞図書費","保険料","租税公課","減価償却費","雑費"
 ];
-const EXP_CAT=EXPENSE_CATEGORIES;// エイリアス（コード内参照名）
+const EXP_CAT=EXPENSE_CATEGORIES;
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
@@ -292,6 +292,20 @@ const IW=[
   {id:1,customerId:1,vehicleId:1,date:"2026-05-01",title:"フェンダー修理",memo:"右フロントフェンダー凹み修理。パテ成形後塗装仕上げ。色合わせOK。",photos:[],tags:["鈑金","塗装"],status:"完了"},
   {id:2,customerId:2,vehicleId:1,date:"2026-05-08",title:"車検整備",memo:"タイヤ交換・ブレーキパッド交換・オイル交換実施。次回車検2028年5月。",photos:[],tags:["車検","整備"],status:"完了"},
 ];
+
+// ── Cloudinary ────────────────────────────────────────────
+const CLOUDINARY_CLOUD="dezdfn2i5";
+const CLOUDINARY_PRESET="bankin_receipts";
+const uploadToCloudinary=async(file)=>{
+  const fd=new FormData();
+  fd.append("file",file);
+  fd.append("upload_preset",CLOUDINARY_PRESET);
+  fd.append("folder","bankin_erp");
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
+  if(!res.ok)throw new Error("アップロード失敗");
+  const data=await res.json();
+  return data.secure_url;// https://... のURL
+};
 
 // ── Storage (localStorage) ─────────────────────────────────
 const DK="bankin_v4";
@@ -1862,6 +1876,34 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
         </Fld>
         <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
+        <Fld label="領収書写真" opt>
+          {form.receiptPhoto?(
+            <div style={{position:"relative",display:"inline-block"}}>
+              <img src={form.receiptPhoto} alt="領収書" style={{maxWidth:"100%",maxHeight:220,borderRadius:10,objectFit:"contain",border:"1px solid var(--sep)",display:"block"}}/>
+              <button onClick={()=>setForm(f=>({...f,receiptPhoto:null}))}
+                style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:24,height:24,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            </div>
+          ):(
+            <label style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",border:"2px dashed var(--lb3)",borderRadius:11,cursor:form.photoUploading?"wait":"pointer",color:"var(--lb2)",fontSize:13,background:"var(--fi2)",opacity:form.photoUploading?.6:1}}>
+              <span style={{fontSize:22}}>{form.photoUploading?"⏳":"📷"}</span>
+              <span>{form.photoUploading?"アップロード中…":"カメラで撮影 / ファイルを選択"}</span>
+              <input type="file" accept="image/*" capture="environment" style={{display:"none"}} disabled={form.photoUploading}
+                onChange={async e=>{
+                  const file=e.target.files?.[0];
+                  if(!file)return;
+                  e.target.value="";
+                  setForm(f=>({...f,photoUploading:true}));
+                  try{
+                    const url=await uploadToCloudinary(file);
+                    setForm(f=>({...f,receiptPhoto:url,receipt:true,photoUploading:false}));
+                  }catch{
+                    alert("写真のアップロードに失敗しました。通信環境を確認してください。");
+                    setForm(f=>({...f,photoUploading:false}));
+                  }
+                }}/>
+            </label>
+          )}
+        </Fld>
       </div>
     </div>
   );
@@ -1874,6 +1916,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
           <div key={e.id} className="li" onClick={()=>{setForm({...e});setModal(e);}}>
             <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{e.desc}</div><div className="cmu sm">{e.date} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div></div>
+            {e.receiptPhoto&&<img src={e.receiptPhoto} alt="領収書" style={{width:36,height:36,borderRadius:7,objectFit:"cover",border:"1px solid var(--sep)",flexShrink:0}}/>}
             <div className="b7 sm">{fmt(e.amount)}</div>
           </div>
         ))}{!expenses.length&&<div className="li cmu" style={{justifyContent:"center"}}>経費データがありません</div>}</div>
@@ -2805,14 +2848,23 @@ const WL_STATUS=["作業中","完了","保留"];
 
 function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
   const ref=useRef();
-  const add=e=>{
+  const[uploading,setUploading]=useState(false);
+  const add=async e=>{
     const files=Array.from(e.target.files||[]);
-    files.forEach(f=>{
-      const r=new FileReader();
-      r.onload=ev=>onAdd({id:Date.now()+Math.random(),url:ev.target.result,name:f.name});
-      r.readAsDataURL(f);
-    });
     e.target.value="";
+    if(!files.length)return;
+    setUploading(true);
+    try{
+      for(const f of files){
+        const url=await uploadToCloudinary(f);
+        onAdd({id:Date.now()+Math.random(),url,name:f.name});
+      }
+    }catch(err){
+      alert("写真のアップロードに失敗しました。通信環境を確認してください。");
+      console.error(err);
+    }finally{
+      setUploading(false);
+    }
   };
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
@@ -2823,10 +2875,10 @@ function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
         </div>
       ))}
       {!readOnly&&(
-        <div onClick={()=>ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:4,background:"var(--fi2)",transition:"background var(--tr)"}}>
-          <span style={{fontSize:22,opacity:.5}}>📷</span>
-          <span style={{fontSize:10,color:"var(--lb3)"}}>追加</span>
-          <input ref={ref} type="file" accept="image/*" multiple style={{display:"none"}} onChange={add}/>
+        <div onClick={()=>!uploading&&ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",gap:4,background:"var(--fi2)",transition:"background var(--tr)",opacity:uploading?.6:1}}>
+          <span style={{fontSize:22,opacity:.5}}>{uploading?"⏳":"📷"}</span>
+          <span style={{fontSize:10,color:"var(--lb3)"}}>{uploading?"送信中…":"追加"}</span>
+          <input ref={ref} type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={add}/>
         </div>
       )}
     </div>
