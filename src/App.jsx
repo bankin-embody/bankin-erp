@@ -1835,16 +1835,12 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   const[form,setForm]=useState({date:today(),category:"材料費",desc:"",vendor:"",amount:0,receipt:false,receiptPhoto:null});
   const[vendorSug,setVendorSug]=useState(false);
 
-  // 過去の購入先一覧（重複なし・使用頻度順）
   const vendorHistory=useMemo(()=>{
     const cnt={};
     expenses.forEach(e=>{if(e.vendor){cnt[e.vendor]=(cnt[e.vendor]||0)+1;}});
     return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([v])=>v);
   },[expenses]);
-
-  const filteredVendors=form.vendor
-    ?vendorHistory.filter(v=>v.includes(form.vendor)&&v!==form.vendor)
-    :vendorHistory;
+  const filteredVendors=form.vendor?vendorHistory.filter(v=>v.includes(form.vendor)&&v!==form.vendor):vendorHistory;
 
   const save=()=>{
     if(!form.desc||!form.amount)return;
@@ -1853,7 +1849,6 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
     else setExpenses(p=>p.map(x=>x.id===modal.id?{...e,id:x.id}:x));
     setModal(null);
   };
-
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
   const byM={};expenses.forEach(e=>{const m=e.date.slice(0,7);byM[m]=(byM[m]||0)+e.amount;});
@@ -1918,8 +1913,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
           {form.receiptPhoto?(
             <div style={{position:"relative",display:"inline-block"}}>
               <img src={form.receiptPhoto} alt="領収書" style={{maxWidth:"100%",maxHeight:220,borderRadius:10,objectFit:"contain",border:"1px solid var(--sep)",display:"block"}}/>
-              <button onClick={()=>setForm(f=>({...f,receiptPhoto:null}))}
-                style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:24,height:24,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+              <button onClick={()=>setForm(f=>({...f,receiptPhoto:null}))} style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:24,height:24,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
           ):(
             <label style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",border:"2px dashed var(--lb3)",borderRadius:11,cursor:form.photoUploading?"wait":"pointer",color:"var(--lb2)",fontSize:13,background:"var(--fi2)",opacity:form.photoUploading?.6:1}}>
@@ -1933,7 +1927,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
                     const url=await uploadToCloudinary(file);
                     setForm(f=>({...f,receiptPhoto:url,receipt:true,photoUploading:false}));
                   }catch{
-                    alert("写真のアップロードに失敗しました。通信環境を確認してください。");
+                    alert("写真のアップロードに失敗しました。");
                     setForm(f=>({...f,photoUploading:false}));
                   }
                 }}/>
@@ -1953,10 +1947,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
             <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
             <div style={{flex:1,minWidth:0}}>
               <div className="b6 trn">{e.desc}</div>
-              <div className="cmu sm">{e.date}
-                {e.vendor&&<span style={{marginLeft:5}}>🏪 {e.vendor}</span>}
-                · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span>
-              </div>
+              <div className="cmu sm">{e.date}{e.vendor&&<span style={{marginLeft:5}}>🏪 {e.vendor}</span>} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div>
             </div>
             {e.receiptPhoto&&<img src={e.receiptPhoto} alt="領収書" style={{width:36,height:36,borderRadius:7,objectFit:"cover",border:"1px solid var(--sep)",flexShrink:0}}/>}
             <div className="b7 sm">{fmt(e.amount)}</div>
@@ -2901,7 +2892,7 @@ function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
         const url=await uploadToCloudinary(f);
         onAdd({id:Date.now()+Math.random(),url,name:f.name});
       }
-    }catch(err){
+    }catch{
       alert("写真のアップロードに失敗しました。通信環境を確認してください。");
     }finally{setUploading(false);}
   };
