@@ -106,18 +106,21 @@ const G = () => (
     .tbl tr:last-child td{border-bottom:none;}
     .tbl tr:hover td{background:var(--fi2);}
     @media print{
-      @page{size:A4 portrait;margin:8mm 10mm;}
-      html,body{margin:0;padding:0;background:#fff!important;}
+      @page{margin:10mm;size:A4;}
+      @page{margin-top:10mm;margin-bottom:10mm;}
+      html,body{margin:0;padding:0;}
+      @page{size:A4 portrait;margin:15mm 12mm;}
       *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-      /* 印刷時は print-root 以外を全て非表示 */
-      body > *{display:none!important;}
-      #print-root{display:block!important;}
-      #print-root .no-print{display:none!important;}
-      .print-page{page-break-after:always;}
-      .print-page:last-child{page-break-after:auto;}
-      .detail-table{width:100%;border-collapse:collapse;}
-      .detail-table td,.detail-table th{padding:5px 7px;font-size:10px;border-bottom:1px solid #e0e0e0;}
-      .summary-block{page-break-inside:avoid;}
+      .np{display:none!important;}
+      body{background:#fff!important;}
+      .card,.lst{box-shadow:none!important;}
+      .mbg{position:static!important;background:none!important;backdrop-filter:none!important;display:block!important;padding:0!important;}
+      .msh{max-height:none!important;height:auto!important;overflow:visible!important;border-radius:0!important;animation:none!important;width:100%!important;max-width:100%!important;box-shadow:none!important;}
+      .mhd,.mttl{display:none!important;}
+      .mbdy{overflow:visible!important;padding:0!important;flex:none!important;}
+      #print-area{display:block!important;}
+      .tbl,table{page-break-inside:auto;border-collapse:collapse;width:100%;}
+      .tbl tr,tr{page-break-inside:avoid;}
     }
   `}</style>
 );
@@ -574,13 +577,14 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const doPrint=()=>{
     const el=document.getElementById("print-area");
     if(!el)return;
-    // iOS/iPad対応：同一ウィンドウのprint-rootに内容を書き込んでwindow.print()
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
+@page{size:A4 portrait;margin:8mm 10mm;}
+html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.print-page{width:100%;page-break-after:always;position:relative;}
-.print-page:last-child{page-break-after:auto;}
+.page{width:100%;page-break-after:always;position:relative;}
+.page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
@@ -593,29 +597,25 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
 </style>`;
-    const colorPage=`<div class="print-page">${el.innerHTML}</div>`;
-    const monoPage=`<div class="print-page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>@page{size:A4 portrait;margin:8mm 10mm;}html,body{margin:0;padding:0;}</style>${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
-
-    // iOS Safari はポップアップをブロックするので同一ウィンドウ方式
+    const colorPage=`<div class="page">${el.innerHTML}</div>`;
+    const monoPage=`<div class="page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
     if(isIOS){
-      // Blobを作成してiframe経由で印刷
       const blob=new Blob([html],{type:"text/html;charset=utf-8"});
       const url=URL.createObjectURL(blob);
       let iframe=document.getElementById("print-iframe") as HTMLIFrameElement;
       if(!iframe){
         iframe=document.createElement("iframe");
         iframe.id="print-iframe";
-        iframe.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;";
+        iframe.style.cssText="position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;";
         document.body.appendChild(iframe);
       }
       iframe.src=url;
       iframe.onload=()=>{
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-        // 印刷ダイアログを閉じたら iframe を削除
-        setTimeout(()=>{URL.revokeObjectURL(url);iframe.remove();},2000);
+        setTimeout(()=>{URL.revokeObjectURL(url);},3000);
       };
     }else{
       const w=window.open("","_blank","width=820,height=1100");
@@ -626,17 +626,19 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
     }
   };
   return(
-    <div className="stk fu">
-      <div className="rb np">
-        <div style={{fontSize:17,fontWeight:800}}>{theme.emoji} {ttl} 印刷プレビュー</div>
-        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          <button className="btn bp" onClick={doPrint}>🖨️ 印刷する（お客様用＋控え）</button>
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      {/* ボタンバー：上部固定 */}
+      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8,flexWrap:"wrap"}}>
+        <div style={{fontSize:15,fontWeight:800}}>{theme.emoji} {ttl} 印刷プレビュー</div>
+        <div style={{display:"flex",gap:7}}>
+          <button className="btn bp" onClick={doPrint}>🖨️ 印刷</button>
           <button className="btn bs" onClick={onClose}>← 戻る</button>
         </div>
       </div>
 
-      {/* 書類プレビュー本体 */}
-      <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
+      {/* プレビュー本体：スクロール可能 */}
+      <div style={{flex:1,overflowY:"auto",padding:"12px 8px",WebkitOverflowScrolling:"touch"}}>
+        <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
         <div style={{background:theme.accent,padding:"6px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -897,13 +899,14 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
         )}
 
         {doc.note&&<div style={{margin:"0 20px 16px",padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
-      </div>
+        </div>{/* end print-area */}
 
-      {/* 下部にも印刷ボタン */}
-      <div className="np" style={{display:"flex",gap:9,justifyContent:"center",paddingBottom:8}}>
-        <button className="btn bp" style={{padding:"12px 32px",fontSize:15}} onClick={doPrint}>🖨️ 印刷する（お客様用＋控え）</button>
-        <button className="btn bs" onClick={onClose}>← 戻る</button>
-      </div>
+        {/* 下部にも印刷ボタン */}
+        <div className="np" style={{display:"flex",gap:9,justifyContent:"center",padding:"16px 8px 24px"}}>
+          <button className="btn bp" style={{padding:"13px 28px",fontSize:15}} onClick={doPrint}>🖨️ 印刷する</button>
+          <button className="btn bs" style={{padding:"13px 20px",fontSize:15}} onClick={onClose}>← 戻る</button>
+        </div>
+      </div>{/* end scroll area */}
     </div>
   );
 }
@@ -2384,14 +2387,7 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 
 </body></html>`);
     w.document.close();
-    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if(isIOS){
-      w.document.close();
-      setTimeout(()=>{w.focus();w.print();},800);
-    }else{
-      w.document.close();
-      setTimeout(()=>w.print(),600);
-    }
+    setTimeout(()=>w.print(),600);
   };
 
   return(
