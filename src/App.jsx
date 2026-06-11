@@ -106,21 +106,18 @@ const G = () => (
     .tbl tr:last-child td{border-bottom:none;}
     .tbl tr:hover td{background:var(--fi2);}
     @media print{
-      @page{margin:10mm;size:A4;}
-      @page{margin-top:10mm;margin-bottom:10mm;}
-      html,body{margin:0;padding:0;}
-      @page{size:A4 portrait;margin:15mm 12mm;}
+      @page{size:A4 portrait;margin:8mm 10mm;}
+      html,body{margin:0;padding:0;background:#fff!important;}
       *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-      .np{display:none!important;}
-      body{background:#fff!important;}
-      .card,.lst{box-shadow:none!important;}
-      .mbg{position:static!important;background:none!important;backdrop-filter:none!important;display:block!important;padding:0!important;}
-      .msh{max-height:none!important;height:auto!important;overflow:visible!important;border-radius:0!important;animation:none!important;width:100%!important;max-width:100%!important;box-shadow:none!important;}
-      .mhd,.mttl{display:none!important;}
-      .mbdy{overflow:visible!important;padding:0!important;flex:none!important;}
-      #print-area{display:block!important;}
-      .tbl,table{page-break-inside:auto;border-collapse:collapse;width:100%;}
-      .tbl tr,tr{page-break-inside:avoid;}
+      /* 印刷時は print-root 以外を全て非表示 */
+      body > *{display:none!important;}
+      #print-root{display:block!important;}
+      #print-root .no-print{display:none!important;}
+      .print-page{page-break-after:always;}
+      .print-page:last-child{page-break-after:auto;}
+      .detail-table{width:100%;border-collapse:collapse;}
+      .detail-table td,.detail-table th{padding:5px 7px;font-size:10px;border-bottom:1px solid #e0e0e0;}
+      .summary-block{page-break-inside:avoid;}
     }
   `}</style>
 );
@@ -577,16 +574,13 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const doPrint=()=>{
     const el=document.getElementById("print-area");
     if(!el)return;
-    const w=window.open("","_blank","width=820,height=1100");
-    if(!w)return;
+    // iOS/iPad対応：同一ウィンドウのprint-rootに内容を書き込んでwindow.print()
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:8mm 10mm;}
-html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.page{width:100%;page-break-after:always;position:relative;}
-.page:last-child{page-break-after:auto;}
+.print-page{width:100%;page-break-after:always;position:relative;}
+.print-page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
@@ -594,16 +588,42 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 .detail-table tbody tr{page-break-inside:avoid;}
 .detail-table td,.detail-table th{padding:5px 7px;font-size:10px;border-bottom:1px solid #e0e0e0;text-align:left;overflow:hidden;}
 .detail-spacer{border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
-.summary-block{page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}
+.summary-block{page-break-inside:avoid;break-inside:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
 </style>`;
-    const colorPage=`<div class="page">${el.innerHTML}</div>`;
-    const monoPage=`<div class="page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`);
-    w.document.close();
-    w.onload=()=>{w.focus();w.print();};
+    const colorPage=`<div class="print-page">${el.innerHTML}</div>`;
+    const monoPage=`<div class="print-page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>@page{size:A4 portrait;margin:8mm 10mm;}html,body{margin:0;padding:0;}</style>${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+
+    // iOS Safari はポップアップをブロックするので同一ウィンドウ方式
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(isIOS){
+      // Blobを作成してiframe経由で印刷
+      const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      let iframe=document.getElementById("print-iframe") as HTMLIFrameElement;
+      if(!iframe){
+        iframe=document.createElement("iframe");
+        iframe.id="print-iframe";
+        iframe.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;";
+        document.body.appendChild(iframe);
+      }
+      iframe.src=url;
+      iframe.onload=()=>{
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        // 印刷ダイアログを閉じたら iframe を削除
+        setTimeout(()=>{URL.revokeObjectURL(url);iframe.remove();},2000);
+      };
+    }else{
+      const w=window.open("","_blank","width=820,height=1100");
+      if(!w)return;
+      w.document.write(html);
+      w.document.close();
+      w.onload=()=>{w.focus();w.print();};
+    }
   };
   return(
     <div className="stk fu">
@@ -1832,27 +1852,11 @@ function CombinedInvoice({invoices,customers,settings}){
 // ── Expenses ───────────────────────────────────────────────
 const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",vendor:"",amount:0,receipt:false,receiptPhoto:null});
-  const[vendorSug,setVendorSug]=useState(false);
-
-  const vendorHistory=useMemo(()=>{
-    const cnt={};
-    expenses.forEach(e=>{if(e.vendor){cnt[e.vendor]=(cnt[e.vendor]||0)+1;}});
-    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([v])=>v);
-  },[expenses]);
-  const filteredVendors=form.vendor?vendorHistory.filter(v=>v.includes(form.vendor)&&v!==form.vendor):vendorHistory;
-
-  const save=()=>{
-    if(!form.desc||!form.amount)return;
-    const e={...form,amount:Number(form.amount)};
-    if(modal==="add")setExpenses(p=>[...p,{...e,id:nextId(p)}]);
-    else setExpenses(p=>p.map(x=>x.id===modal.id?{...e,id:x.id}:x));
-    setModal(null);
-  };
+  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
+  const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
   const byM={};expenses.forEach(e=>{const m=e.date.slice(0,7);byM[m]=(byM[m]||0)+e.amount;});
-
   if(modal) return(
     <div className="stk fu">
       <div className="rb">
@@ -1874,32 +1878,15 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
               try{
                 const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
+                console.log("AI仕分けレスポンス:",JSON.stringify(d));
                 const cat=(d.content?.[0]?.text||"").trim();
+                console.log("取得カテゴリ:",cat);
                 const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
+                console.log("マッチ結果:",matched);
                 if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
                 else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
-              }catch(e){console.error(e);setForm(f=>({...f,aiLoading:false}));}
+              }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
-          </div>
-        </Fld>
-        <Fld label="購入先・支払先" opt>
-          <div style={{position:"relative"}}>
-            <input className="inp" value={form.vendor||""} placeholder="例: コメリ、出光SS、アマゾン"
-              onChange={e=>{setForm(f=>({...f,vendor:e.target.value}));setVendorSug(true);}}
-              onFocus={()=>setVendorSug(true)}
-              onBlur={()=>setTimeout(()=>setVendorSug(false),150)}/>
-            {vendorSug&&filteredVendors.length>0&&(
-              <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:200,background:"var(--bg)",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 4px 16px rgba(0,0,0,.12)",maxHeight:180,overflowY:"auto"}}>
-                {filteredVendors.map(v=>(
-                  <div key={v} onMouseDown={()=>{setForm(f=>({...f,vendor:v}));setVendorSug(false);}}
-                    style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:"1px solid var(--sep)"}}
-                    onMouseEnter={e=>e.currentTarget.style.background="var(--fi2)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    🏪 {v}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </Fld>
         <Fld label="勘定科目（カテゴリ）">
@@ -1909,47 +1896,18 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
         </Fld>
         <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
-        <Fld label="領収書写真" opt>
-          {form.receiptPhoto?(
-            <div style={{position:"relative",display:"inline-block"}}>
-              <img src={form.receiptPhoto} alt="領収書" style={{maxWidth:"100%",maxHeight:220,borderRadius:10,objectFit:"contain",border:"1px solid var(--sep)",display:"block"}}/>
-              <button onClick={()=>setForm(f=>({...f,receiptPhoto:null}))} style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:24,height:24,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-            </div>
-          ):(
-            <label style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",border:"2px dashed var(--lb3)",borderRadius:11,cursor:form.photoUploading?"wait":"pointer",color:"var(--lb2)",fontSize:13,background:"var(--fi2)",opacity:form.photoUploading?.6:1}}>
-              <span style={{fontSize:22}}>{form.photoUploading?"⏳":"📷"}</span>
-              <span>{form.photoUploading?"アップロード中…":"カメラで撮影 / ファイルを選択"}</span>
-              <input type="file" accept="image/*" capture="environment" style={{display:"none"}} disabled={form.photoUploading}
-                onChange={async e=>{
-                  const file=e.target.files?.[0];if(!file)return;e.target.value="";
-                  setForm(f=>({...f,photoUploading:true}));
-                  try{
-                    const url=await uploadToCloudinary(file);
-                    setForm(f=>({...f,receiptPhoto:url,receipt:true,photoUploading:false}));
-                  }catch{
-                    alert("写真のアップロードに失敗しました。");
-                    setForm(f=>({...f,photoUploading:false}));
-                  }
-                }}/>
-            </label>
-          )}
-        </Fld>
       </div>
     </div>
   );
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",vendor:"",amount:0,receipt:false,receiptPhoto:null});setModal("add");}}>＋ 入力</button></div>
+      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",amount:0,receipt:false});setModal("add");}}>＋ 入力</button></div>
       <div className="seg">{[["list","一覧"],["chart","集計"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       {tab==="list"?(
         <div className="lst">{[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
-          <div key={e.id} className="li" onClick={()=>{setForm({date:e.date,category:e.category,desc:e.desc,vendor:e.vendor||"",amount:e.amount,receipt:e.receipt,receiptPhoto:e.receiptPhoto||null});setModal(e);}}>
+          <div key={e.id} className="li" onClick={()=>{setForm({...e});setModal(e);}}>
             <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
-            <div style={{flex:1,minWidth:0}}>
-              <div className="b6 trn">{e.desc}</div>
-              <div className="cmu sm">{e.date}{e.vendor&&<span style={{marginLeft:5}}>🏪 {e.vendor}</span>} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div>
-            </div>
-            {e.receiptPhoto&&<img src={e.receiptPhoto} alt="領収書" style={{width:36,height:36,borderRadius:7,objectFit:"cover",border:"1px solid var(--sep)",flexShrink:0}}/>}
+            <div style={{flex:1,minWidth:0}}><div className="b6 trn">{e.desc}</div><div className="cmu sm">{e.date} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div></div>
             <div className="b7 sm">{fmt(e.amount)}</div>
           </div>
         ))}{!expenses.length&&<div className="li cmu" style={{justifyContent:"center"}}>経費データがありません</div>}</div>
@@ -2426,7 +2384,14 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 
 </body></html>`);
     w.document.close();
-    setTimeout(()=>w.print(),600);
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(isIOS){
+      w.document.close();
+      setTimeout(()=>{w.focus();w.print();},800);
+    }else{
+      w.document.close();
+      setTimeout(()=>w.print(),600);
+    }
   };
 
   return(
@@ -2881,20 +2846,14 @@ const WL_STATUS=["作業中","完了","保留"];
 
 function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
   const ref=useRef();
-  const[uploading,setUploading]=useState(false);
-  const add=async e=>{
+  const add=e=>{
     const files=Array.from(e.target.files||[]);
+    files.forEach(f=>{
+      const r=new FileReader();
+      r.onload=ev=>onAdd({id:Date.now()+Math.random(),url:ev.target.result,name:f.name});
+      r.readAsDataURL(f);
+    });
     e.target.value="";
-    if(!files.length)return;
-    setUploading(true);
-    try{
-      for(const f of files){
-        const url=await uploadToCloudinary(f);
-        onAdd({id:Date.now()+Math.random(),url,name:f.name});
-      }
-    }catch{
-      alert("写真のアップロードに失敗しました。通信環境を確認してください。");
-    }finally{setUploading(false);}
   };
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
@@ -2905,10 +2864,10 @@ function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
         </div>
       ))}
       {!readOnly&&(
-        <div onClick={()=>!uploading&&ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",gap:4,background:"var(--fi2)",opacity:uploading?.6:1}}>
-          <span style={{fontSize:22,opacity:.5}}>{uploading?"⏳":"📷"}</span>
-          <span style={{fontSize:10,color:"var(--lb3)"}}>{uploading?"送信中…":"追加"}</span>
-          <input ref={ref} type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={add}/>
+        <div onClick={()=>ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:4,background:"var(--fi2)",transition:"background var(--tr)"}}>
+          <span style={{fontSize:22,opacity:.5}}>📷</span>
+          <span style={{fontSize:10,color:"var(--lb3)"}}>追加</span>
+          <input ref={ref} type="file" accept="image/*" multiple style={{display:"none"}} onChange={add}/>
         </div>
       )}
     </div>
