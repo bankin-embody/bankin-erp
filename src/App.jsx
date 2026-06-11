@@ -600,31 +600,43 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
     const colorPage=`<div class="page">${el.innerHTML}</div>`;
     const monoPage=`<div class="page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
     const html=`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
-    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
     if(isIOS){
+      // iOS/iPadOS: Blob URLを新タブで開き、Safariの共有→印刷を促す
       const blob=new Blob([html],{type:"text/html;charset=utf-8"});
       const url=URL.createObjectURL(blob);
-      let iframe=document.getElementById("print-iframe") as HTMLIFrameElement;
-      if(!iframe){
-        iframe=document.createElement("iframe");
-        iframe.id="print-iframe";
-        iframe.style.cssText="position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;";
-        document.body.appendChild(iframe);
-      }
-      iframe.src=url;
-      iframe.onload=()=>{
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(()=>URL.revokeObjectURL(url),3000);
-      };
+      const a=document.createElement("a");
+      a.href=url;
+      a.target="_blank";
+      a.rel="noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      // iOS向け案内トースト
+      const toast=document.createElement("div");
+      toast.innerHTML="📄 新しいタブで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
+      toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
+      document.body.appendChild(toast);
+      setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},5000);
     }else{
       const w=window.open("","_blank","width=820,height=1100");
-      if(!w)return;
+      if(!w){
+        // ポップアップブロック時のフォールバック
+        const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url;a.target="_blank";a.rel="noopener";
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url),60000);
+        return;
+      }
       w.document.write(html);
       w.document.close();
       w.onload=()=>{w.focus();w.print();};
     }
   };
+  const isIOSDevice=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
   return(
     <div style={{position:"fixed",inset:0,zIndex:500,display:"flex",flexDirection:"column",background:"var(--grp)"}}>
       {/* 上部ボタンバー：常に表示 */}
@@ -635,6 +647,13 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
           <button className="btn bs bsm" onClick={onClose}>← 戻る</button>
         </div>
       </div>
+      {/* iOS向け印刷案内バナー */}
+      {isIOSDevice&&(
+        <div className="np" style={{background:"rgba(61,90,138,.09)",borderBottom:"1px solid rgba(61,90,138,.13)",padding:"7px 16px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          <span style={{fontSize:16}}>💡</span>
+          <span style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.4}}>「印刷」ボタンで新しいタブが開きます。SafariのShareボタン（<span style={{fontFamily:"system-ui"}}>□↑</span>）→「プリント」で印刷できます。</span>
+        </div>
+      )}
 
       {/* プレビュー本体：スクロール可能 */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px 8px 40px"}}>
@@ -2092,10 +2111,9 @@ const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,s
     {label:"雑費",key:"雑費"},
   ];
 
-  // 印刷処理
+  // 印刷処理（iOS/iPadOS対応）
   const handlePrint=()=>{
-    const w=window.open("","_blank","width=900,height=1200");
-    if(!w)return;
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
     const fmtN=n=>n?Number(n).toLocaleString():"";
     const fmtR=n=>n?`¥${Number(n).toLocaleString()}`:"";
     const shopName=settings.shopName||"";
@@ -2106,7 +2124,7 @@ const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,s
     const expRows=EXP_ROWS.map(r=>({...r,v:kGroup[r.key]||0}));
     const expOther=tE-expRows.reduce((s,r)=>s+r.v,0);
 
-    w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+    const htmlContent=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
 <title>収支内訳書 ${year}年分</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -2385,9 +2403,34 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
   </div>
 </div>
 
-</body></html>`);
-    w.document.close();
-    setTimeout(()=>w.print(),600);
+</body></html>`;
+    if(isIOS){
+      const blob=new Blob([htmlContent],{type:"text/html;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.target="_blank";a.rel="noopener";
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      const toast=document.createElement("div");
+      toast.innerHTML="📄 新しいタブで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
+      toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
+      document.body.appendChild(toast);
+      setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},5000);
+    }else{
+      const w=window.open("","_blank","width=900,height=1200");
+      if(!w){
+        const blob=new Blob([htmlContent],{type:"text/html;charset=utf-8"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url;a.target="_blank";a.rel="noopener";
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url),60000);
+        return;
+      }
+      w.document.write(htmlContent);
+      w.document.close();
+      setTimeout(()=>w.print(),600);
+    }
   };
 
   return(
@@ -2434,6 +2477,11 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
           🖨️　{year}年分 申告書類を印刷する
         </button>
         <div className="xs cmu mt8">※ 印刷後、マイナンバー・各種控除額を手書きで記入してください</div>
+        {(/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1))&&(
+          <div style={{marginTop:8,padding:"7px 10px",background:"rgba(61,90,138,.08)",borderRadius:8,fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.5}}>
+            💡 iPhone/iPad: 新しいタブが開くので、Safariの 共有（□↑）→「プリント」で印刷してください
+          </div>
+        )}
       </div>
 
       {/* 収支内訳書プレビュー */}
