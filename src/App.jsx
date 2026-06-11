@@ -575,17 +575,28 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const theme=getDocTheme(type,doc);
   const ttl=theme.label;
   const doPrint=()=>{
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
     const el=document.getElementById("print-area");
     if(!el)return;
+    // .npクラスの要素（ボタン等）を印刷HTMLから除去
+    const clone=el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".np").forEach(n=>n.remove());
+    const cleanHTML=clone.innerHTML;
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:8mm 10mm;}
 html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+/* Blob URLなどのURL自動表示を抑制 */
+a[href]::after{content:none!important;display:none!important;}
+/* ページ下部のURL表示を非表示 */
+@page{margin:8mm 10mm;}
 .page{width:100%;page-break-after:always;position:relative;}
 .page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
+/* ボタン・UI要素を非表示 */
+.np,.btn,button{display:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .detail-table thead{display:table-header-group;}
@@ -596,11 +607,13 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
+${isIOS?`/* iOS/iPadOS 87%縮小 */
+html{-webkit-text-size-adjust:none;}
+@media print{body{zoom:0.87;-webkit-transform:scale(0.87);-webkit-transform-origin:0 0;width:calc(100%/0.87);}}`:``}
 </style>`;
-    const colorPage=`<div class="page">${el.innerHTML}</div>`;
-    const monoPage=`<div class="page mono">${el.innerHTML}<div class="copy-label">【控え】</div></div>`;
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
-    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+    const colorPage=`<div class="page">${cleanHTML}</div>`;
+    const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     if(isIOS){
       // iOS/iPadOS: Blob URLを新タブで開き、Safariの共有→印刷を促す
       const blob=new Blob([html],{type:"text/html;charset=utf-8"});
@@ -2124,12 +2137,14 @@ const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,s
     const expRows=EXP_ROWS.map(r=>({...r,v:kGroup[r.key]||0}));
     const expOther=tE-expRows.reduce((s,r)=>s+r.v,0);
 
-    const htmlContent=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+    const htmlContent=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>収支内訳書 ${year}年分</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:8mm 10mm;}
 body{font-family:'MS Mincho','游明朝',serif;font-size:9px;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+/* Blob URLなどURL自動表示を抑制 */
+a[href]::after{content:none!important;display:none!important;}
 .page{width:100%;page-break-after:always;}
 .page:last-child{page-break-after:auto;}
 h1{font-size:15px;font-weight:bold;text-align:center;padding:7px 0 4px;border-bottom:2px solid #000;margin-bottom:5px;}
@@ -2140,6 +2155,9 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 .num{text-align:right;font-family:'Courier New',monospace;}
 .center{text-align:center;}
 .total-row td{background:#e8e8e8;font-weight:bold;}
+${isIOS?`/* iOS/iPadOS 87%縮小 */
+html{-webkit-text-size-adjust:none;}
+@media print{body{zoom:0.87;-webkit-transform:scale(0.87);-webkit-transform-origin:0 0;width:calc(100%/0.87);}}`:``}
 .highlight td{background:#fff8e1;}
 .section{border:1.5px solid #333;margin-bottom:8px;padding:6px 8px;}
 .row2{display:flex;gap:8px;}
