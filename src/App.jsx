@@ -615,7 +615,7 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
       iframe.onload=()=>{
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-        setTimeout(()=>{URL.revokeObjectURL(url);},3000);
+        setTimeout(()=>URL.revokeObjectURL(url),3000);
       };
     }else{
       const w=window.open("","_blank","width=820,height=1100");
@@ -626,18 +626,18 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
     }
   };
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
-      {/* ボタンバー：上部固定 */}
-      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8,flexWrap:"wrap"}}>
-        <div style={{fontSize:15,fontWeight:800}}>{theme.emoji} {ttl} 印刷プレビュー</div>
-        <div style={{display:"flex",gap:7}}>
-          <button className="btn bp" onClick={doPrint}>🖨️ 印刷</button>
-          <button className="btn bs" onClick={onClose}>← 戻る</button>
+    <div style={{position:"fixed",inset:0,zIndex:500,display:"flex",flexDirection:"column",background:"var(--grp)"}}>
+      {/* 上部ボタンバー：常に表示 */}
+      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8}}>
+        <div style={{fontSize:15,fontWeight:800,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{theme.emoji} {ttl}</div>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
+          <button className="btn bp bsm" onClick={doPrint}>🖨️ 印刷</button>
+          <button className="btn bs bsm" onClick={onClose}>← 戻る</button>
         </div>
       </div>
 
       {/* プレビュー本体：スクロール可能 */}
-      <div style={{flex:1,overflowY:"auto",padding:"12px 8px",WebkitOverflowScrolling:"touch"}}>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px 8px 40px"}}>
         <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
@@ -901,8 +901,8 @@ body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#0
         {doc.note&&<div style={{margin:"0 20px 16px",padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
         </div>{/* end print-area */}
 
-        {/* 下部にも印刷ボタン */}
-        <div className="np" style={{display:"flex",gap:9,justifyContent:"center",padding:"16px 8px 24px"}}>
+        {/* 下部ボタン */}
+        <div className="np" style={{display:"flex",gap:9,justifyContent:"center",padding:"20px 8px 8px"}}>
           <button className="btn bp" style={{padding:"13px 28px",fontSize:15}} onClick={doPrint}>🖨️ 印刷する</button>
           <button className="btn bs" style={{padding:"13px 20px",fontSize:15}} onClick={onClose}>← 戻る</button>
         </div>
