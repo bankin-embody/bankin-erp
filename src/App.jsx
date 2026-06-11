@@ -293,7 +293,7 @@ const IW=[
   {id:2,customerId:2,vehicleId:1,date:"2026-05-08",title:"車検整備",memo:"タイヤ交換・ブレーキパッド交換・オイル交換実施。次回車検2028年5月。",photos:[],tags:["車検","整備"],status:"完了"},
 ];
 
-// ── Cloudinary ────────────────────────────────────────────
+// ── Cloudinary ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD="dezdfn2i5";
 const CLOUDINARY_PRESET="bankin_receipts";
 const uploadToCloudinary=async(file)=>{
@@ -304,7 +304,7 @@ const uploadToCloudinary=async(file)=>{
   const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
   if(!res.ok)throw new Error("アップロード失敗");
   const data=await res.json();
-  return data.secure_url;// https://... のURL
+  return data.secure_url;
 };
 
 // ── Storage (localStorage) ─────────────────────────────────
@@ -1832,11 +1832,32 @@ function CombinedInvoice({invoices,customers,settings}){
 // ── Expenses ───────────────────────────────────────────────
 const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
-  const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
+  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",vendor:"",amount:0,receipt:false,receiptPhoto:null});
+  const[vendorSug,setVendorSug]=useState(false);
+
+  // 過去の購入先一覧（重複なし・使用頻度順）
+  const vendorHistory=useMemo(()=>{
+    const cnt={};
+    expenses.forEach(e=>{if(e.vendor){cnt[e.vendor]=(cnt[e.vendor]||0)+1;}});
+    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([v])=>v);
+  },[expenses]);
+
+  const filteredVendors=form.vendor
+    ?vendorHistory.filter(v=>v.includes(form.vendor)&&v!==form.vendor)
+    :vendorHistory;
+
+  const save=()=>{
+    if(!form.desc||!form.amount)return;
+    const e={...form,amount:Number(form.amount)};
+    if(modal==="add")setExpenses(p=>[...p,{...e,id:nextId(p)}]);
+    else setExpenses(p=>p.map(x=>x.id===modal.id?{...e,id:x.id}:x));
+    setModal(null);
+  };
+
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
   const byM={};expenses.forEach(e=>{const m=e.date.slice(0,7);byM[m]=(byM[m]||0)+e.amount;});
+
   if(modal) return(
     <div className="stk fu">
       <div className="rb">
@@ -1858,15 +1879,32 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
               try{
                 const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
-                console.log("AI仕分けレスポンス:",JSON.stringify(d));
                 const cat=(d.content?.[0]?.text||"").trim();
-                console.log("取得カテゴリ:",cat);
                 const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
-                console.log("マッチ結果:",matched);
                 if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
                 else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
-              }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
+              }catch(e){console.error(e);setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
+          </div>
+        </Fld>
+        <Fld label="購入先・支払先" opt>
+          <div style={{position:"relative"}}>
+            <input className="inp" value={form.vendor||""} placeholder="例: コメリ、出光SS、アマゾン"
+              onChange={e=>{setForm(f=>({...f,vendor:e.target.value}));setVendorSug(true);}}
+              onFocus={()=>setVendorSug(true)}
+              onBlur={()=>setTimeout(()=>setVendorSug(false),150)}/>
+            {vendorSug&&filteredVendors.length>0&&(
+              <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:200,background:"var(--bg)",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 4px 16px rgba(0,0,0,.12)",maxHeight:180,overflowY:"auto"}}>
+                {filteredVendors.map(v=>(
+                  <div key={v} onMouseDown={()=>{setForm(f=>({...f,vendor:v}));setVendorSug(false);}}
+                    style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:"1px solid var(--sep)"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="var(--fi2)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    🏪 {v}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Fld>
         <Fld label="勘定科目（カテゴリ）">
@@ -1889,9 +1927,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
               <span>{form.photoUploading?"アップロード中…":"カメラで撮影 / ファイルを選択"}</span>
               <input type="file" accept="image/*" capture="environment" style={{display:"none"}} disabled={form.photoUploading}
                 onChange={async e=>{
-                  const file=e.target.files?.[0];
-                  if(!file)return;
-                  e.target.value="";
+                  const file=e.target.files?.[0];if(!file)return;e.target.value="";
                   setForm(f=>({...f,photoUploading:true}));
                   try{
                     const url=await uploadToCloudinary(file);
@@ -1909,13 +1945,19 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   );
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",amount:0,receipt:false});setModal("add");}}>＋ 入力</button></div>
+      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",vendor:"",amount:0,receipt:false,receiptPhoto:null});setModal("add");}}>＋ 入力</button></div>
       <div className="seg">{[["list","一覧"],["chart","集計"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       {tab==="list"?(
         <div className="lst">{[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
-          <div key={e.id} className="li" onClick={()=>{setForm({...e});setModal(e);}}>
+          <div key={e.id} className="li" onClick={()=>{setForm({date:e.date,category:e.category,desc:e.desc,vendor:e.vendor||"",amount:e.amount,receipt:e.receipt,receiptPhoto:e.receiptPhoto||null});setModal(e);}}>
             <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
-            <div style={{flex:1,minWidth:0}}><div className="b6 trn">{e.desc}</div><div className="cmu sm">{e.date} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div></div>
+            <div style={{flex:1,minWidth:0}}>
+              <div className="b6 trn">{e.desc}</div>
+              <div className="cmu sm">{e.date}
+                {e.vendor&&<span style={{marginLeft:5}}>🏪 {e.vendor}</span>}
+                · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span>
+              </div>
+            </div>
             {e.receiptPhoto&&<img src={e.receiptPhoto} alt="領収書" style={{width:36,height:36,borderRadius:7,objectFit:"cover",border:"1px solid var(--sep)",flexShrink:0}}/>}
             <div className="b7 sm">{fmt(e.amount)}</div>
           </div>
@@ -2861,10 +2903,7 @@ function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
       }
     }catch(err){
       alert("写真のアップロードに失敗しました。通信環境を確認してください。");
-      console.error(err);
-    }finally{
-      setUploading(false);
-    }
+    }finally{setUploading(false);}
   };
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
@@ -2875,7 +2914,7 @@ function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
         </div>
       ))}
       {!readOnly&&(
-        <div onClick={()=>!uploading&&ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",gap:4,background:"var(--fi2)",transition:"background var(--tr)",opacity:uploading?.6:1}}>
+        <div onClick={()=>!uploading&&ref.current?.click()} style={{aspectRatio:"1",borderRadius:10,border:"2px dashed var(--lb3)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:uploading?"wait":"pointer",gap:4,background:"var(--fi2)",opacity:uploading?.6:1}}>
           <span style={{fontSize:22,opacity:.5}}>{uploading?"⏳":"📷"}</span>
           <span style={{fontSize:10,color:"var(--lb3)"}}>{uploading?"送信中…":"追加"}</span>
           <input ref={ref} type="file" accept="image/*" capture="environment" multiple style={{display:"none"}} onChange={add}/>
