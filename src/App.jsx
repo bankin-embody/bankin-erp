@@ -607,25 +607,36 @@ a[href]::after{content:none!important;display:none!important;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
-${isIOS?`/* iOS/iPadOS 87%縮小 */
-html{-webkit-text-size-adjust:none;}
-@media print{body{zoom:0.87;-webkit-transform:scale(0.87);-webkit-transform-origin:0 0;width:calc(100%/0.87);}}`:``}
+${isIOS?`/* iOS/iPadOS: .pageをA4サイズに縮小して確実に1枚に収める */
+html,body{margin:0;padding:0;background:#fff;}
+.page{
+  width:210mm;
+  transform:scale(0.87);
+  transform-origin:top left;
+  margin-bottom:calc((210mm * 0.87 * 1.414 - 210mm * 1.414) + 4mm);
+}
+@media print{
+  html,body{margin:0;padding:0;}
+  .page{transform:scale(0.87);transform-origin:top left;page-break-after:always;}
+  .page:last-child{page-break-after:auto;}
+}`:``}
 </style>`;
+    // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     if(isIOS){
-      // iOS/iPadOS: Blob URLを新タブで開き、Safariの共有→印刷を促す
-      const blob=new Blob([html],{type:"text/html;charset=utf-8"});
-      const url=URL.createObjectURL(blob);
+      // iOS/iPadOS: data:URIで開くことでSafariフッターのURLを無害化
+      const encoded=encodeURIComponent(iosHtml);
+      const dataUri=`data:text/html;charset=utf-8,${encoded}`;
       const a=document.createElement("a");
-      a.href=url;
+      a.href=dataUri;
       a.target="_blank";
       a.rel="noopener";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
       // iOS向け案内トースト
       const toast=document.createElement("div");
       toast.innerHTML="📄 新しいタブで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
@@ -633,6 +644,7 @@ html{-webkit-text-size-adjust:none;}
       document.body.appendChild(toast);
       setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},5000);
     }else{
+      const html=pcHtml;
       const w=window.open("","_blank","width=820,height=1100");
       if(!w){
         // ポップアップブロック時のフォールバック
@@ -2423,12 +2435,12 @@ html{-webkit-text-size-adjust:none;}
 
 </body></html>`;
     if(isIOS){
-      const blob=new Blob([htmlContent],{type:"text/html;charset=utf-8"});
-      const url=URL.createObjectURL(blob);
+      // data:URIで開くことでSafariフッターのBlobURLを非表示
+      const encoded=encodeURIComponent(htmlContent);
+      const dataUri=`data:text/html;charset=utf-8,${encoded}`;
       const a=document.createElement("a");
-      a.href=url;a.target="_blank";a.rel="noopener";
+      a.href=dataUri;a.target="_blank";a.rel="noopener";
       document.body.appendChild(a);a.click();document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
       const toast=document.createElement("div");
       toast.innerHTML="📄 新しいタブで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
       toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
