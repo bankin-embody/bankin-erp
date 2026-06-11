@@ -581,21 +581,43 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     // .npクラスの要素（ボタン等）を印刷HTMLから除去
     const clone=el.cloneNode(true) as HTMLElement;
     clone.querySelectorAll(".np").forEach(n=>n.remove());
+    // iOS: テーブルの空行（中身のないtr）を除去してページ数削減
+    if(isIOS){
+      clone.querySelectorAll("tr").forEach(tr=>{
+        const tds=tr.querySelectorAll("td");
+        if(tds.length>0&&Array.from(tds).every(td=>td.textContent?.trim()===""&&!td.querySelector("img,svg"))){
+          tr.remove();
+        }
+      });
+    }
     const cleanHTML=clone.innerHTML;
     const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+    // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
+    // + font-size・paddingをコンパクトにしてA4 1枚に収める
+    const iosExtra=isIOS?`
+@page{size:A4 portrait;margin:4mm 6mm;}
+body{font-size:9.5px!important;}
+*{line-height:1.3!important;}
+/* テーブルのパディングを詰める */
+td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!important;}
+/* セクション間の余白を詰める */
+.mt12,.mt8,.mt4{margin-top:3px!important;}
+.mb12,.mb8,.mb4{margin-bottom:3px!important;}
+/* カードのパディングを詰める */
+.card{padding:8px 10px!important;}
+/* テキストサイズ全般 */
+.sm{font-size:11px!important;}.xs{font-size:9px!important;}.lg{font-size:14px!important;}
+.b7,.b6{font-size:inherit!important;}
+`:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:8mm 10mm;}
 html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-/* Blob URLなどのURL自動表示を抑制 */
 a[href]::after{content:none!important;display:none!important;}
-/* ページ下部のURL表示を非表示 */
-@page{margin:8mm 10mm;}
 .page{width:100%;page-break-after:always;position:relative;}
 .page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
-/* ボタン・UI要素を非表示 */
 .np,.btn,button{display:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
 .detail-table{width:100%;border-collapse:collapse;table-layout:fixed;}
@@ -607,19 +629,7 @@ a[href]::after{content:none!important;display:none!important;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
-${isIOS?`/* iOS/iPadOS: .pageをA4サイズに縮小して確実に1枚に収める */
-html,body{margin:0;padding:0;background:#fff;}
-.page{
-  width:210mm;
-  transform:scale(0.87);
-  transform-origin:top left;
-  margin-bottom:calc((210mm * 0.87 * 1.414 - 210mm * 1.414) + 4mm);
-}
-@media print{
-  html,body{margin:0;padding:0;}
-  .page{transform:scale(0.87);transform-origin:top left;page-break-after:always;}
-  .page:last-child{page-break-after:auto;}
-}`:``}
+${iosExtra}
 </style>`;
     // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
