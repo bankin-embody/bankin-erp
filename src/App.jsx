@@ -964,32 +964,29 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     }
     const cleanHTML=clone.innerHTML;
     const fonts=isIOS?``:`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-    // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
-    // + font-size・paddingをコンパクトにしてA4 1枚に収める
-    const iosExtra=isIOS?`
-@page{size:A4 portrait;margin:4mm 6mm;}
-body{font-size:9.5px!important;}
-*{line-height:1.3!important;}
-/* テーブルのパディングを詰める */
-td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!important;}
-/* セクション間の余白を詰める */
-.mt12,.mt8,.mt4{margin-top:3px!important;}
-.mb12,.mb8,.mb4{margin-bottom:3px!important;}
-/* カードのパディングを詰める */
-.card{padding:8px 10px!important;}
-/* テキストサイズ全般 */
-.sm{font-size:11px!important;}.xs{font-size:9px!important;}.lg{font-size:14px!important;}
-.b7,.b6{font-size:inherit!important;}
-`:``;
+    // iOS・PC共通: A4サイズにフィットさせる印刷スタイル
+    // 本書・控えはそれぞれ独立したA4 1枚として印刷
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:8mm 10mm;}
-html,body{margin:0;padding:0;}
+@page{size:A4 portrait;margin:10mm 12mm;}
+html,body{margin:0;padding:0;width:210mm;}
 body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
-.page{width:190mm;max-width:190mm;page-break-after:always;position:relative;margin:0 auto;}
-.page:last-child{page-break-after:auto;}
-${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
+/* 各ページ（本書・控え）をA4 1枚として独立させる */
+.page{
+  width:186mm;
+  max-width:186mm;
+  min-height:257mm;
+  page-break-before:always;
+  page-break-after:always;
+  break-before:page;
+  break-after:page;
+  position:relative;
+  margin:0 auto;
+  overflow:hidden;
+}
+.page:first-child{page-break-before:auto;break-before:auto;}
+.page:last-of-type{page-break-after:auto;break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .np,.btn,button{display:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
@@ -1002,22 +999,30 @@ ${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
-.close-bar{display:flex;justify-content:center;padding:10px;}
-.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
+/* 印刷ボタンバー（画面表示用） */
+.close-bar{display:flex;justify-content:center;gap:12px;padding:16px;background:#f0ede9;}
+.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;cursor:pointer;}
 @media print{.close-bar{display:none!important;}}
-${iosExtra}
+/* iOS Safari: viewportをA4幅に合わせてスケール */
+@media screen{
+  body{width:100%;max-width:210mm;margin:0 auto;}
+  .page{width:100%;max-width:186mm;}
+}
 </style>
 <script>
 window.addEventListener("afterprint",function(){
   try{window.close();}catch(e){}
 });
 </script>`;
-    // iOS・PC共に正本＋控えの2枚
+    // 本書・控えをそれぞれ独立した.pageとして出力（各1枚A4）
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
     const closeBar=`<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>`;
-    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
-    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
+    // iOS: viewport metaにwidth=device-widthを指定し、印刷時はA4固定
+    const iosViewport=`<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">`;
+    const pcViewport=`<meta name="viewport" content="width=device-width,initial-scale=1">`;
+    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${iosViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
+    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${pcViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
     const html=isIOS?iosHtml:pcHtml;
     const w=window.open("","_blank","width=820,height=1100");
     if(!w){
