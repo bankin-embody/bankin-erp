@@ -800,7 +800,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   pdf.setFontSize(9);
 
-  const maxRows=docType==="shakken"?14:docType==="combined"?22:20;
+  const maxRows=docType==="shakken"?14:docType==="combined"?22:16;
   const items=doc.items||[];
   const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
@@ -1200,7 +1200,7 @@ window.addEventListener("afterprint",function(){
           {type!=="combined"&&(()=>{
             // 固定費は合計欄に移動するので明細には含めない
             const allRows=[...(doc.items||[])];
-            const maxRows=type==="shakken"?14:type==="combined"?22:20;
+            const maxRows=type==="shakken"?14:type==="combined"?22:16;
             const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+1));
             let rowIdx=0;
             return(
