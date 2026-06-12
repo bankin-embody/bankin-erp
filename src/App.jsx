@@ -953,15 +953,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     // .npクラスの要素（ボタン等）を印刷HTMLから除去
     const clone=el.cloneNode(true);
     clone.querySelectorAll(".np").forEach(n=>n.remove());
-    // iOS: テーブルの空行（中身のないtr）を除去してページ数削減
-    if(isIOS){
-      clone.querySelectorAll("tr").forEach(tr=>{
-        const tds=tr.querySelectorAll("td");
-        if(tds.length>0&&Array.from(tds).every(td=>td.textContent?.trim()===""&&!td.querySelector("img,svg"))){
-          tr.remove();
-        }
-      });
-    }
+    // iOS: 空白行はPCと同じく残す（削除しない）
     const cleanHTML=clone.innerHTML;
     const fonts=isIOS?``:`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
