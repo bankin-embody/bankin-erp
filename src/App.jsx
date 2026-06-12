@@ -964,28 +964,20 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     }
     const cleanHTML=clone.innerHTML;
     const fonts=isIOS?``:`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-    // iOS・PC共通: A4サイズにフィットさせる印刷スタイル
-    // 本書・控えはそれぞれ独立したA4 1枚として印刷
+    // ─── iOS印刷の根本原因と解決策 ───────────────────────────────────
+    // 問題: viewport=device-widthだとiPhoneは375px幅として解釈→コンテンツ(750px想定)が50%縮小
+    // 解決: viewport width=794 (A4用紙を96dpiで換算したpx幅) を指定
+    //       → SafariがA4幅=794pxとしてレイアウト → @page A4に1:1でマッピング
+    //       本書・控えは page-break-after:always で確実に別ページ(各A4 1枚)
+    // ─────────────────────────────────────────────────────────────────
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:10mm 12mm;}
-html,body{margin:0;padding:0;width:210mm;}
-body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+html{width:794px;}
+body{width:794px;margin:0 auto;font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
-/* 各ページ（本書・控え）をA4 1枚として独立させる */
-.page{
-  width:186mm;
-  max-width:186mm;
-  min-height:257mm;
-  page-break-before:always;
-  page-break-after:always;
-  break-before:page;
-  break-after:page;
-  position:relative;
-  margin:0 auto;
-  overflow:hidden;
-}
-.page:first-child{page-break-before:auto;break-before:auto;}
+/* 本書と控えをそれぞれA4 1枚として独立させる */
+.page{width:770px;page-break-after:always;break-after:page;position:relative;margin:0 auto;}
 .page:last-of-type{page-break-after:auto;break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .np,.btn,button{display:none!important;}
@@ -999,15 +991,9 @@ a[href]::after{content:none!important;display:none!important;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
-/* 印刷ボタンバー（画面表示用） */
-.close-bar{display:flex;justify-content:center;gap:12px;padding:16px;background:#f0ede9;}
+.close-bar{display:flex;justify-content:center;padding:16px;gap:12px;}
 .close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;cursor:pointer;}
 @media print{.close-bar{display:none!important;}}
-/* iOS Safari: viewportをA4幅に合わせてスケール */
-@media screen{
-  body{width:100%;max-width:210mm;margin:0 auto;}
-  .page{width:100%;max-width:186mm;}
-}
 </style>
 <script>
 window.addEventListener("afterprint",function(){
@@ -1018,8 +1004,8 @@ window.addEventListener("afterprint",function(){
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
     const closeBar=`<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>`;
-    // iOS: viewport metaにwidth=device-widthを指定し、印刷時はA4固定
-    const iosViewport=`<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">`;
+    // iOS: viewport width=794 でA4幅に合わせる（縮小防止の核心）
+    const iosViewport=`<meta name="viewport" content="width=794">`;
     const pcViewport=`<meta name="viewport" content="width=device-width,initial-scale=1">`;
     const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${iosViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
     const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${pcViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
