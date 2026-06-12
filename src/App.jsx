@@ -1170,7 +1170,7 @@ window.addEventListener("afterprint",function(){
                 <tbody>
                   {allRows.map((row,i)=>(
                     <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
-                      <td style={{padding:"6px 6px",fontSize:11}}>{row.id}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,height:28}}>{row.id}</td>
                       <td style={{padding:"6px 6px",fontSize:10}}>{row.date}</td>
                       <td style={{padding:"6px 6px",fontSize:11,wordBreak:"break-all"}}>{row.desc}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.qty||""}</td>
@@ -1229,7 +1229,7 @@ window.addEventListener("afterprint",function(){
                     const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
                     return(
                       <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid",breakInside:"avoid"}}>
-                        <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all"}}>{it.desc}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",height:32}}>{it.desc}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unitLabel||"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
