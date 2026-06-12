@@ -893,6 +893,225 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   return pdf;
 };
 
+// ── 車検請求書PDF生成 ────────────────────────────────────────────
+const buildShakkenPdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,gov,daikoRaw,daikoTx,daikoWT})=>{
+  const pdf=newJpPdf();
+  const W=210,M=12;
+  const[ar,ag,ab]=hexToRgb(theme.accent);
+  let y=M;
+  // ヘッダーバー
+  pdf.setFillColor(ar,ag,ab);
+  pdf.rect(0,0,W,14,"F");
+  pdf.setTextColor(255,255,255);
+  pdf.setFont("NotoSansJP","bold");pdf.setFontSize(15);
+  pdf.text(ttl,M,9.5);
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);
+  pdf.text(`${doc.date||today()}　${doc.id?`No. ${String(doc.id).replace(/\D/g,"")}`:""}`,W-M,9,{align:"right"});
+  y=20;
+  // 顧客・会社情報
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(15);
+  pdf.text(`${fullName(customer)}　様`,M,y+6);
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);
+  let leftY=y+12;
+  if(vehicle){pdf.setTextColor(80,80,80);pdf.text(`車両番号: ${vehicle.plateNo||""}　　車台番号: ${vehicle.chassisNo||""}`,M,leftY);leftY+=5;}
+  pdf.setTextColor(0,0,0);pdf.setDrawColor(200,200,200);pdf.setFillColor(250,250,250);
+  const boxH=20;pdf.roundedRect(M,leftY,118,boxH,1,1,"FD");
+  pdf.setFontSize(9);pdf.text("毎度お引き立てありがとうございます。",M+3,leftY+5.5);
+  pdf.text("下記の通りご請求申し上げます。",M+3,leftY+10.5);
+  pdf.setTextColor(120,120,120);pdf.setFontSize(8);
+  pdf.text("※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。",M+3,leftY+16);
+  pdf.setTextColor(0,0,0);
+  // 右：会社情報
+  const rightX=W-M;let rightY=y+4;
+  pdf.setFont("NotoSansJP","bold");pdf.setFontSize(12);
+  pdf.text(settings.shopName||"",rightX,rightY,{align:"right"});
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8.5);pdf.setTextColor(80,80,80);rightY+=5.5;
+  if(settings.shopAddress){const addr=settings.shopAddress.startsWith("〒")?settings.shopAddress:`〒${settings.shopAddress}`;pdf.text(addr,rightX,rightY,{align:"right"});rightY+=4;}
+  pdf.text(`TEL: ${settings.shopTel||""}`,rightX,rightY,{align:"right"});rightY+=4;
+  if(settings.shopFax){pdf.text(`FAX: ${settings.shopFax}`,rightX,rightY,{align:"right"});rightY+=4;}
+  if(settings.invoiceNo){pdf.text(`登録番号：${settings.invoiceNo}`,rightX,rightY,{align:"right"});rightY+=4;}
+  if(settings.bankName){
+    rightY+=2;pdf.setDrawColor(220,220,220);pdf.line(W-M-70,rightY,W-M,rightY);rightY+=4;
+    pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
+    pdf.text("お振込先",rightX,rightY,{align:"right"});rightY+=4;
+    pdf.setFont("NotoSansJP","normal");pdf.setTextColor(80,80,80);
+    pdf.text(`${settings.bankName||""} ${settings.bankBranch||""} ${settings.bankType||""}口座`,rightX,rightY,{align:"right"});rightY+=4;
+    pdf.text(`${settings.bankHolder||""}　${settings.bankNo||""}`,rightX,rightY,{align:"right"});rightY+=4;
+  }
+  pdf.setTextColor(0,0,0);
+  y=Math.max(leftY+boxH+4,rightY+2);
+  // 区切り・請求額バー
+  pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(M,y,W-M,y);y+=1;
+  const barH=18;
+  pdf.setFillColor(...hexLighten(theme.light));pdf.rect(M,y,W-M*2,barH,"F");
+  pdf.setDrawColor(...hexToRgb(theme.accent));pdf.setLineWidth(0.6);pdf.line(M,y+barH,W-M,y+barH);pdf.setLineWidth(0.2);
+  pdf.setTextColor(140,140,140);pdf.setFontSize(8);pdf.text("ご請求額",M+4,y+6);
+  pdf.setTextColor(ar,ag,ab);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(20);pdf.text(`¥${grand.toLocaleString()}—`,M+4,y+14.5);
+  const taxColX=M+(W-M*2)*0.55;
+  pdf.setTextColor(140,140,140);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text("消費税等",taxColX,y+6);
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(14);pdf.text(`¥${taxAmt.toLocaleString()}—`,taxColX,y+14.5);
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");y+=barH+3;
+  // 明細テーブル
+  const tableW=W-M*2;const rowH=7;
+  const colWidths=[0,15,15,24,24,27,24];
+  colWidths[0]=tableW-colWidths.slice(1).reduce((a,b)=>a+b,0);
+  const headers=["品名","数量","単位","部品代","技術料","金額","備考"];
+  pdf.setFillColor(ar,ag,ab);pdf.rect(M,y,tableW,rowH,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(9);
+  let cx=M;
+  headers.forEach((h,i)=>{
+    const align=["金額","部品代","技術料"].includes(h)?"right":"left";
+    pdf.text(h,align==="right"?cx+colWidths[i]-2:cx+2,y+4.7,{align});cx+=colWidths[i];
+  });
+  y+=rowH;
+  pdf.setFont("NotoSansJP","normal");pdf.setTextColor(0,0,0);pdf.setFontSize(9);
+  const items=doc.items||[];const maxRows=3;
+  const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
+  const[lr,lg,lb]=hexLighten(theme.light);
+  const drawRow=(i,cells,isBlank=false)=>{
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,rowH,"F");}
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.setLineWidth(0.15);pdf.line(M,y+rowH,W-M,y+rowH);
+    if(!isBlank){let cx2=M;cells.forEach((c,ci)=>{const align=ci>=3&&ci<=5?"right":(ci===1||ci===2?"center":"left");const tx=align==="right"?cx2+colWidths[ci]-2:align==="center"?cx2+colWidths[ci]/2:cx2+2;if(c)pdf.text(String(c),tx,y+4.7,{align,maxWidth:colWidths[ci]-3});cx2+=colWidths[ci];});}
+    y+=rowH;
+  };
+  items.forEach((it,i)=>{const amt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);drawRow(i,[it.desc||"",(it.qty===0||it.qty===undefined)?"-":String(it.qty),it.unitLabel||"-",it.unit?fmt(it.unit):"-",it.gijutsu?fmt(it.gijutsu):"-",amt?fmt(amt):"-",it.note||""]);});
+  for(let i=0;i<blankCount;i++){drawRow(items.length+i,[],true);}
+  y+=4;
+  // 合計欄（車検：左=法定費用、右=整備費＋合計）
+  const jibai=doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0);
+  const govRows=[
+    [doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険", jibai],
+    ["重量税",fmt(doc.shakken?.juryozei||0)],
+    ["検査登録・証紙代",fmt(doc.shakken?.kensaShomei||settings.kensaShomei||0)],
+    ["技術情報管理料",fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri||0)],
+    ["車検代行手数料",fmt(daikoRaw)],
+    [`　消費税（${Math.round(daikoTx*100)}%）`,fmt(daikoWT-daikoRaw)],
+  ];
+  const leftColW=90,rightColW=W-M*2-leftColW-4;
+  const leftStartX=M,rightStartX=M+leftColW+4;
+  // 法定費用ヘッダー
+  pdf.setFillColor(ar,ag,ab);pdf.rect(leftStartX,y,leftColW,6,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8);
+  pdf.text("法定費用・諸費用",leftStartX+3,y+4.3);y+=6;
+  govRows.forEach(([l,v],i)=>{
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);}else{pdf.setFillColor(250,250,250);}
+    pdf.rect(leftStartX,y,leftColW,6,"F");
+    pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);
+    pdf.text(l,leftStartX+3,y+4.3);
+    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");
+    pdf.text(v,leftStartX+leftColW-2,y+4.3,{align:"right"});
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.setLineWidth(0.15);pdf.line(leftStartX,y+6,leftStartX+leftColW,y+6);
+    y+=6;
+  });
+  pdf.setFillColor(...hexLighten(theme.light));pdf.rect(leftStartX,y,leftColW,7,"F");
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8.5);
+  pdf.text("法定費用合計",leftStartX+3,y+4.8);pdf.text(fmt(gov+daikoWT),leftStartX+leftColW-2,y+4.8,{align:"right"});
+  // 右：整備費合計
+  const rightY0=y-govRows.length*6-6;
+  let ry=rightY0+6;
+  [["整備費（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v],i)=>{
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);}else{pdf.setFillColor(250,250,250);}
+    pdf.rect(rightStartX,ry,rightColW,6,"F");
+    pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,rightStartX+3,ry+4.3);
+    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,rightStartX+rightColW-2,ry+4.3,{align:"right"});
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.setLineWidth(0.15);pdf.line(rightStartX,ry+6,rightStartX+rightColW,ry+6);
+    ry+=6;
+  });
+  // お支払い合計（右下）
+  pdf.setFillColor(ar,ag,ab);pdf.rect(rightStartX,ry,rightColW,14,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(10);
+  pdf.text("お支払い合計",rightStartX+3,ry+6);
+  pdf.setFontSize(16);pdf.text(fmt(grand),rightStartX+rightColW-3,ry+10,{align:"right"});
+  return pdf;
+};
+
+// ── 合計請求書PDF生成 ────────────────────────────────────────────
+const buildCombinedPdfJP=({theme,ttl,doc,customer,vehicle,settings,grand})=>{
+  const pdf=newJpPdf();
+  const W=210,M=12;
+  const[ar,ag,ab]=hexToRgb(theme.accent);
+  let y=M;
+  pdf.setFillColor(ar,ag,ab);pdf.rect(0,0,W,14,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(15);pdf.text(ttl,M,9.5);
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);
+  pdf.text(`${doc.date||today()}`,W-M,9,{align:"right"});
+  y=20;
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(15);
+  pdf.text(`${fullName(customer)}　様`,M,y+6);
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(80,80,80);
+  y+=14;
+  // 右：会社情報
+  const rightX=W-M;let rightY=20+4;
+  pdf.setFont("NotoSansJP","bold");pdf.setFontSize(12);pdf.setTextColor(0,0,0);
+  pdf.text(settings.shopName||"",rightX,rightY,{align:"right"});
+  pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8.5);pdf.setTextColor(80,80,80);rightY+=5.5;
+  if(settings.shopAddress){const addr=settings.shopAddress.startsWith("〒")?settings.shopAddress:`〒${settings.shopAddress}`;pdf.text(addr,rightX,rightY,{align:"right"});rightY+=4;}
+  pdf.text(`TEL: ${settings.shopTel||""}`,rightX,rightY,{align:"right"});
+  pdf.setTextColor(0,0,0);
+  // 請求額バー
+  pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(M,y,W-M,y);y+=1;
+  const barH=18;
+  pdf.setFillColor(...hexLighten(theme.light));pdf.rect(M,y,W-M*2,barH,"F");
+  pdf.setDrawColor(...hexToRgb(theme.accent));pdf.setLineWidth(0.6);pdf.line(M,y+barH,W-M,y+barH);pdf.setLineWidth(0.2);
+  pdf.setTextColor(140,140,140);pdf.setFontSize(8);pdf.text("ご請求額（合計）",M+4,y+6);
+  pdf.setTextColor(ar,ag,ab);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(20);pdf.text(`¥${grand.toLocaleString()}—`,M+4,y+14.5);
+  const taxColX=M+(W-M*2)*0.55;
+  pdf.setTextColor(140,140,140);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text("消費税等",taxColX,y+6);
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(14);pdf.text(`¥${(doc.combinedTax||0).toLocaleString()}—`,taxColX,y+14.5);
+  pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");y+=barH+3;
+  // 明細テーブル（合計請求書）
+  const tableW=W-M*2;const rowH=7;
+  const colW=[12,22,0,14,14,22,24,28];colW[2]=tableW-colW.reduce((a,b)=>a+b,0);
+  const hdrs=["No.","日付","品名","数量","単位","部品代","技術料","金額(税抜)"];
+  pdf.setFillColor(ar,ag,ab);pdf.rect(M,y,tableW,rowH,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(9);
+  let cx=M;
+  hdrs.forEach((h,i)=>{const align=i>=5?"right":"left";pdf.text(h,align==="right"?cx+colW[i]-2:cx+2,y+4.7,{align});cx+=colW[i];});
+  y+=rowH;
+  pdf.setFont("NotoSansJP","normal");pdf.setTextColor(0,0,0);pdf.setFontSize(8.5);
+  const[lr,lg,lb]=hexLighten(theme.light);
+  const allRows=[];
+  (doc.allItems||[]).forEach(ci=>{
+    if(ci.items&&ci.items.length>0){
+      ci.items.forEach((it,idx)=>{
+        const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
+        allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt});
+      });
+    }else{
+      allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:ci.subtotal||ci.total||0});
+    }
+  });
+  const blankCount=Math.max(0,10-allRows.length);
+  allRows.forEach((row,i)=>{
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,rowH,"F");}
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.setLineWidth(0.15);pdf.line(M,y+rowH,W-M,y+rowH);
+    const vals=[row.id,row.date,row.desc,row.qty?""+row.qty:"",row.unit,row.partsCost>0?fmt(row.partsCost):"-",row.gijutsu>0?fmt(row.gijutsu):"-",row.lineAmt>0?fmt(row.lineAmt):""];
+    let cx2=M;
+    vals.forEach((v,ci)=>{const align=ci>=5?"right":(ci===3||ci===4?"center":"left");const tx=align==="right"?cx2+colW[ci]-2:align==="center"?cx2+colW[ci]/2:cx2+2;if(v)pdf.text(String(v),tx,y+4.7,{align,maxWidth:colW[ci]-3});cx2+=colW[ci];});
+    y+=rowH;
+  });
+  for(let i=0;i<blankCount;i++){
+    if((allRows.length+i)%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,rowH,"F");}
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.setLineWidth(0.15);pdf.line(M,y+rowH,W-M,y+rowH);
+    y+=rowH;
+  }
+  y+=4;
+  // 合計行
+  const sumW=80,sumX=W-M-sumW;
+  [["消費税合計",fmt(doc.combinedTax||0)],["合計請求額（税込）",fmt(grand)]].forEach(([l,v],i)=>{
+    const isFinal=i===1;
+    if(isFinal){pdf.setFillColor(ar,ag,ab);}else{pdf.setFillColor(245,245,245);}
+    pdf.rect(sumX,y,sumW,isFinal?10:7,"F");
+    pdf.setTextColor(isFinal?255:80,isFinal?255:80,isFinal?255:80);
+    pdf.setFont("NotoSansJP","bold");pdf.setFontSize(isFinal?10:9);
+    pdf.text(l,sumX+3,y+(isFinal?6.8:4.7));
+    pdf.setTextColor(isFinal?255:0,isFinal?255:0,isFinal?255:0);
+    pdf.setFontSize(isFinal?14:9);pdf.text(v,sumX+sumW-3,y+(isFinal?6.8:4.7),{align:"right"});
+    y+=isFinal?10:7;
+  });
+  return pdf;
+};
+
 // PDFをファイル共有（Web Share API）。失敗時はBlob URLを新タブで開く
 const shareOrOpenPdf=async(blob,filename)=>{
   const file=new File([blob],filename,{type:"application/pdf"});
@@ -924,18 +1143,44 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const doPrint=async()=>{
     const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 
-    // iOS かつ「一般請求書」（車検・合計請求書以外）の場合は jsPDF で直接PDF化
-    // → AirPrintのフッターURL問題・1枚収まり問題を回避し、Epson Smart Panel等で共有可能に
-    if(isIOS&&!isS&&type!=="combined"){
+    // iOS: 全ドキュメントタイプをjsPDFで直接PDF化 (A4縮小問題の根本解決)
+    if(isIOS){
       const loadingToast=document.createElement("div");
       loadingToast.innerHTML="📄 PDFを作成中…";
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
         await ensureJpFont();
-        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type});
+        // ─ 本書ページ生成 ─
+        let pdf;
+        if(type==="combined"){
+          pdf=buildCombinedPdfJP({theme,ttl,doc,customer,vehicle,settings,grand});
+        }else if(isS){
+          pdf=buildShakkenPdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,gov,daikoRaw,daikoTx,daikoWT});
+        }else{
+          pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type});
+        }
+        // ─ 控えページ：2ページ目として追加 ─
+        pdf.addPage();
+        // 同じ内容を2ページ目に再描画するため一時PDFを生成してページをコピー
+        let tmp;
+        if(type==="combined"){
+          tmp=buildCombinedPdfJP({theme,ttl,doc,customer,vehicle,settings,grand});
+        }else if(isS){
+          tmp=buildShakkenPdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,gov,daikoRaw,daikoTx,daikoWT});
+        }else{
+          tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type});
+        }
+        // jsPDFのpage配列（1始まり）を直接コピー
+        pdf.internal.pages[2]=tmp.internal.pages[1];
+        // 【控え】ラベルを2ページ目に描画
+        pdf.setPage(2);
+        pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+        pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
+        const lx=210-12-28,ly=12;
+        pdf.rect(lx,ly,28,8);pdf.text("【控え】",lx+14,ly+5.5,{align:"center"});
         const blob=pdf.output("blob");
-        const custName=(customer?.name||"").replace(/[\\\/:*?"<>|]/g,"");
+        const custName=(customer?.name||"").replace(/[\\\/\/:*?"<>|]/g,"");
         const docNo=doc?.id?String(doc.id).replace(/\D/g,"").slice(-6):"";
         const filename=`${theme.label}_${custName}${docNo?`_${docNo}`:""}.pdf`;
         loadingToast.remove();
@@ -944,7 +1189,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
-        // フォールバック: 従来のHTML印刷方式へ
+        // フォールバック: 従来のHTML印刷へ
       }
     }
 
@@ -964,21 +1209,32 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     }
     const cleanHTML=clone.innerHTML;
     const fonts=isIOS?``:`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
-    // ─── iOS印刷の根本原因と解決策 ───────────────────────────────────
-    // 問題: viewport=device-widthだとiPhoneは375px幅として解釈→コンテンツ(750px想定)が50%縮小
-    // 解決: viewport width=794 (A4用紙を96dpiで換算したpx幅) を指定
-    //       → SafariがA4幅=794pxとしてレイアウト → @page A4に1:1でマッピング
-    //       本書・控えは page-break-after:always で確実に別ページ(各A4 1枚)
-    // ─────────────────────────────────────────────────────────────────
+    // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
+    // + font-size・paddingをコンパクトにしてA4 1枚に収める
+    const iosExtra=isIOS?`
+@page{size:A4 portrait;margin:4mm 6mm;}
+body{font-size:9.5px!important;}
+*{line-height:1.3!important;}
+/* テーブルのパディングを詰める */
+td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!important;}
+/* セクション間の余白を詰める */
+.mt12,.mt8,.mt4{margin-top:3px!important;}
+.mb12,.mb8,.mb4{margin-bottom:3px!important;}
+/* カードのパディングを詰める */
+.card{padding:8px 10px!important;}
+/* テキストサイズ全般 */
+.sm{font-size:11px!important;}.xs{font-size:9px!important;}.lg{font-size:14px!important;}
+.b7,.b6{font-size:inherit!important;}
+`:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:10mm 12mm;}
-html{width:794px;}
-body{width:794px;margin:0 auto;font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+@page{size:A4 portrait;margin:8mm 10mm;}
+html,body{margin:0;padding:0;}
+body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
-/* 本書と控えをそれぞれA4 1枚として独立させる */
-.page{width:770px;page-break-after:always;break-after:page;position:relative;margin:0 auto;}
-.page:last-of-type{page-break-after:auto;break-after:auto;}
+.page{width:190mm;max-width:190mm;page-break-after:always;position:relative;margin:0 auto;}
+.page:last-child{page-break-after:auto;}
+${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .np,.btn,button{display:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
@@ -991,24 +1247,22 @@ a[href]::after{content:none!important;display:none!important;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
-.close-bar{display:flex;justify-content:center;padding:16px;gap:12px;}
-.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;cursor:pointer;}
+.close-bar{display:flex;justify-content:center;padding:10px;}
+.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
 @media print{.close-bar{display:none!important;}}
+${iosExtra}
 </style>
 <script>
 window.addEventListener("afterprint",function(){
   try{window.close();}catch(e){}
 });
 </script>`;
-    // 本書・控えをそれぞれ独立した.pageとして出力（各1枚A4）
+    // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
     const closeBar=`<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>`;
-    // iOS: viewport width=794 でA4幅に合わせる（縮小防止の核心）
-    const iosViewport=`<meta name="viewport" content="width=794">`;
-    const pcViewport=`<meta name="viewport" content="width=device-width,initial-scale=1">`;
-    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${iosViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
-    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">${pcViewport}${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
+    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
+    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
     const html=isIOS?iosHtml:pcHtml;
     const w=window.open("","_blank","width=820,height=1100");
     if(!w){
