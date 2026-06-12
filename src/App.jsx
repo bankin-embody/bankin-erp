@@ -987,8 +987,9 @@ td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!
 html,body{margin:0;padding:0;}
 body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
-.page{width:100%;page-break-after:always;position:relative;}
+.page{width:190mm;max-width:190mm;page-break-after:always;position:relative;margin:0 auto;}
 .page:last-child{page-break-after:auto;}
+${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
 .np,.btn,button{display:none!important;}
 .detail-wrap{display:flex;flex-direction:column;}
@@ -1001,13 +1002,22 @@ a[href]::after{content:none!important;display:none!important;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
 .copy-label{position:absolute;top:6mm;right:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#999!important;}
+.close-bar{display:flex;justify-content:center;padding:10px;}
+.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
+@media print{.close-bar{display:none!important;}}
 ${iosExtra}
-</style>`;
+</style>
+<script>
+window.addEventListener("afterprint",function(){
+  try{window.close();}catch(e){}
+});
+</script>`;
     // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
-    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
-    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+    const closeBar=`<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>`;
+    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
+    const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}${closeBar}</body></html>`;
     const html=isIOS?iosHtml:pcHtml;
     const w=window.open("","_blank","width=820,height=1100");
     if(!w){
@@ -2528,8 +2538,9 @@ const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,s
 body{font-family:'MS Mincho','游明朝',serif;font-size:9px;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 /* Blob URLなどURL自動表示を抑制 */
 a[href]::after{content:none!important;display:none!important;}
-.page{width:100%;page-break-after:always;}
+.page{width:190mm;max-width:190mm;page-break-after:always;margin:0 auto;}
 .page:last-child{page-break-after:auto;}
+${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 h1{font-size:15px;font-weight:bold;text-align:center;padding:7px 0 4px;border-bottom:2px solid #000;margin-bottom:5px;}
 h2{font-size:11px;font-weight:bold;border-bottom:1px solid #000;padding:3px 0;margin:8px 0 4px;}
 table{width:100%;border-collapse:collapse;}
@@ -2538,8 +2549,6 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 .num{text-align:right;font-family:'Courier New',monospace;}
 .center{text-align:center;}
 .total-row td{background:#e8e8e8;font-weight:bold;}
-${isIOS?`/* iOS/iPadOS 縮小表示 */
-@media print{.page{transform:scale(0.87);transform-origin:top left;}}`:``}
 .highlight td{background:#fff8e1;}
 .section{border:1.5px solid #333;margin-bottom:8px;padding:6px 8px;}
 .row2{display:flex;gap:8px;}
@@ -2558,7 +2567,16 @@ ${isIOS?`/* iOS/iPadOS 縮小表示 */
 .field-row label{white-space:nowrap;color:#555;}
 .underline{flex:1;border-bottom:1px solid #333;min-height:16px;}
 .receipt-table td{font-size:8px;padding:2px 4px;}
-</style></head><body>
+.close-bar{display:flex;justify-content:center;padding:10px;}
+.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
+@media print{.close-bar{display:none!important;}}
+</style>
+<script>
+window.addEventListener("afterprint",function(){
+  try{window.close();}catch(e){}
+});
+</script>
+</head><body>
 
 <!-- ページ1: 収支内訳書 第1面 -->
 <div class="page">
@@ -2803,6 +2821,7 @@ ${isIOS?`/* iOS/iPadOS 縮小表示 */
   </div>
 </div>
 
+<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>
 </body></html>`;
     const w=window.open("","_blank","width=900,height=1200");
     if(!w){
