@@ -630,7 +630,7 @@ const hexLighten=(hex)=>{
 };
 
 // 一般請求書（type==="invoice"/"quote"/"delivery", isS=false）のPDFを構築
-const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0})=>{
+const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType})=>{
   const pdf=newJpPdf();
   const W=210,H=297,M=12; // ページ幅・高さ・マージン(mm)
   const[ar,ag,ab]=hexToRgb(theme.accent);
@@ -800,7 +800,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   pdf.setFontSize(9);
 
-  const maxRows=docType==="shakken"?3:docType==="combined"?12:14;
+  const maxRows=docType==="shakken"?10:docType==="combined"?12:14;
   const items=doc.items||[];
   const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
@@ -840,81 +840,42 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
 
   y+=4;
 
-  // ── 合計欄（ドキュメントタイプ別） ──
+  // ── 合計欄 ──
+  const sumW=80;
+  const sumX=W-M-sumW;
   pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));
   pdf.setLineWidth(0.2);
-
-  if(docType==="shakken"){
-    // 車検：左＝法定費用、右＝整備費＋お支払い合計
-    const leftColW=90,rightColW=74;
-    const leftX=M,rightX=W-M-rightColW;
-    // 法定費用ヘッダー
-    pdf.setFillColor(ar,ag,ab);pdf.rect(leftX,y,leftColW,6,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8);
-    pdf.text("法定費用・諸費用",leftX+3,y+4.3);
-    let govY=y+6;
-    const govRows=[
-      [doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],
-      ["重量税",fmt(doc.shakken?.juryozei||0)],
-      ["検査登録・証紙代",fmt(doc.shakken?.kensaShomei||0)],
-      ["技術情報管理料",fmt(doc.shakken?.gijutsuKanri||0)],
-      ["車検代行手数料",fmt(daikoRaw)],
-      [`　消費税（${Math.round(daikoTx*100)}%）`,fmt(daikoWT-daikoRaw)],
-    ];
-    const[lr2,lg2,lb2]=hexLighten(theme.light);
-    govRows.forEach(([l,v],i)=>{
-      if(i%2!==0){pdf.setFillColor(lr2,lg2,lb2);}else{pdf.setFillColor(250,250,250);}
-      pdf.rect(leftX,govY,leftColW,6,"F");
-      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,leftX+3,govY+4.3);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,leftX+leftColW-2,govY+4.3,{align:"right"});
-      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(leftX,govY+6,leftX+leftColW,govY+6);
-      govY+=6;
-    });
-    pdf.setFillColor(...hexLighten(theme.light));pdf.rect(leftX,govY,leftColW,7,"F");
-    pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
-    pdf.text("法定費用合計",leftX+3,govY+4.8);pdf.text(fmt(gov+daikoWT),leftX+leftColW-2,govY+4.8,{align:"right"});
-    // 右：整備費
-    let rY=y;
-    [["整備費（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v],i)=>{
-      if(i%2!==0){pdf.setFillColor(lr2,lg2,lb2);}else{pdf.setFillColor(250,250,250);}
-      pdf.rect(rightX,rY,rightColW,6,"F");
-      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,rightX+3,rY+4.3);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,rightX+rightColW-2,rY+4.3,{align:"right"});
-      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(rightX,rY+6,rightX+rightColW,rY+6);
-      rY+=6;
-    });
-    // お支払い合計
-    pdf.setFillColor(ar,ag,ab);pdf.rect(rightX,rY,rightColW,11,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(10);
-    pdf.text("お支払い合計",rightX+3,rY+7.2);pdf.setFontSize(14);
-    pdf.text(fmt(grand),rightX+rightColW-3,rY+7.2,{align:"right"});
-    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
-    y=Math.max(govY+7,rY+11)+5;
-  }else{
-    // 一般請求書・合計請求書
-    const sumW=80;
-    const sumX=W-M-sumW;
-    const sumRows=docType==="combined"
-      ?[["消費税合計",fmt(doc.combinedTax||0)],["合計請求額（税込）",fmt(grand)]]
-      :[["小計（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]];
-    sumRows.forEach(([l,v])=>{
-      pdf.setFillColor(250,250,250);
-      pdf.rect(sumX,y,sumW,7,"F");
-      pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);
-      pdf.text(l,sumX+3,y+4.7);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");
-      pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
-      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(sumX,y+7,sumX+sumW,y+7);
-      y+=7;
-    });
-    // お支払い合計
-    pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
-    pdf.text("お支払い合計",sumX+3,y+7.2);pdf.setFontSize(15);
-    pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
-    y+=11+5;
-  }
+  const sumRows=[
+    ["小計（税抜）",fmt(sub)],
+    [`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],
+    ["整備費合計（税込）",fmt(wT)],
+  ];
+  sumRows.forEach(([l,v])=>{
+    pdf.setFillColor(250,250,250);
+    pdf.rect(sumX,y,sumW,7,"F");
+    pdf.setFont("NotoSansJP","normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(100,100,100);
+    pdf.text(l,sumX+3,y+4.7);
+    pdf.setTextColor(0,0,0);
+    pdf.setFont("NotoSansJP","bold");
+    pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
+    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));
+    pdf.line(sumX,y+7,sumX+sumW,y+7);
+    y+=7;
+  });
+  // お支払い合計
+  pdf.setFillColor(ar,ag,ab);
+  pdf.rect(sumX,y,sumW,11,"F");
+  pdf.setTextColor(255,255,255);
+  pdf.setFont("NotoSansJP","bold");
+  pdf.setFontSize(11);
+  pdf.text("お支払い合計",sumX+3,y+7.2);
+  pdf.setFontSize(15);
+  pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
+  pdf.setTextColor(0,0,0);
+  pdf.setFont("NotoSansJP","normal");
+  y+=11+5;
 
   // ── 備考 ──
   if(doc.note){
@@ -965,14 +926,14 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
 
     // iOS かつ「一般請求書」（車検・合計請求書以外）の場合は jsPDF で直接PDF化
     // → AirPrintのフッターURL問題・1枚収まり問題を回避し、Epson Smart Panel等で共有可能に
-    if(isIOS){
+    if(isIOS&&!isS&&type!=="combined"){
       const loadingToast=document.createElement("div");
       loadingToast.innerHTML="📄 PDFを作成中…";
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
         await ensureJpFont();
-        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type});
         const blob=pdf.output("blob");
         const custName=(customer?.name||"").replace(/[\\\/:*?"<>|]/g,"");
         const docNo=doc?.id?String(doc.id).replace(/\D/g,"").slice(-6):"";
@@ -1193,7 +1154,7 @@ window.addEventListener("afterprint",function(){
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,subtotal:ci.subtotal||ci.total});
               }
             });
-            const blankCount=Math.max(0,10-allRows.length);
+            const blankCount=Math.max(0,18-allRows.length);
             const totalTax=doc.combinedTax||0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
@@ -1247,7 +1208,7 @@ window.addEventListener("afterprint",function(){
           {type!=="combined"&&(()=>{
             // 固定費は合計欄に移動するので明細には含めない
             const allRows=[...(doc.items||[])];
-            const maxRows=type==="shakken"?3:type==="combined"?12:14;
+            const maxRows=type==="shakken"?10:type==="combined"?12:14;
             const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+1));
             let rowIdx=0;
             return(
