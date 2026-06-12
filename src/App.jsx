@@ -595,26 +595,43 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
     // + font-size・paddingをコンパクトにしてA4 1枚に収める
     const iosExtra=isIOS?`
-@page{size:A4 portrait;margin:4mm 6mm;}
-body{font-size:9.5px!important;}
-*{line-height:1.3!important;}
-/* テーブルのパディングを詰める */
-td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!important;}
-/* セクション間の余白を詰める */
-.mt12,.mt8,.mt4{margin-top:3px!important;}
-.mb12,.mb8,.mb4{margin-bottom:3px!important;}
-/* カードのパディングを詰める */
-.card{padding:8px 10px!important;}
-/* テキストサイズ全般 */
-.sm{font-size:11px!important;}.xs{font-size:9px!important;}.lg{font-size:14px!important;}
-.b7,.b6{font-size:inherit!important;}
+@page{
+  size:A4 portrait;
+  margin:0mm;
+}
+html{
+  width:210mm;
+  height:297mm;
+}
+body{
+  width:210mm;
+  margin:0;
+  padding:6mm 8mm;
+  font-size:9px!important;
+  transform-origin:top left;
+}
+*{line-height:1.25!important;}
+td,th,.detail-table td,.detail-table th{padding:2px 4px!important;font-size:8.5px!important;}
+.mt12,.mt8,.mt4{margin-top:2px!important;}
+.mb12,.mb8,.mb4{margin-bottom:2px!important;}
+.card{padding:6px 8px!important;}
+.sm{font-size:9px!important;}.xs{font-size:8px!important;}.lg{font-size:13px!important;}
+/* URLヘッダー/フッターを非表示 */
+@page{
+  margin-top:0mm;
+  margin-bottom:0mm;
+  margin-left:0mm;
+  margin-right:0mm;
+}
 `:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:8mm 10mm;}
+@page{size:A4 portrait;margin:${isIOS?"0mm":"8mm 10mm"};}
 html,body{margin:0;padding:0;}
-body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:${isIOS?"9px":"11px"};color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;${isIOS?"padding:6mm 8mm;width:210mm;":""};}
 a[href]::after{content:none!important;display:none!important;}
+/* SafariのURL表示を消す */
+a{color:inherit!important;text-decoration:none!important;}
 .page{width:100%;page-break-after:always;position:relative;}
 .page:last-child{page-break-after:auto;}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
@@ -634,7 +651,7 @@ ${iosExtra}
     // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
-    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+    const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794,initial-scale=1,shrink-to-fit=yes">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     const html=isIOS?iosHtml:pcHtml;
     const w=window.open("","_blank","width=820,height=1100");
