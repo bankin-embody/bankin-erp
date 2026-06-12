@@ -564,109 +564,6 @@ function getDocTheme(type,doc){
   return DOC_THEME[type]||DOC_THEME.invoice;
 }
 
-// ── PDF生成・共有（Epson Smart Panel等のiOS印刷アプリ対応） ──────
-let _pdfLibsPromise=null;
-const loadPdfLibs=()=>{
-  if(_pdfLibsPromise)return _pdfLibsPromise;
-  _pdfLibsPromise=Promise.all([
-    new Promise((res,rej)=>{
-      if((window as any).html2canvas){res(null);return;}
-      const s=document.createElement("script");
-      s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      s.onload=()=>res(null);s.onerror=rej;
-      document.head.appendChild(s);
-    }),
-    new Promise((res,rej)=>{
-      if((window as any).jspdf){res(null);return;}
-      const s=document.createElement("script");
-      s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      s.onload=()=>res(null);s.onerror=rej;
-      document.head.appendChild(s);
-    }),
-  ]);
-  return _pdfLibsPromise;
-};
-
-// htmlContent（<style>...<body>内側まで含むフルHTML）を非表示iframeでレンダリングし、
-// .page要素ごとにcanvas化してPDFに変換、Blobを返す
-const withTimeout=(promise,ms,label)=>{
-  return Promise.race([
-    promise,
-    new Promise((_,rej)=>setTimeout(()=>rej(new Error(`timeout:${label}`)),ms)),
-  ]);
-};
-const htmlToPdfBlob=async(fullHtml)=>{
-  await withTimeout(loadPdfLibs(),15000,"loadPdfLibs");
-  const html2canvas=(window as any).html2canvas;
-  const{jsPDF}=(window as any).jspdf;
-
-  // 外部フォントCDNを除去（読み込み待ちでハングする原因になるため）
-  const safeHtml=fullHtml.replace(/<link[^>]*fonts\.googleapis\.com[^>]*>/g,"");
-
-  // iframeは画面内・視認可能な位置に配置（iOS Safariのhtml2canvas互換性のため）
-  const iframe=document.createElement("iframe");
-  iframe.style.cssText="position:fixed;top:0;left:0;width:794px;height:1123px;border:none;background:#fff;opacity:0.01;pointer-events:none;z-index:-1;";
-  document.body.appendChild(iframe);
-
-  try{
-    await withTimeout(new Promise(res=>{
-      iframe.onload=()=>res(null);
-      iframe.srcdoc=safeHtml;
-    }),10000,"iframeLoad");
-    // レイアウト確定待ち
-    await new Promise(res=>setTimeout(res,300));
-
-    const idoc=iframe.contentDocument;
-    if(!idoc)throw new Error("iframe contentDocument is null");
-    const pages=Array.from(idoc.querySelectorAll(".page"));
-    const targets=pages.length?pages:[idoc.body];
-
-    const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
-    const pageW=210,pageH=297;
-
-    for(let i=0;i<targets.length;i++){
-      const canvas=await withTimeout(
-        html2canvas(targets[i],{scale:1.5,useCORS:true,backgroundColor:"#ffffff",logging:false,windowWidth:794}),
-        20000,`html2canvas-page${i}`
-      );
-      const imgData=canvas.toDataURL("image/jpeg",0.92);
-      const imgW=pageW;
-      const imgH=(canvas.height*imgW)/canvas.width;
-      if(i>0)pdf.addPage();
-      if(imgH<=pageH){
-        pdf.addImage(imgData,"JPEG",0,0,imgW,imgH);
-      }else{
-        // ページより長い場合は縮小して収める
-        const ratio=pageH/imgH;
-        pdf.addImage(imgData,"JPEG",0,0,imgW*ratio,pageH);
-      }
-    }
-    return pdf.output("blob");
-  }finally{
-    document.body.removeChild(iframe);
-  }
-};
-
-// PDFをファイル共有（Web Share API）。失敗時はBlob URLを新タブで開く
-const shareOrOpenPdf=async(blob,filename,onStatus=null)=>{
-  const file=new File([blob],filename,{type:"application/pdf"});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    try{
-      await navigator.share({files:[file],title:filename});
-      return;
-    }catch(e){
-      // ユーザーがキャンセルした場合は何もしない
-      if((e)?.name==="AbortError")return;
-    }
-  }
-  // フォールバック: 新しいタブでPDFを開く
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.target="_blank";a.rel="noopener";
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
-};
-
 function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const isS=doc.type==="shakken";
   const{sub,taxAmt,total:wT}=calcItems(doc.items||[],doc.tax||0.1);
@@ -739,51 +636,24 @@ ${iosExtra}
     const monoPage=`<div class="page mono">${cleanHTML}<div class="copy-label">【控え】</div></div>`;
     const iosHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
     const pcHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fonts}${style}</head><body>${colorPage}${monoPage}</body></html>`;
+    const html=isIOS?iosHtml:pcHtml;
+    const w=window.open("","_blank","width=820,height=1100");
+    if(!w){
+      // ポップアップブロック時のフォールバック
+      const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.target="_blank";a.rel="noopener";
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.onload=()=>{w.focus();w.print();};
     if(isIOS){
-      // iOS/iPadOS: HTMLをPDF化してWeb Share API経由で共有
-      // → Epson Smart Panel等の印刷アプリを共有シートから選べる
-      const loadingToast=document.createElement("div");
-      loadingToast.innerHTML="📄 PDFを作成中…";
-      loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
-      document.body.appendChild(loadingToast);
-      try{
-        const blob=await htmlToPdfBlob(iosHtml);
-        const custName=(customer?.name||"").replace(/[\\\/:*?"<>|]/g,"");
-        const docNo=doc?.id?String(doc.id).replace(/\D/g,"").slice(-6):"";
-        const filename=`${theme.label}_${custName}${docNo?`_${docNo}`:""}.pdf`;
-        loadingToast.remove();
-        await shareOrOpenPdf(blob,filename);
-      }catch(err){
-        loadingToast.remove();
-        console.error("PDF生成エラー:",err);
-        // フォールバック: HTMLをdata:URIで新タブ表示し、Safari共有→プリントを案内
-        const encoded=encodeURIComponent(iosHtml);
-        const dataUri=`data:text/html;charset=utf-8,${encoded}`;
-        const a=document.createElement("a");
-        a.href=dataUri;a.target="_blank";a.rel="noopener";
-        document.body.appendChild(a);a.click();document.body.removeChild(a);
-        const toast=document.createElement("div");
-        toast.innerHTML="📄 PDF作成に失敗したため、別ウィンドウで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
-        toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
-        document.body.appendChild(toast);
-        setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},6000);
-      }
-    }else{
-      const html=pcHtml;
-      const w=window.open("","_blank","width=820,height=1100");
-      if(!w){
-        // ポップアップブロック時のフォールバック
-        const blob=new Blob([html],{type:"text/html;charset=utf-8"});
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement("a");
-        a.href=url;a.target="_blank";a.rel="noopener";
-        document.body.appendChild(a);a.click();document.body.removeChild(a);
-        setTimeout(()=>URL.revokeObjectURL(url),60000);
-        return;
-      }
-      w.document.write(html);
-      w.document.close();
-      w.onload=()=>{w.focus();w.print();};
+      // iOS: onloadが発火しない場合があるため少し待って明示的にprint()を呼ぶ
+      setTimeout(()=>{try{w.focus();w.print();}catch(e){}},400);
     }
   };
   const isIOSDevice=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
@@ -2292,9 +2162,8 @@ th{background:#f0f0f0;font-weight:bold;text-align:center;white-space:nowrap;}
 .num{text-align:right;font-family:'Courier New',monospace;}
 .center{text-align:center;}
 .total-row td{background:#e8e8e8;font-weight:bold;}
-${isIOS?`/* iOS/iPadOS 87%縮小 */
-html{-webkit-text-size-adjust:none;}
-@media print{body{zoom:0.87;-webkit-transform:scale(0.87);-webkit-transform-origin:0 0;width:calc(100%/0.87);}}`:``}
+${isIOS?`/* iOS/iPadOS 縮小表示 */
+@media print{.page{transform:scale(0.87);transform-origin:top left;}}`:``}
 .highlight td{background:#fff8e1;}
 .section{border:1.5px solid #333;margin-bottom:8px;padding:6px 8px;}
 .row2{display:flex;gap:8px;}
@@ -2559,45 +2428,21 @@ html{-webkit-text-size-adjust:none;}
 </div>
 
 </body></html>`;
+    const w=window.open("","_blank","width=900,height=1200");
+    if(!w){
+      const blob=new Blob([htmlContent],{type:"text/html;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.target="_blank";a.rel="noopener";
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      return;
+    }
+    w.document.write(htmlContent);
+    w.document.close();
+    setTimeout(()=>w.print(),600);
     if(isIOS){
-      // PDF化してWeb Share API経由で共有（Epson Smart Panel等で印刷可能に）
-      const loadingToast=document.createElement("div");
-      loadingToast.innerHTML="📄 PDFを作成中…";
-      loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
-      document.body.appendChild(loadingToast);
-      try{
-        const blob=await htmlToPdfBlob(htmlContent);
-        loadingToast.remove();
-        await shareOrOpenPdf(blob,`収支内訳書_${year}年分.pdf`);
-      }catch(err){
-        loadingToast.remove();
-        console.error("PDF生成エラー:",err);
-        // フォールバック: HTMLをdata:URIで新タブ表示し、Safari共有→プリントを案内
-        const encoded=encodeURIComponent(htmlContent);
-        const dataUri=`data:text/html;charset=utf-8,${encoded}`;
-        const a=document.createElement("a");
-        a.href=dataUri;a.target="_blank";a.rel="noopener";
-        document.body.appendChild(a);a.click();document.body.removeChild(a);
-        const toast=document.createElement("div");
-        toast.innerHTML="📄 PDF作成に失敗したため、別ウィンドウで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
-        toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
-        document.body.appendChild(toast);
-        setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},6000);
-      }
-    }else{
-      const w=window.open("","_blank","width=900,height=1200");
-      if(!w){
-        const blob=new Blob([htmlContent],{type:"text/html;charset=utf-8"});
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement("a");
-        a.href=url;a.target="_blank";a.rel="noopener";
-        document.body.appendChild(a);a.click();document.body.removeChild(a);
-        setTimeout(()=>URL.revokeObjectURL(url),60000);
-        return;
-      }
-      w.document.write(htmlContent);
-      w.document.close();
-      setTimeout(()=>w.print(),600);
+      setTimeout(()=>{try{w.focus();w.print();}catch(e){}},900);
     }
   };
 
