@@ -589,49 +589,66 @@ const loadPdfLibs=()=>{
 
 // htmlContent（<style>...<body>内側まで含むフルHTML）を非表示iframeでレンダリングし、
 // .page要素ごとにcanvas化してPDFに変換、Blobを返す
+const withTimeout=(promise,ms,label)=>{
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error(`timeout:${label}`)),ms)),
+  ]);
+};
 const htmlToPdfBlob=async(fullHtml)=>{
-  await loadPdfLibs();
+  await withTimeout(loadPdfLibs(),15000,"loadPdfLibs");
   const html2canvas=(window as any).html2canvas;
   const{jsPDF}=(window as any).jspdf;
 
+  // 外部フォントCDNを除去（読み込み待ちでハングする原因になるため）
+  const safeHtml=fullHtml.replace(/<link[^>]*fonts\.googleapis\.com[^>]*>/g,"");
+
+  // iframeは画面内・視認可能な位置に配置（iOS Safariのhtml2canvas互換性のため）
   const iframe=document.createElement("iframe");
-  iframe.style.cssText="position:fixed;top:-99999px;left:-99999px;width:794px;height:1123px;border:none;background:#fff;";
+  iframe.style.cssText="position:fixed;top:0;left:0;width:794px;height:1123px;border:none;background:#fff;opacity:0.01;pointer-events:none;z-index:-1;";
   document.body.appendChild(iframe);
 
-  await new Promise(res=>{
-    iframe.onload=()=>res(null);
-    iframe.srcdoc=fullHtml;
-  });
-  // フォント・レイアウト確定待ち
-  await new Promise(res=>setTimeout(res,500));
+  try{
+    await withTimeout(new Promise(res=>{
+      iframe.onload=()=>res(null);
+      iframe.srcdoc=safeHtml;
+    }),10000,"iframeLoad");
+    // レイアウト確定待ち
+    await new Promise(res=>setTimeout(res,300));
 
-  const idoc=iframe.contentDocument;
-  const pages=Array.from(idoc.querySelectorAll(".page"));
-  const targets=pages.length?pages:[idoc.body];
+    const idoc=iframe.contentDocument;
+    if(!idoc)throw new Error("iframe contentDocument is null");
+    const pages=Array.from(idoc.querySelectorAll(".page"));
+    const targets=pages.length?pages:[idoc.body];
 
-  const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
-  const pageW=210,pageH=297;
+    const pdf=new jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
+    const pageW=210,pageH=297;
 
-  for(let i=0;i<targets.length;i++){
-    const canvas=await html2canvas(targets[i],{scale:2,useCORS:true,backgroundColor:"#ffffff"});
-    const imgData=canvas.toDataURL("image/jpeg",0.92);
-    const imgW=pageW;
-    const imgH=(canvas.height*imgW)/canvas.width;
-    if(i>0)pdf.addPage();
-    if(imgH<=pageH){
-      pdf.addImage(imgData,"JPEG",0,0,imgW,imgH);
-    }else{
-      // ページより長い場合は縮小して収める
-      const ratio=pageH/imgH;
-      pdf.addImage(imgData,"JPEG",0,0,imgW*ratio,pageH);
+    for(let i=0;i<targets.length;i++){
+      const canvas=await withTimeout(
+        html2canvas(targets[i],{scale:1.5,useCORS:true,backgroundColor:"#ffffff",logging:false,windowWidth:794}),
+        20000,`html2canvas-page${i}`
+      );
+      const imgData=canvas.toDataURL("image/jpeg",0.92);
+      const imgW=pageW;
+      const imgH=(canvas.height*imgW)/canvas.width;
+      if(i>0)pdf.addPage();
+      if(imgH<=pageH){
+        pdf.addImage(imgData,"JPEG",0,0,imgW,imgH);
+      }else{
+        // ページより長い場合は縮小して収める
+        const ratio=pageH/imgH;
+        pdf.addImage(imgData,"JPEG",0,0,imgW*ratio,pageH);
+      }
     }
+    return pdf.output("blob");
+  }finally{
+    document.body.removeChild(iframe);
   }
-  document.body.removeChild(iframe);
-  return pdf.output("blob");
 };
 
 // PDFをファイル共有（Web Share API）。失敗時はBlob URLを新タブで開く
-const shareOrOpenPdf=async(blob,filename,onStatus)=>{
+const shareOrOpenPdf=async(blob,filename,onStatus=null)=>{
   const file=new File([blob],filename,{type:"application/pdf"});
   if(navigator.canShare&&navigator.canShare({files:[file]})){
     try{
@@ -677,7 +694,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       });
     }
     const cleanHTML=clone.innerHTML;
-    const fonts=`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+    const fonts=isIOS?``:`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
     // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
     // + font-size・paddingをコンパクトにしてA4 1枚に収める
     const iosExtra=isIOS?`
@@ -699,7 +716,7 @@ td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:8mm 10mm;}
 html,body{margin:0;padding:0;}
-body{font-family:'Noto Sans JP',-apple-system,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
 .page{width:100%;page-break-after:always;position:relative;}
 .page:last-child{page-break-after:auto;}
@@ -739,11 +756,17 @@ ${iosExtra}
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
-        const errToast=document.createElement("div");
-        errToast.innerHTML="⚠️ PDF作成に失敗しました<br><span style='font-size:13px'>もう一度お試しください</span>";
-        errToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(200,40,40,.95);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
-        document.body.appendChild(errToast);
-        setTimeout(()=>{errToast.style.transition="opacity .4s";errToast.style.opacity="0";setTimeout(()=>errToast.remove(),500);},4000);
+        // フォールバック: HTMLをdata:URIで新タブ表示し、Safari共有→プリントを案内
+        const encoded=encodeURIComponent(iosHtml);
+        const dataUri=`data:text/html;charset=utf-8,${encoded}`;
+        const a=document.createElement("a");
+        a.href=dataUri;a.target="_blank";a.rel="noopener";
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        const toast=document.createElement("div");
+        toast.innerHTML="📄 PDF作成に失敗したため、別ウィンドウで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
+        toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
+        document.body.appendChild(toast);
+        setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},6000);
       }
     }else{
       const html=pcHtml;
@@ -2549,11 +2572,17 @@ html{-webkit-text-size-adjust:none;}
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
-        const errToast=document.createElement("div");
-        errToast.innerHTML="⚠️ PDF作成に失敗しました<br><span style='font-size:13px'>もう一度お試しください</span>";
-        errToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(200,40,40,.95);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
-        document.body.appendChild(errToast);
-        setTimeout(()=>{errToast.style.transition="opacity .4s";errToast.style.opacity="0";setTimeout(()=>errToast.remove(),500);},4000);
+        // フォールバック: HTMLをdata:URIで新タブ表示し、Safari共有→プリントを案内
+        const encoded=encodeURIComponent(htmlContent);
+        const dataUri=`data:text/html;charset=utf-8,${encoded}`;
+        const a=document.createElement("a");
+        a.href=dataUri;a.target="_blank";a.rel="noopener";
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+        const toast=document.createElement("div");
+        toast.innerHTML="📄 PDF作成に失敗したため、別ウィンドウで開きました<br><span style='font-size:13px'>Safariの 共有ボタン（□↑）→「プリント」で印刷できます</span>";
+        toast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 20px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;line-height:1.7;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:88vw;backdrop-filter:blur(10px);";
+        document.body.appendChild(toast);
+        setTimeout(()=>{toast.style.transition="opacity .4s";toast.style.opacity="0";setTimeout(()=>toast.remove(),500);},6000);
       }
     }else{
       const w=window.open("","_blank","width=900,height=1200");
