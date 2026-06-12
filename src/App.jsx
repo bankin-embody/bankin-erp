@@ -800,7 +800,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   pdf.setFontSize(9);
 
-  const maxRows=docType==="shakken"?10:docType==="combined"?12:14;
+  const maxRows=docType==="shakken"?14:docType==="combined"?22:20;
   const items=doc.items||[];
   const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
@@ -1146,7 +1146,7 @@ window.addEventListener("afterprint",function(){
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,subtotal:ci.subtotal||ci.total});
               }
             });
-            const blankCount=Math.max(0,18-allRows.length);
+            const blankCount=Math.max(0,22-allRows.length);
             const totalTax=doc.combinedTax||0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
@@ -1200,7 +1200,7 @@ window.addEventListener("afterprint",function(){
           {type!=="combined"&&(()=>{
             // 固定費は合計欄に移動するので明細には含めない
             const allRows=[...(doc.items||[])];
-            const maxRows=type==="shakken"?10:type==="combined"?12:14;
+            const maxRows=type==="shakken"?14:type==="combined"?22:20;
             const blankCount=Math.max(0, Math.min(maxRows, maxRows-allRows.length+1));
             let rowIdx=0;
             return(
