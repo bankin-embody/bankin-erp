@@ -630,7 +630,7 @@ const hexLighten=(hex)=>{
 };
 
 // 一般請求書（type==="invoice"/"quote"/"delivery", isS=false）のPDFを構築
-const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType})=>{
+const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0})=>{
   const pdf=newJpPdf();
   const W=210,H=297,M=12; // ページ幅・高さ・マージン(mm)
   const[ar,ag,ab]=hexToRgb(theme.accent);
@@ -840,42 +840,87 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
 
   y+=4;
 
-  // ── 合計欄 ──
-  const sumW=80;
-  const sumX=W-M-sumW;
+  // ── 合計欄（タイプ別） ──
   pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));
   pdf.setLineWidth(0.2);
-  const sumRows=[
-    ["小計（税抜）",fmt(sub)],
-    [`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],
-    ["整備費合計（税込）",fmt(wT)],
-  ];
-  sumRows.forEach(([l,v])=>{
-    pdf.setFillColor(250,250,250);
-    pdf.rect(sumX,y,sumW,7,"F");
-    pdf.setFont("NotoSansJP","normal");
-    pdf.setFontSize(9);
-    pdf.setTextColor(100,100,100);
-    pdf.text(l,sumX+3,y+4.7);
-    pdf.setTextColor(0,0,0);
-    pdf.setFont("NotoSansJP","bold");
-    pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
-    pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));
-    pdf.line(sumX,y+7,sumX+sumW,y+7);
-    y+=7;
-  });
-  // お支払い合計
-  pdf.setFillColor(ar,ag,ab);
-  pdf.rect(sumX,y,sumW,11,"F");
-  pdf.setTextColor(255,255,255);
-  pdf.setFont("NotoSansJP","bold");
-  pdf.setFontSize(11);
-  pdf.text("お支払い合計",sumX+3,y+7.2);
-  pdf.setFontSize(15);
-  pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-  pdf.setTextColor(0,0,0);
-  pdf.setFont("NotoSansJP","normal");
-  y+=11+5;
+  const[lr2,lg2,lb2]=hexLighten(theme.light);
+
+  if(docType==="shakken"){
+    // 車検：左=法定費用、右=整備費＋お支払い合計
+    const lcW=90,rcW=74,lcX=M,rcX=W-M-74;
+    // 左：法定費用ヘッダー
+    pdf.setFillColor(ar,ag,ab);pdf.rect(lcX,y,lcW,6,"F");
+    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8);
+    pdf.text("法定費用・諸費用",lcX+3,y+4.3);
+    let lY=y+6;
+    const govRows=[
+      [doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],
+      ["重量税",fmt(doc.shakken?.juryozei||0)],
+      ["検査登録・証紙代",fmt(doc.shakken?.kensaShomei||0)],
+      ["技術情報管理料",fmt(doc.shakken?.gijutsuKanri||0)],
+      ["車検代行手数料",fmt(daikoRaw)],
+      [`　消費税（${Math.round(daikoTx*100)}%）`,fmt(daikoWT-daikoRaw)],
+    ];
+    govRows.forEach(([l,v],i)=>{
+      i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
+      pdf.rect(lcX,lY,lcW,6,"F");
+      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,lcX+3,lY+4.3);
+      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,lcX+lcW-2,lY+4.3,{align:"right"});
+      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(lcX,lY+6,lcX+lcW,lY+6);
+      lY+=6;
+    });
+    pdf.setFillColor(lr2,lg2,lb2);pdf.rect(lcX,lY,lcW,7,"F");
+    pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
+    pdf.text("法定費用合計",lcX+3,lY+4.8);pdf.text(fmt(gov+daikoWT),lcX+lcW-2,lY+4.8,{align:"right"});
+    // 右：整備費
+    let rY=y;
+    [["整備費（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v],i)=>{
+      i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
+      pdf.rect(rcX,rY,rcW,6,"F");
+      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,rcX+3,rY+4.3);
+      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,rcX+rcW-2,rY+4.3,{align:"right"});
+      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(rcX,rY+6,rcX+rcW,rY+6);
+      rY+=6;
+    });
+    pdf.setFillColor(ar,ag,ab);pdf.rect(rcX,rY,rcW,11,"F");
+    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(10);
+    pdf.text("お支払い合計",rcX+3,rY+7.2);pdf.setFontSize(14);
+    pdf.text(fmt(grand),rcX+rcW-3,rY+7.2,{align:"right"});
+    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    y=Math.max(lY+7,rY+11)+5;
+  }else if(docType==="combined"){
+    // 合計請求書
+    const sumW=80,sumX=W-M-80;
+    [["消費税合計",fmt(doc.combinedTax||0)]].forEach(([l,v])=>{
+      pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
+      pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
+      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
+      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(sumX,y+7,sumX+sumW,y+7);
+      y+=7;
+    });
+    pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
+    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+    pdf.text("合計請求額（税込）",sumX+3,y+7.2);pdf.setFontSize(13);
+    pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
+    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    y+=11+5;
+  }else{
+    // 一般請求書・見積・納品
+    const sumW=80,sumX=W-M-80;
+    [["小計（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v])=>{
+      pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
+      pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
+      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
+      pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(sumX,y+7,sumX+sumW,y+7);
+      y+=7;
+    });
+    pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
+    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+    pdf.text("お支払い合計",sumX+3,y+7.2);pdf.setFontSize(15);
+    pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
+    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    y+=11+5;
+  }
 
   // ── 備考 ──
   if(doc.note){
@@ -924,18 +969,25 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
   const doPrint=async()=>{
     const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 
-    // iOS かつ「一般請求書」（車検・合計請求書以外）の場合は jsPDF で直接PDF化
-    // → AirPrintのフッターURL問題・1枚収まり問題を回避し、Epson Smart Panel等で共有可能に
-    if(isIOS&&!isS&&type!=="combined"){
+    // iOS: 全タイプjsPDFで直接PDF生成 → URLフッターなし・正確なA4サイズ
+    if(isIOS){
       const loadingToast=document.createElement("div");
       loadingToast.innerHTML="📄 PDFを作成中…";
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
         await ensureJpFont();
-        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type});
+        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        const tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        pdf.addPage();
+        pdf.internal.pages[2]=tmp.internal.pages[1];
+        pdf.setPage(2);
+        pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+        pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
+        pdf.rect(210-12-28,12,28,8);
+        pdf.text("【控え】",210-12-14,12+5.5,{align:"center"});
         const blob=pdf.output("blob");
-        const custName=(customer?.name||"").replace(/[\\\/:*?"<>|]/g,"");
+        const custName=(customer?.name||"").replace(/[\/\/:*?"<>|]/g,"");
         const docNo=doc?.id?String(doc.id).replace(/\D/g,"").slice(-6):"";
         const filename=`${theme.label}_${custName}${docNo?`_${docNo}`:""}.pdf`;
         loadingToast.remove();
@@ -944,7 +996,6 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
-        // フォールバック: 従来のHTML印刷方式へ
       }
     }
 
@@ -1045,11 +1096,7 @@ window.addEventListener("afterprint",function(){
       {isIOSDevice&&(
         <div className="np" style={{background:"rgba(61,90,138,.09)",borderBottom:"1px solid rgba(61,90,138,.13)",padding:"7px 16px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           <span style={{fontSize:16}}>💡</span>
-          {(!isS&&type!=="combined")?(
-            <span style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.4}}>「印刷」ボタンでPDFを作成し、共有画面が開きます。「Epson Smart Panel」や「プリント」を選んで印刷できます。</span>
-          ):(
-            <span style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.4}}>「印刷」ボタンで新しいタブが開きます。SafariのShareボタン（<span style={{fontFamily:"system-ui"}}>□↑</span>）→「プリント」で印刷できます。</span>
-          )}
+          <span style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.4}}>「印刷」ボタンでPDFを作成し、共有画面が開きます。「Epson Smart Panel」や「プリント」を選んで印刷できます。</span>
         </div>
       )}
 
