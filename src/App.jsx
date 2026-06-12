@@ -569,7 +569,7 @@ let _jspdfPromise=null;
 const loadJsPDF=()=>{
   if(_jspdfPromise)return _jspdfPromise;
   _jspdfPromise=new Promise((res,rej)=>{
-    if((window as any).jspdf){res(null);return;}
+    if(window.jspdf){res(null);return;}
     const s=document.createElement("script");
     s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
     s.onload=()=>res(null);s.onerror=rej;
@@ -581,7 +581,7 @@ let _jpFontPromise=null;
 const NOTO_JP_URL="https://cdn.jsdelivr.net/gh/parallax/jsPDF@master/test/reference/fonts/NotoSansJP/NotoSansJP-Regular.ttf";
 const ensureJpFont=async()=>{
   await loadJsPDF();
-  const jspdf=(window as any).jspdf;
+  const jspdf=window.jspdf;
   if(jspdf.__jpFontLoaded)return;
   if(_jpFontPromise)return _jpFontPromise;
   _jpFontPromise=(async()=>{
@@ -601,7 +601,7 @@ const ensureJpFont=async()=>{
   return _jpFontPromise;
 };
 const newJpPdf=()=>{
-  const jspdf=(window as any).jspdf;
+  const jspdf=window.jspdf;
   const pdf=new jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
   const{regular}=jspdf.__jpFontData;
   pdf.addFileToVFS("NotoSansJP-Regular.ttf",regular);
@@ -896,12 +896,12 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
 // PDFをファイル共有（Web Share API）。失敗時はBlob URLを新タブで開く
 const shareOrOpenPdf=async(blob,filename)=>{
   const file=new File([blob],filename,{type:"application/pdf"});
-  if((navigator as any).canShare&&(navigator as any).canShare({files:[file]})){
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
     try{
-      await (navigator as any).share({files:[file],title:filename});
+      await navigator.share({files:[file],title:filename});
       return;
     }catch(e){
-      if((e as any)?.name==="AbortError")return;
+      if(e?.name==="AbortError")return;
     }
   }
   const url=URL.createObjectURL(blob);
@@ -951,7 +951,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     const el=document.getElementById("print-area");
     if(!el)return;
     // .npクラスの要素（ボタン等）を印刷HTMLから除去
-    const clone=el.cloneNode(true) as HTMLElement;
+    const clone=el.cloneNode(true);
     clone.querySelectorAll(".np").forEach(n=>n.remove());
     // iOS: テーブルの空行（中身のないtr）を除去してページ数削減
     if(isIOS){
