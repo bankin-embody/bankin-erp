@@ -995,12 +995,15 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
-        // フォント取得は失敗してもjsPDF生成自体は続行する
+        // ── デバッグ: どこで失敗するか特定 ──
+        try{await loadJsPDF();}catch(e){alert("jsPDFロード失敗: "+e.message);throw e;}
+        alert("jsPDFロード成功: "+!!window.jspdf);
         try{await ensureJpFont();}catch(fe){
-          // フォント取得失敗: フォントなしで続行
+          alert("フォント取得失敗（続行）: "+fe.message);
           const jspdf=window.jspdf;
           if(jspdf&&!jspdf.__jpFontData){jspdf.__jpFontLoaded=true;jspdf.__jpFontData={regular:null};}
         }
+        alert("フォント状態: "+JSON.stringify({loaded:window.jspdf?.__jpFontLoaded,hasData:!!window.jspdf?.__jpFontData?.regular}));
         await loadJsPDF();
         const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
         const tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
