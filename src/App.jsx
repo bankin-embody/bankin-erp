@@ -569,65 +569,33 @@ let _jspdfPromise=null;
 const loadJsPDF=()=>{
   if(_jspdfPromise)return _jspdfPromise;
   _jspdfPromise=new Promise((res,rej)=>{
-    if(window.jspdf){res(null);return;}
-    const s=document.createElement("script");
-    s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-    s.onload=()=>res(null);s.onerror=rej;
-    document.head.appendChild(s);
+    const loadScript=(src)=>new Promise((r,j)=>{
+      const s=document.createElement("script");
+      s.src=src;s.onload=r;s.onerror=j;
+      document.head.appendChild(s);
+    });
+    const tasks=[];
+    if(!window.jspdf)tasks.push(loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"));
+    if(!window.html2canvas)tasks.push(loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"));
+    Promise.all(tasks).then(()=>res(null)).catch(rej);
   });
   return _jspdfPromise;
 };
 let _jpFontPromise=null;
-// 複数のフォールバックURLを試みる（CORS・404対策）
-const NOTO_JP_URLS=[
-  "https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFQaioq1H1hj-sNFQ.woff2",
-  "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.8/files/noto-sans-jp-japanese-400-normal.woff2",
-  "https://cdnjs.cloudflare.com/ajax/libs/noto-sans/1.0.0/NotoSans-Regular.ttf",
-];
 const ensureJpFont=async()=>{
   await loadJsPDF();
   const jspdf=window.jspdf;
   if(jspdf.__jpFontLoaded)return;
-  if(_jpFontPromise)return _jpFontPromise;
-  _jpFontPromise=(async()=>{
-    // woff2はjsPDFで使えないのでTTFのみ試みる
-    const TTF_URLS=[
-      "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.8/files/noto-sans-jp-japanese-400-normal.woff",
-      "https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFyzioq1H1hj-sNFQ.woff",
-    ];
-    for(const url of TTF_URLS){
-      try{
-        const res=await fetch(url,{mode:"cors"});
-        if(!res.ok)continue;
-        const buf=await res.arrayBuffer();
-        let binary="";
-        const bytes=new Uint8Array(buf);
-        const chunk=0x8000;
-        for(let i=0;i<bytes.length;i+=chunk){
-          binary+=String.fromCharCode.apply(null,Array.from(bytes.subarray(i,i+chunk)));
-        }
-        const base64=btoa(binary);
-        jspdf.__jpFontLoaded=true;
-        jspdf.__jpFontData={regular:base64};
-        return;
-      }catch(e){continue;}
-    }
-    // フォント取得失敗時はシステムフォントで続行（文字化けするが動く）
-    jspdf.__jpFontLoaded=true;
-    jspdf.__jpFontData={regular:null};
-  })();
-  return _jpFontPromise;
+  // フォントなしで動作（jsPDFのデフォルトフォントを使用）
+  jspdf.__jpFontLoaded=true;
+  jspdf.__jpFontData={regular:null};
 };
 const newJpPdf=()=>{
   const jspdf=window.jspdf;
   const pdf=new jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
-  const{regular}=jspdf.__jpFontData;
-  if(regular){
-    pdf.addFileToVFS("NotoSansJP-Regular.ttf",regular);
-    pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","normal");
-    pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","bold");
-    pdf.setFont("NotoSansJP","normal");
-  }
+  // フォントはjsPDFデフォルト（Helvetica）を使用
+  // 日本語はUnicodeエンコードで出力
+  pdf.setFont("helvetica","normal");
   return pdf;
 };
 const hexToRgb=(hex)=>{
@@ -660,10 +628,10 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFillColor(ar,ag,ab);
   pdf.rect(0,0,W,14,"F");
   pdf.setTextColor(255,255,255);
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(15);
   pdf.text(ttl,M,9.5);
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   pdf.setFontSize(9);
   const dateStr=doc.date||today();
   const noStr=doc.id?`No. ${String(doc.id).replace(/\D/g,"")}`:"";
@@ -673,10 +641,10 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   // ── 上段：左＝顧客情報、右＝会社情報 ──
   const topY=y;
   pdf.setTextColor(0,0,0);
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(15);
   pdf.text(`${fullName(customer)}　様`,M,y+6);
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   pdf.setFontSize(9);
   let leftY=y+12;
   if(vehicle){
@@ -701,10 +669,10 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   // 右：会社情報
   const rightX=W-M;
   let rightY=y+4;
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(12);
   pdf.text(settings.shopName||"",rightX,rightY,{align:"right"});
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   pdf.setFontSize(8.5);
   pdf.setTextColor(80,80,80);
   rightY+=5.5;
@@ -723,12 +691,12 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     pdf.setDrawColor(220,220,220);
     pdf.line(W-M-70,rightY,W-M,rightY);
     rightY+=4;
-    pdf.setFont("NotoSansJP","bold");
+    pdf.setFont("helvetica","bold");
     pdf.setFontSize(8.5);
     pdf.setTextColor(0,0,0);
     pdf.text("お振込先",rightX,rightY,{align:"right"});
     rightY+=4;
-    pdf.setFont("NotoSansJP","normal");
+    pdf.setFont("helvetica","normal");
     pdf.setTextColor(80,80,80);
     pdf.text(`${settings.bankName||""} ${settings.bankBranch||""} ${settings.bankType||""}口座`,rightX,rightY,{align:"right"});
     rightY+=4;
@@ -756,17 +724,17 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFontSize(8);
   pdf.text("ご請求額",M+4,y+6);
   pdf.setTextColor(ar,ag,ab);
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(20);
   pdf.text(`¥${grand.toLocaleString()}—`,M+4,y+14.5);
   // 消費税等
   const taxColX=M+(W-M*2)*0.55;
   pdf.setTextColor(140,140,140);
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   pdf.setFontSize(8);
   pdf.text("消費税等",taxColX,y+6);
   pdf.setTextColor(0,0,0);
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(14);
   pdf.text(`¥${(docType==="combined"?(doc.combinedTax||0):taxAmt).toLocaleString()}—`,taxColX,y+14.5);
   // お支払期限
@@ -775,15 +743,15 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     pdf.setFillColor(ar,ag,ab);
     pdf.rect(dueX,y,44,barH,"F");
     pdf.setTextColor(255,255,255,);
-    pdf.setFont("NotoSansJP","normal");
+    pdf.setFont("helvetica","normal");
     pdf.setFontSize(8);
     pdf.text("お支払期限",dueX+4,y+6);
-    pdf.setFont("NotoSansJP","bold");
+    pdf.setFont("helvetica","bold");
     pdf.setFontSize(11);
     pdf.text(doc.dueDate,dueX+4,y+14);
   }
   pdf.setTextColor(0,0,0);
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   y+=barH+2;
 
   // ── 件名 ──
@@ -806,7 +774,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFillColor(ar,ag,ab);
   pdf.rect(M,y,tableW,rowH,"F");
   pdf.setTextColor(255,255,255);
-  pdf.setFont("NotoSansJP","bold");
+  pdf.setFont("helvetica","bold");
   pdf.setFontSize(9);
   let cx=M;
   headers.forEach((h,i)=>{
@@ -816,7 +784,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     cx+=colWidths[i];
   });
   y+=rowH;
-  pdf.setFont("NotoSansJP","normal");
+  pdf.setFont("helvetica","normal");
   pdf.setTextColor(0,0,0);
   pdf.setFontSize(9);
 
@@ -870,7 +838,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     const lcW=90,rcW=74,lcX=M,rcX=W-M-74;
     // 左：法定費用ヘッダー
     pdf.setFillColor(ar,ag,ab);pdf.rect(lcX,y,lcW,6,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8);
+    pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(8);
     pdf.text("法定費用・諸費用",lcX+3,y+4.3);
     let lY=y+6;
     const govRows=[
@@ -884,61 +852,61 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     govRows.forEach(([l,v],i)=>{
       i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
       pdf.rect(lcX,lY,lcW,6,"F");
-      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,lcX+3,lY+4.3);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,lcX+lcW-2,lY+4.3,{align:"right"});
+      pdf.setTextColor(80,80,80);pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.text(l,lcX+3,lY+4.3);
+      pdf.setTextColor(0,0,0);pdf.setFont("helvetica","bold");pdf.text(v,lcX+lcW-2,lY+4.3,{align:"right"});
       pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(lcX,lY+6,lcX+lcW,lY+6);
       lY+=6;
     });
     pdf.setFillColor(lr2,lg2,lb2);pdf.rect(lcX,lY,lcW,7,"F");
-    pdf.setFont("NotoSansJP","bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
+    pdf.setFont("helvetica","bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
     pdf.text("法定費用合計",lcX+3,lY+4.8);pdf.text(fmt(gov+daikoWT),lcX+lcW-2,lY+4.8,{align:"right"});
     // 右：整備費
     let rY=y;
     [["整備費（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v],i)=>{
       i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
       pdf.rect(rcX,rY,rcW,6,"F");
-      pdf.setTextColor(80,80,80);pdf.setFont("NotoSansJP","normal");pdf.setFontSize(8);pdf.text(l,rcX+3,rY+4.3);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,rcX+rcW-2,rY+4.3,{align:"right"});
+      pdf.setTextColor(80,80,80);pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.text(l,rcX+3,rY+4.3);
+      pdf.setTextColor(0,0,0);pdf.setFont("helvetica","bold");pdf.text(v,rcX+rcW-2,rY+4.3,{align:"right"});
       pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(rcX,rY+6,rcX+rcW,rY+6);
       rY+=6;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(rcX,rY,rcW,11,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(10);
+    pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(10);
     pdf.text("お支払い合計",rcX+3,rY+7.2);pdf.setFontSize(14);
     pdf.text(fmt(grand),rcX+rcW-3,rY+7.2,{align:"right"});
-    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    pdf.setTextColor(0,0,0);pdf.setFont("helvetica","normal");
     y=Math.max(lY+7,rY+11)+5;
   }else if(docType==="combined"){
     // 合計請求書
     const sumW=80,sumX=W-M-80;
     [["消費税合計",fmt(doc.combinedTax||0)]].forEach(([l,v])=>{
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
-      pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
+      pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
+      pdf.setTextColor(0,0,0);pdf.setFont("helvetica","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
       pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(sumX,y+7,sumX+sumW,y+7);
       y+=7;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+    pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(11);
     pdf.text("合計請求額（税込）",sumX+3,y+7.2);pdf.setFontSize(13);
     pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    pdf.setTextColor(0,0,0);pdf.setFont("helvetica","normal");
     y+=11+5;
   }else{
     // 一般請求書・見積・納品
     const sumW=80,sumX=W-M-80;
     [["小計（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v])=>{
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
-      pdf.setFont("NotoSansJP","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
-      pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
+      pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
+      pdf.setTextColor(0,0,0);pdf.setFont("helvetica","bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
       pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));pdf.line(sumX,y+7,sumX+sumW,y+7);
       y+=7;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
-    pdf.setTextColor(255,255,255);pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+    pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(11);
     pdf.text("お支払い合計",sumX+3,y+7.2);pdf.setFontSize(15);
     pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-    pdf.setTextColor(0,0,0);pdf.setFont("NotoSansJP","normal");
+    pdf.setTextColor(0,0,0);pdf.setFont("helvetica","normal");
     y+=11+5;
   }
 
@@ -949,9 +917,9 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     const noteH=12;
     pdf.roundedRect(M,y,tableW,noteH,1,1,"FD");
     pdf.setFontSize(9);
-    pdf.setFont("NotoSansJP","bold");
+    pdf.setFont("helvetica","bold");
     pdf.text("備考:",M+3,y+5);
-    pdf.setFont("NotoSansJP","normal");
+    pdf.setFont("helvetica","normal");
     pdf.text(String(doc.note),M+15,y+5,{maxWidth:tableW-18});
   }
 
@@ -1012,7 +980,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
         buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT},pdf,2);
         // 【控え】ラベルを2ページ目に追加
         pdf.setPage(2);
-        pdf.setFont("NotoSansJP","bold");
+        pdf.setFont("helvetica","bold");
         pdf.setFontSize(11);
         pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
         pdf.rect(210-12-28,12,28,8);
