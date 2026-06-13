@@ -995,36 +995,22 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
-        // ── デバッグ: どこで失敗するか特定 ──
-        try{await loadJsPDF();}catch(e){alert("jsPDFロード失敗: "+e.message);throw e;}
-        alert("jsPDFロード成功: "+!!window.jspdf);
         try{await ensureJpFont();}catch(fe){
-          alert("フォント取得失敗（続行）: "+fe.message);
           const jspdf=window.jspdf;
           if(jspdf&&!jspdf.__jpFontData){jspdf.__jpFontLoaded=true;jspdf.__jpFontData={regular:null};}
         }
-        alert("フォント状態: "+JSON.stringify({loaded:window.jspdf?.__jpFontLoaded,hasData:!!window.jspdf?.__jpFontData?.regular}));
-        let pdf,tmp;
-        try{
-          pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
-          alert("本書PDF生成成功");
-        }catch(e2){alert("本書PDF生成失敗: "+e2.message+"
-"+e2.stack?.slice(0,200));throw e2;}
-        try{
-          tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
-          pdf.addPage();
-          pdf.internal.pages[2]=tmp.internal.pages[1];
-          pdf.setPage(2);
-          pdf.setFontSize(11);
-          pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
-          pdf.rect(210-12-28,12,28,8);
-          pdf.text("【控え】",210-12-14,12+5.5,{align:"center"});
-          alert("控えページ生成成功");
-        }catch(e3){alert("控えページ失敗: "+e3.message+"
-"+e3.stack?.slice(0,200));throw e3;}
+        await loadJsPDF();
+        const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        const tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        pdf.addPage();
+        pdf.internal.pages[2]=tmp.internal.pages[1];
+        pdf.setPage(2);
+        pdf.setFontSize(11);
+        pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
+        pdf.rect(210-12-28,12,28,8);
+        pdf.text("【控え】",210-12-14,12+5.5,{align:"center"});
         const blob=pdf.output("blob");
-        alert("blob生成成功: "+blob.size+"bytes");
-        const custName=(customer?.name||"").replace(/[\/\/:*?"<>|]/g,"");
+        const custName=(customer?.name||"").replace(/[\/:*?"<>|]/g,"");
         const docNo=doc?.id?String(doc.id).replace(/\D/g,"").slice(-6):"";
         const filename=`${theme.label}_${custName}${docNo?`_${docNo}`:""}.pdf`;
         loadingToast.remove();
@@ -1035,6 +1021,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
         console.error("PDF生成エラー:",err);
       }
     }
+
 
     const el=document.getElementById("print-area");
     if(!el)return;
