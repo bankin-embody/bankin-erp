@@ -582,8 +582,8 @@ const loadJsPDF=()=>{
   return _jspdfPromise;
 };
 let _jpFontPromise=null;
-// 日本語フォント（Noto Sans JP サブセット）を/public/fonts/から取得し、jsPDFのVFSに登録する
-// ※ /public/fonts/NotoSansJP-subset.otf を配置してください（JIS X0208相当の日本語文字を含むサブセットフォント）
+// 日本語フォント（IPAゴシック サブセット, TrueType）を/public/fonts/から取得し、jsPDFのVFSに登録する
+// ※ /public/fonts/NotoSansJP-subset.ttf を配置してください（JIS X0208相当の日本語文字を含むサブセットフォント／TrueType形式）
 const ensureJpFont=async()=>{
   await loadJsPDF();
   const jspdf=window.jspdf;
@@ -591,7 +591,7 @@ const ensureJpFont=async()=>{
   if(_jpFontPromise)return _jpFontPromise;
   _jpFontPromise=(async()=>{
     try{
-      const fontRes=await fetch("/fonts/NotoSansJP-subset.otf");
+      const fontRes=await fetch("/fonts/NotoSansJP-subset.ttf");
       if(!fontRes.ok)throw new Error("font fetch failed: "+fontRes.status);
       const buf=await fontRes.arrayBuffer();
       let binary="";
@@ -615,8 +615,8 @@ const newJpPdf=()=>{
   const jspdf=window.jspdf;
   const pdf=new jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
   if(jspdf.__jpFontData?.regular){
-    pdf.addFileToVFS("NotoSansJP-Regular.otf",jspdf.__jpFontData.regular);
-    pdf.addFont("NotoSansJP-Regular.otf","NotoSansJP","normal");
+    pdf.addFileToVFS("NotoSansJP-Regular.ttf",jspdf.__jpFontData.regular);
+    pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","normal");
     pdf.setFont("NotoSansJP","normal");
   }else{
     pdf.setFont("helvetica","normal");
