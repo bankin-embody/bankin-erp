@@ -957,20 +957,23 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   return pdf;
 };
 
-// PDFをファイル共有（Web Share API）。失敗時はBlob URLを新タブで開く
+// PDFをファイル共有（Web Share API）。失敗時はダウンロード
 const shareOrOpenPdf=async(blob,filename)=>{
   const file=new File([blob],filename,{type:"application/pdf"});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
+  // iOS Safari: canShareの結果に関わらずnnavigator.shareを試みる
+  if(navigator.share){
     try{
       await navigator.share({files:[file],title:filename});
       return;
     }catch(e){
       if(e?.name==="AbortError")return;
+      // share失敗時はダウンロードへフォールバック
     }
   }
+  // フォールバック: ダウンロード
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;a.target="_blank";a.rel="noopener";
+  a.href=url;a.download=filename;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 };
