@@ -1086,6 +1086,16 @@ td,th,.detail-table td,.detail-table th{padding:3px 5px!important;font-size:9px!
 .sm{font-size:11px!important;}.xs{font-size:9px!important;}.lg{font-size:14px!important;}
 .b7,.b6{font-size:inherit!important;}
 `:``;
+    // PC: A4 1枚に収まるようフォント・余白をやや詰める
+    const pcExtra=!isIOS?`
+body{font-size:10px!important;}
+*{line-height:1.35!important;}
+td,th,.detail-table td,.detail-table th{padding:4px 6px!important;font-size:9.5px!important;}
+.mt12,.mt8,.mt4{margin-top:4px!important;}
+.mb12,.mb8,.mb4{margin-bottom:4px!important;}
+.card{padding:9px 11px!important;}
+.sm{font-size:10.5px!important;}.xs{font-size:9px!important;}.lg{font-size:13px!important;}
+`:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
 @page{size:A4 portrait;margin:8mm 10mm;}
@@ -1111,6 +1121,7 @@ ${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 .close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
 @media print{.close-bar{display:none!important;}}
 ${iosExtra}
+${pcExtra}
 </style>
 <script>
 window.addEventListener("afterprint",function(){
