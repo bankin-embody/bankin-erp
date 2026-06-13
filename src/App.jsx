@@ -653,9 +653,30 @@ const hexLighten=(hex)=>{
 };
 
 // 一般請求書（type==="invoice"/"quote"/"delivery", isS=false）のPDFを構築
-const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0},existingPdf=null,startPage=1)=>{
+const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0},existingPdf=null,startPage=1,mono=false)=>{
   const pdf=existingPdf||newJpPdf();
   if(existingPdf){pdf.setPage(startPage);}
+  // ── モノクロモード：色指定をグレースケールに変換 ──
+  if(mono&&!pdf.__monoPatched){
+    const toGray=(r,g,b)=>{
+      const v=Math.round(r*0.299+g*0.587+b*0.114);
+      return[v,v,v];
+    };
+    const wrap=(fnName)=>{
+      const orig=pdf[fnName].bind(pdf);
+      pdf[fnName]=(...args)=>{
+        if(args.length>=3&&typeof args[0]==="number"&&typeof args[1]==="number"&&typeof args[2]==="number"){
+          const[gr,gg,gb]=toGray(args[0],args[1],args[2]);
+          return orig(gr,gg,gb,...args.slice(3));
+        }
+        return orig(...args);
+      };
+    };
+    wrap("setFillColor");
+    wrap("setTextColor");
+    wrap("setDrawColor");
+    pdf.__monoPatched=true;
+  }
   const W=210,H=297,M=12; // ページ幅・高さ・マージン(mm)
   const[ar,ag,ab]=hexToRgb(theme.accent);
   let y=M;
@@ -1013,7 +1034,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
         const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
         // 控えページ：新しいページを追加して同じ内容を再描画
         pdf.addPage();
-        buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT},pdf,2);
+        buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT},pdf,2,true);
         // 【控え】ラベルを2ページ目に追加
         pdf.setPage(2);
         jpFont(pdf,"bold");
