@@ -649,8 +649,9 @@ const hexLighten=(hex)=>{
 };
 
 // 一般請求書（type==="invoice"/"quote"/"delivery", isS=false）のPDFを構築
-const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0})=>{
-  const pdf=newJpPdf();
+const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType,gov=0,daikoRaw=0,daikoTx=0,daikoWT=0},existingPdf=null,startPage=1)=>{
+  const pdf=existingPdf||newJpPdf();
+  if(existingPdf){pdf.setPage(startPage);}
   const W=210,H=297,M=12; // ページ幅・高さ・マージン(mm)
   const[ar,ag,ab]=hexToRgb(theme.accent);
   let y=M;
@@ -998,16 +999,20 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
+        // フォント取得（失敗しても続行）
         try{await ensureJpFont();}catch(fe){
           const jspdf=window.jspdf;
           if(jspdf&&!jspdf.__jpFontData){jspdf.__jpFontLoaded=true;jspdf.__jpFontData={regular:null};}
         }
         await loadJsPDF();
+        // 本書ページ生成
         const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
-        const tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
+        // 控えページ：新しいページを追加して同じ内容を再描画
         pdf.addPage();
-        pdf.internal.pages[2]=tmp.internal.pages[1];
+        buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT},pdf,2);
+        // 【控え】ラベルを2ページ目に追加
         pdf.setPage(2);
+        pdf.setFont("NotoSansJP","bold");
         pdf.setFontSize(11);
         pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
         pdf.rect(210-12-28,12,28,8);
@@ -1022,6 +1027,11 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
+        // エラーを画面表示（デバッグ）
+        const d=document.createElement("div");
+        d.style.cssText="position:fixed;top:60px;left:10px;right:10px;background:red;color:#fff;padding:12px;border-radius:10px;font-size:12px;z-index:9999;word-break:break-all;";
+        d.textContent=err.message+"\n"+String(err.stack||"").slice(0,300);
+        document.body.appendChild(d);setTimeout(()=>d.remove(),20000);
       }
     }
 
