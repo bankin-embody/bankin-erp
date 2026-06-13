@@ -578,25 +578,43 @@ const loadJsPDF=()=>{
   return _jspdfPromise;
 };
 let _jpFontPromise=null;
-const NOTO_JP_URL="https://cdn.jsdelivr.net/gh/parallax/jsPDF@master/test/reference/fonts/NotoSansJP/NotoSansJP-Regular.ttf";
+// 複数のフォールバックURLを試みる（CORS・404対策）
+const NOTO_JP_URLS=[
+  "https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFQaioq1H1hj-sNFQ.woff2",
+  "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.8/files/noto-sans-jp-japanese-400-normal.woff2",
+  "https://cdnjs.cloudflare.com/ajax/libs/noto-sans/1.0.0/NotoSans-Regular.ttf",
+];
 const ensureJpFont=async()=>{
   await loadJsPDF();
   const jspdf=window.jspdf;
   if(jspdf.__jpFontLoaded)return;
   if(_jpFontPromise)return _jpFontPromise;
   _jpFontPromise=(async()=>{
-    const res=await fetch(NOTO_JP_URL);
-    if(!res.ok)throw new Error("font fetch failed: "+res.status);
-    const buf=await res.arrayBuffer();
-    let binary="";
-    const bytes=new Uint8Array(buf);
-    const chunk=0x8000;
-    for(let i=0;i<bytes.length;i+=chunk){
-      binary+=String.fromCharCode.apply(null,Array.from(bytes.subarray(i,i+chunk)));
+    // woff2はjsPDFで使えないのでTTFのみ試みる
+    const TTF_URLS=[
+      "https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.8/files/noto-sans-jp-japanese-400-normal.woff",
+      "https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFyzioq1H1hj-sNFQ.woff",
+    ];
+    for(const url of TTF_URLS){
+      try{
+        const res=await fetch(url,{mode:"cors"});
+        if(!res.ok)continue;
+        const buf=await res.arrayBuffer();
+        let binary="";
+        const bytes=new Uint8Array(buf);
+        const chunk=0x8000;
+        for(let i=0;i<bytes.length;i+=chunk){
+          binary+=String.fromCharCode.apply(null,Array.from(bytes.subarray(i,i+chunk)));
+        }
+        const base64=btoa(binary);
+        jspdf.__jpFontLoaded=true;
+        jspdf.__jpFontData={regular:base64};
+        return;
+      }catch(e){continue;}
     }
-    const base64=btoa(binary);
+    // フォント取得失敗時はシステムフォントで続行（文字化けするが動く）
     jspdf.__jpFontLoaded=true;
-    jspdf.__jpFontData={regular:base64};
+    jspdf.__jpFontData={regular:null};
   })();
   return _jpFontPromise;
 };
@@ -604,11 +622,12 @@ const newJpPdf=()=>{
   const jspdf=window.jspdf;
   const pdf=new jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
   const{regular}=jspdf.__jpFontData;
-  pdf.addFileToVFS("NotoSansJP-Regular.ttf",regular);
-  pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","normal");
-  // Boldスタイルも同フォントで登録（太字グリフがない場合のフォールバック）
-  pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","bold");
-  pdf.setFont("NotoSansJP","normal");
+  if(regular){
+    pdf.addFileToVFS("NotoSansJP-Regular.ttf",regular);
+    pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","normal");
+    pdf.addFont("NotoSansJP-Regular.ttf","NotoSansJP","bold");
+    pdf.setFont("NotoSansJP","normal");
+  }
   return pdf;
 };
 const hexToRgb=(hex)=>{
@@ -976,13 +995,22 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       loadingToast.style.cssText="position:fixed;bottom:calc(env(safe-area-inset-bottom,0px)+80px);left:50%;transform:translateX(-50%);background:rgba(30,37,53,.96);color:#fff;padding:14px 24px;border-radius:14px;font-size:15px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.3);backdrop-filter:blur(10px);";
       document.body.appendChild(loadingToast);
       try{
-        await ensureJpFont();
+        // フォント取得は失敗してもjsPDF生成自体は続行する
+        try{await ensureJpFont();}catch(fe){
+          // フォント取得失敗: フォントなしで続行
+          const jspdf=window.jspdf;
+          if(jspdf&&!jspdf.__jpFontData){jspdf.__jpFontLoaded=true;jspdf.__jpFontData={regular:null};}
+        }
+        await loadJsPDF();
         const pdf=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
         const tmp=buildInvoicePdfJP({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,grand,docType:type,gov,daikoRaw,daikoTx,daikoWT});
         pdf.addPage();
         pdf.internal.pages[2]=tmp.internal.pages[1];
         pdf.setPage(2);
-        pdf.setFont("NotoSansJP","bold");pdf.setFontSize(11);
+        if(window.jspdf.__jpFontData?.regular){
+          pdf.setFont("NotoSansJP","bold");
+        }
+        pdf.setFontSize(11);
         pdf.setTextColor(80,80,80);pdf.setDrawColor(80,80,80);pdf.setLineWidth(0.5);
         pdf.rect(210-12-28,12,28,8);
         pdf.text("【控え】",210-12-14,12+5.5,{align:"center"});
