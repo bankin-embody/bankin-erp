@@ -309,10 +309,19 @@ const uploadToCloudinary=async(file)=>{
 
 // ── Storage (localStorage) ─────────────────────────────────
 const DK="bankin_v4";
-// t単位→kg単位マイグレーション（weight が 20 以下なら t 単位と判定）
+// t単位→kg単位マイグレーション
+// meta.weightMigrated フラグが立っていれば二重変換しない（weight<=20 判定は一度だけ適用）
 const migrateWeightToKg=db=>{
   if(!db.customers)return db;
-  return{...db,customers:db.customers.map(c=>({...c,vehicles:(c.vehicles||[]).map(v=>({...v,weight:v.weight&&v.weight<=20?Math.round(v.weight*1000):v.weight}))}))}
+  if(db.meta?.weightMigrated)return db;
+  return{...db,
+    customers:db.customers.map(c=>({...c,
+      vehicles:(c.vehicles||[]).map(v=>({...v,
+        weight:v.weight&&v.weight<=20?Math.round(v.weight*1000):v.weight
+      }))
+    })),
+    meta:{...db.meta,weightMigrated:true}
+  };
 };
 const loadDB=init=>{try{const r=localStorage.getItem(DK);if(r)return migrateWeightToKg({...init,...JSON.parse(r)});}catch{}return init;};
 const saveDB=db=>{try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));}catch{}};
@@ -453,7 +462,11 @@ function useSbSync(db,setDb){
   const conf=getSbConf();
   const enabled=!!(conf.url&&conf.anonKey);
 
-  // 初回ロード
+  // db変更時にsave (debounce 2s)
+  const dbRef=useRef(db);
+  useEffect(()=>{dbRef.current=db;},[db]);
+
+  // 初回ロード（dbRef確定後に実行）
   useEffect(()=>{
     if(!enabled)return;
     setSyncState("syncing");
@@ -462,15 +475,12 @@ function useSbSync(db,setDb){
         setDb(local=>({...local,...remote,meta:{...remote.meta,savedAt:new Date().toISOString()}}));
         setSyncState("ok");setSyncMsg("Supabaseから読み込み完了");
       }else{
-        // 初回: localをpush
-        sbSave(conf,db).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+        // 初回: localをpush（最新dbをdbRef.currentから取得）
+        sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
       }
     }).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[enabled]);
-
-  // db変更時にsave (debounce 2s)
-  const dbRef=useRef(db);
-  useEffect(()=>{dbRef.current=db;},[db]);
   const timerRef=useRef(null);
   useEffect(()=>{
     if(!enabled)return;
@@ -587,7 +597,7 @@ let _jpFontPromise=null;
 const ensureJpFont=async()=>{
   await loadJsPDF();
   const jspdf=window.jspdf;
-  if(jspdf.__jpFontLoaded)return;
+  if(jspdf.__jpFontLoaded)return Promise.resolve();
   if(_jpFontPromise)return _jpFontPromise;
   _jpFontPromise=(async()=>{
     try{
@@ -1611,8 +1621,10 @@ function ShakkenShoOCR({onResult,onClose}){
     setLoading(true);setErr("");
     try{
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      // ⚠️ セキュリティ注意: 本番運用時はVercel Edge Function (/api/ocr) 経由でAPIキーをサーバー側に保持してください
+      // 現在はAnthropicのartifacts環境でのスタブ実装です（APIキーはクライアントに露出しません）
       const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",max_tokens:800,
+        model:"claude-sonnet-4-6",max_tokens:800,
         messages:[{role:"user",content:[
           {type:"image",source:{type:"base64",media_type:file.type&&file.type.startsWith("image/")?file.type:"image/jpeg",data:b64}},
           {type:"text",text:"この車検証の画像から以下の情報をJSONで抽出してください。必ずJSONのみ返してください（マークダウン不要）。\n{\n  \"carName\": \"車名＋型式（例: トヨタ プリウス ZVW50）\",\n  \"plateNo\": \"ナンバープレート（例: 宮城483い1920）\",\n  \"chassisNo\": \"車台番号\",\n  \"firstReg\": \"初度登録年月 YYYY-MM形式\",\n  \"weight\": 1500,\n  \"carType\": \"自家用乗用（普通・小型）または 軽自動車（検査対象）または 普通貨物・自家用2t超 または 普通貨物・自家用2t以下 または 普通貨物・営業用2t超 または 普通貨物・営業用2t以下 または 小型貨物・自家用 または 小型貨物・営業用 または 小型二輪250cc超 の中から最も近いものを1つ\"\n}"}
@@ -3196,6 +3208,19 @@ const SettingsField=React.memo(function SettingsField({label,value,onChange,plac
   );
 });
 
+function UnitInput({onAdd}){
+  const[newUnit,setNewUnit]=useState("");
+  const commit=()=>{if(newUnit.trim()){onAdd(newUnit.trim());setNewUnit("");}};
+  return(
+    <>
+      <input className="inp" style={{flex:1}} placeholder="新しい単位を入力（例：箱）" value={newUnit}
+        onChange={e=>setNewUnit(e.target.value)}
+        onKeyDown={e=>{if(e.key==="Enter")commit();}}/>
+      <button className="btn bp bsm" onClick={commit} style={{flexShrink:0}}>追加</button>
+    </>
+  );
+}
+
 function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
@@ -3347,17 +3372,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           ))}
         </div>
         <div style={{display:"flex",gap:8}}>
-          {(()=>{
-            const[newUnit,setNewUnit]=React.useState("");
-            return(
-              <>
-                <input className="inp" style={{flex:1}} placeholder="新しい単位を入力（例：箱）" value={newUnit}
-                  onChange={e=>setNewUnit(e.target.value)}
-                  onKeyDown={e=>{if(e.key==="Enter"&&newUnit.trim()){setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),newUnit.trim()]}));setNewUnit("");}}}/>
-                <button className="btn bp bsm" onClick={()=>{if(newUnit.trim()){setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),newUnit.trim()]}));setNewUnit("");}}} style={{flexShrink:0}}>追加</button>
-              </>
-            );
-          })()}
+          <UnitInput onAdd={u=>setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),u]}))}/>
         </div>
       </div>
       <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
@@ -3693,19 +3708,11 @@ function LoginScreen({onLogin,shopName}){
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",marginBottom:5,letterSpacing:".04em",textTransform:"uppercase"}}>パスワード</div>
             <div style={{position:"relative"}}>
-              <input className="inp" type="text" placeholder="パスワードを入力" value={showPw?password:"●".repeat(password.length)}
-                onChange={e=>{
-                  if(!showPw){
-                    // ●表示中は実際の入力を管理
-                    const newLen=e.target.value.replace(/●/g,"").length;
-                    if(e.target.value.length<password.length){setPassword(p=>p.slice(0,-1));}
-                    else{const added=e.target.value.replace(/●/g,"");if(added)setPassword(p=>p+added);}
-                  }else{setPassword(e.target.value);}
-                  setError("");
-                }}
+              <input className="inp" type={showPw?"text":"password"} placeholder="パスワードを入力" value={password}
+                onChange={e=>{setPassword(e.target.value);setError("");}}
                 onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44,letterSpacing:showPw?"normal":"4px"}}
-                autoComplete="off" inputMode="text"/>
+                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44}}
+                autoComplete="current-password"/>
               <button type="button" onClick={()=>setShowPw(p=>!p)}
                 style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"rgba(255,255,255,.45)"}}>
                 {showPw?"🙈":"👁️"}
