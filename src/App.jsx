@@ -1460,10 +1460,10 @@ window.addEventListener("afterprint",function(){
 
 // ── Dashboard ──────────────────────────────────────────────
 const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings}){
-  const now=new Date();const m=now.getMonth()+1;const y=now.getFullYear();
+  const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
-  const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail}=useMemo(()=>{
+  const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts}=useMemo(()=>{
     const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
     const mS=mInv.reduce((s,i)=>s+gt(i),0);
     const unpaidInvs=invoices.filter(i=>i.status==="未入金");
@@ -1481,8 +1481,25 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const rec=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
     const mInvDetail=[...mInv].sort((a,b)=>b.date.localeCompare(a.date));
     const unpaidDetail=[...unpaidInvs].sort((a,b)=>b.date.localeCompare(a.date));
-    return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail};
-  },[invoices,expenses,gt,m,y]);
+    // 車検期限アラート: 90日以内の車両を抽出
+    const today90=new Date(now);today90.setDate(today90.getDate()+90);
+    const today30=new Date(now);today30.setDate(today30.getDate()+30);
+    const shakkenAlerts=[];
+    customers.forEach(c=>{
+      (c.vehicles||[]).forEach(v=>{
+        if(!v.shakkenExpiry)return;
+        const exp=new Date(v.shakkenExpiry+"-01");
+        // 月末を期限とする
+        exp.setMonth(exp.getMonth()+1);exp.setDate(0);
+        if(exp<=today90){
+          const daysLeft=Math.ceil((exp-now)/(1000*60*60*24));
+          shakkenAlerts.push({customer:c,vehicle:v,exp,daysLeft,urgent:exp<=today30});
+        }
+      });
+    });
+    shakkenAlerts.sort((a,b)=>a.exp-b.exp);
+    return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts};
+  },[invoices,expenses,customers,gt,m,y,now]);
   const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
@@ -1595,6 +1612,28 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
       {uCnt>0&&<div className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)"}}>
         <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div className="cre b7 lg">{fmt(uAmt)}</div></div>
       </div>}
+      {shakkenAlerts.length>0&&(
+        <div className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden"}}>
+          <div style={{padding:"11px 14px",borderBottom:"1px solid rgba(255,149,0,.15)",display:"flex",alignItems:"center",gap:9}}>
+            <Ico e="🚗" bg="rgba(255,149,0,.15)"/>
+            <div><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
+          </div>
+          {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>(
+            <div key={`${customer.id}-${vehicle.id}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{fullName(customer)}</div>
+                <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.carName} {vehicle.plateNo}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:12,fontWeight:700,color:urgent?"var(--re)":"var(--or)"}}>
+                  {daysLeft<=0?"期限超過":`あと${daysLeft}日`}
+                </div>
+                <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.shakkenExpiry}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -1667,7 +1706,7 @@ function ShakkenShoOCR({onResult,onClose}){
 
 // ── VehicleModal ───────────────────────────────────────────
 function VehicleModal({v,onSave,onClose,onDel}){
-  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1500});
+  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1500,shakkenExpiry:v?.shakkenExpiry||""});
   const[showOCR,setShowOCR]=useState(false);
   const handleOCR=(parsed)=>{
     const wRaw=Number(parsed.weight)||0;
@@ -1695,7 +1734,10 @@ function VehicleModal({v,onSave,onClose,onDel}){
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
           </Fld>
           <Fld label="車両重量（kg）">
-            <input type="number" className="inp" step="10" min="0" placeholder="例: 1500" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}/>
+            <input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}/>
+          </Fld>
+          <Fld label="次回車検期限" style={{gridColumn:"1/-1"}}>
+            <input type="month" className="inp" value={f.shakkenExpiry||""} onChange={e=>setF(p=>({...p,shakkenExpiry:e.target.value}))}/>
           </Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
@@ -1805,7 +1847,8 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><input type="month" className="inp" value={v.firstReg||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/></div>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
-                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
+                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
+                <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><input type="month" className="inp" value={v.shakkenExpiry||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:e.target.value}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500,v.carType,v.firstReg))]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
@@ -2083,13 +2126,13 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                     </div>
                   )}
                 </div>
-                <div className="row" style={{gap:6}}>{fixed&&<span className="bdg dgy">固定</span>}<input type="number" className="inp" style={{width:115,padding:"6px 10px",fontSize:14}} disabled={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi} value={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi?0:form.shakken[key]||0} onChange={e=>setS(key,e.target.value)}/></div>
+                <div className="row" style={{gap:6}}>{fixed&&<span className="bdg dgy">固定</span>}<input type="number" inputMode="decimal" className="inp" style={{width:115,padding:"6px 10px",fontSize:14}} disabled={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi} value={key==="jibaiseki"&&form.shakken.jibaisekiMochikomi?0:form.shakken[key]||0} onChange={e=>setS(key,e.target.value)}/></div>
               </div>
             ))}
             <div className="fr">
               <div style={{flex:1,minWidth:0}}><div className="sm b6">車検代行料 <span className="bdg dor" style={{marginLeft:4}}>課税</span></div><div className="xs cmu">お客様への請求額（税抜）</div></div>
               <div className="row" style={{gap:6}}>
-                <input type="number" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.daiko||0} onChange={e=>setS("daiko",e.target.value)}/>
+                <input type="number" inputMode="decimal" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.daiko||0} onChange={e=>setS("daiko",e.target.value)}/>
                 <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.daikoTax??settings.daikoTax} onChange={e=>setS("daikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
               </div>
             </div>
@@ -2102,7 +2145,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                 )}
               </div>
               <div className="row" style={{gap:6}}>
-                <input type="number" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.gaiChuDaiko||0} onChange={e=>setS("gaiChuDaiko",e.target.value)}/>
+                <input type="number" inputMode="decimal" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.gaiChuDaiko||0} onChange={e=>setS("gaiChuDaiko",e.target.value)}/>
                 <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.gaiChuDaikoTax??0.1} onChange={e=>setS("gaiChuDaikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
               </div>
             </div>
@@ -2149,7 +2192,9 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
             const gaichuTotal=gaichu>0?Math.floor(gaichu*(1+gaichuTax)):0;
             const profit=dWT-gaichuTotal;
-            return[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))],gaichu>0?null:undefined,gaichu>0?["🔧 外注先支払い（税込）",`-${fmt(gaichuTotal)}`]:undefined,gaichu>0?["　代行料粗利",fmt(profit)]:undefined].filter(r=>r!==undefined);
+            const rows=[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))]];
+            if(gaichu>0){rows.push(null,["🔧 外注先支払い（税込）",`-${fmt(gaichuTotal)}`],["　代行料粗利",fmt(profit)]);}
+            return rows;
           })().map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
             <div key={i} className="rb" style={{padding:"3px 0"}}><span className="xs cmu">{row[0]}</span><span className="sm">{row[1]}</span></div>
@@ -2227,7 +2272,7 @@ function PaymentModal({inv,total,onSave,onClose}){
             <div className="stk" style={{gap:9}}>
               <div className="g2" style={{gap:9}}>
                 <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
-                <Fld label="入金額（円）"><input type="number" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
               </div>
               <Fld label="メモ" opt={true}><input className="inp" placeholder="経費分・残金など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
               <button className="btn bp" style={{width:"100%"}} onClick={add}>＋ 入金を記録</button>
@@ -2244,12 +2289,18 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
   const[tab,setTab]=useState("all");const[tTab,setTTab]=useState("all");
   const[showTpl,setShowTpl]=useState(false);
   const[payModal,setPayModal]=useState(null);
+  const[search,setSearch]=useState("");
   const gt=inv=>invTotal(inv,settings);
   const filtered=invoices.filter(i=>{
     if(tab==="paid"&&i.status!=="入金済")return false;
     if(tab==="unpaid"&&i.status!=="未入金")return false;
     if(tTab==="repair"&&i.type!=="repair")return false;
     if(tTab==="shakken"&&i.type!=="shakken")return false;
+    if(search){
+      const c=customers.find(c=>c.id===i.customerId);
+      const name=fullName(c);
+      if(!name.includes(search)&&!i.id.includes(search))return false;
+    }
     return true;
   });
   const save=form=>{
@@ -2307,6 +2358,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
         <button className="btn bp bsm" onClick={()=>setShowTpl(true)}>＋ 請求書作成</button>
       </div>
 
+      <input className="inp" placeholder="🔍  顧客名・請求書番号で検索" value={search} onChange={e=>setSearch(e.target.value)}/>
       <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       <div className="seg">{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
       <div className="stk" style={{gap:9}}>
@@ -2446,7 +2498,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
             {EXP_CAT.map(c=><option key={c}>{c}</option>)}
           </select>
         </Fld>
-        <Fld label="金額（円）"><input type="number" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
       </div>
     </div>
@@ -3168,8 +3220,8 @@ function WorkMasterSettings({workMaster=[],onChange}){
             <Fld label="作業内容・品名"><input className="inp" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: バンパー修理・塗装"/></Fld>
             <div className="g3" style={{gap:8}}>
               <Fld label="単位"><input className="inp" value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} placeholder="式"/></Fld>
-              <Fld label="部品代（税抜）"><input type="number" className="inp" value={form.partsCost} onChange={e=>setForm(f=>({...f,partsCost:e.target.value}))}/></Fld>
-              <Fld label="技術料（税抜）"><input type="number" className="inp" value={form.gijutsu} onChange={e=>setForm(f=>({...f,gijutsu:e.target.value}))}/></Fld>
+              <Fld label="部品代（税抜）"><input type="number" inputMode="decimal" className="inp" value={form.partsCost} onChange={e=>setForm(f=>({...f,partsCost:e.target.value}))}/></Fld>
+              <Fld label="技術料（税抜）"><input type="number" inputMode="decimal" className="inp" value={form.gijutsu} onChange={e=>setForm(f=>({...f,gijutsu:e.target.value}))}/></Fld>
             </div>
             <div style={{display:"flex",gap:6}}>
               <button className="btn bs bsm" onClick={()=>setEditId(null)}>キャンセル</button>
@@ -3203,7 +3255,7 @@ function WorkMasterSettings({workMaster=[],onChange}){
 const SettingsField=React.memo(function SettingsField({label,value,onChange,placeholder,type="text",opt=false}){
   return(
     <Fld label={label} opt={opt}>
-      <input type={type} className="inp" placeholder={placeholder} value={value||""} onChange={onChange}/>
+      <input type={type} inputMode={type==="number"?"decimal":undefined} className="inp" placeholder={placeholder} value={value||""} onChange={onChange}/>
     </Fld>
   );
 });
