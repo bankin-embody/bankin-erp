@@ -22,6 +22,7 @@ const G = () => (
     @keyframes fU{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes fI{from{opacity:0}to{opacity:1}}
     @keyframes sI{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .fu{animation:fU .3s var(--tr) both;} .si{animation:sI .25s var(--tr) both;}
     .card{background:var(--bg2);border-radius:var(--r);box-shadow:var(--sh);padding:18px;transition:box-shadow var(--tr);border:1px solid var(--sep);}
     .card:hover{box-shadow:var(--sh2);}
@@ -296,15 +297,50 @@ const IW=[
 // ── Cloudinary ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD="dezdfn2i5";
 const CLOUDINARY_PRESET="bankin_receipts";
-const uploadToCloudinary=async(file)=>{
+// XHRベース：アップロード進捗(%)を取れるようにするためfetchではなくXHRを使用
+const uploadToCloudinary=(file,onProgress)=>new Promise((resolve,reject)=>{
   const fd=new FormData();
   fd.append("file",file);
   fd.append("upload_preset",CLOUDINARY_PRESET);
   fd.append("folder","bankin_erp");
-  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
-  if(!res.ok)throw new Error("アップロード失敗");
-  const data=await res.json();
-  return data.secure_url;
+  const xhr=new XMLHttpRequest();
+  xhr.open("POST",`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
+  if(onProgress)xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded/e.total*100));};
+  xhr.onload=()=>{
+    if(xhr.status>=200&&xhr.status<300){
+      try{resolve(JSON.parse(xhr.responseText).secure_url);}
+      catch{reject(new Error("アップロード応答の解析に失敗しました"));}
+    }else reject(new Error(`アップロード失敗（${xhr.status}）`));
+  };
+  xhr.onerror=()=>reject(new Error("ネットワークエラー：アップロードに失敗しました"));
+  xhr.send(fd);
+});
+// 写真をアップロード前に縮小（iPadのカメラ写真は数MBになりがちなので長辺1600pxに圧縮）
+// 失敗した場合は元ファイルをそのまま返す（圧縮は最適化であり必須ではないため）
+const resizeImageForUpload=async(file,maxDim=1600,quality=0.82)=>{
+  try{
+    let src,revoke;
+    if(window.createImageBitmap){
+      try{src=await createImageBitmap(file,{imageOrientation:"from-image"});}catch{src=null;}
+    }
+    if(!src){
+      const url=URL.createObjectURL(file);
+      src=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url;});
+      revoke=url;
+    }
+    const w=src.width,h=src.height;
+    const scale=Math.min(1,maxDim/Math.max(w,h));
+    const cw=Math.max(1,Math.round(w*scale)),ch=Math.max(1,Math.round(h*scale));
+    const canvas=document.createElement("canvas");
+    canvas.width=cw;canvas.height=ch;
+    canvas.getContext("2d").drawImage(src,0,0,cw,ch);
+    if(revoke)URL.revokeObjectURL(revoke);
+    if(src.close)src.close();
+    const blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",quality));
+    return blob||file;
+  }catch{
+    return file;
+  }
 };
 
 // ── Storage (localStorage) ─────────────────────────────────
@@ -324,15 +360,24 @@ const migrateWeightToKg=db=>{
   };
 };
 const loadDB=init=>{try{const r=localStorage.getItem(DK);if(r)return migrateWeightToKg({...init,...JSON.parse(r)});}catch{}return init;};
-const saveDB=db=>{try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));}catch{}};
-// debounce付き保存hook（1秒待ってから書き込み）
+const saveDB=db=>{
+  try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));return{ok:true};}
+  catch(err){return{ok:false,error:err};}
+};
+// debounce付き保存hook（1秒待ってから書き込み）。保存失敗（容量超過等）をUIに伝えるためsaveErrorを返す
 function useSaveDB(db){
   const t=useRef(null);
+  const[saveError,setSaveError]=useState(false);
   useEffect(()=>{
     clearTimeout(t.current);
-    t.current=setTimeout(()=>saveDB(db),1000);
+    t.current=setTimeout(()=>{
+      const r=saveDB(db);
+      setSaveError(!r.ok);
+      if(!r.ok)console.error("保存失敗:",r.error);
+    },1000);
     return()=>clearTimeout(t.current);
   },[db]);
+  return saveError;
 }
 const doExport=db=>{
   const b=new Blob([JSON.stringify({...db,meta:{...db.meta,ex:new Date().toISOString()}},null,2)],{type:"application/json"});
@@ -3475,23 +3520,63 @@ function DataManager({db,onImport,onExport}){
 const WL_TAGS=["鈑金","塗装","車検","整備","鈑金塗装","外装","内装","エンジン","電装","タイヤ","ガラス","その他"];
 const WL_STATUS=["作業中","完了","保留"];
 
-function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
+function PhotoGrid({photos,onAdd,onUpdate,onDel,readOnly=false}){
   const ref=useRef();
+  const pending=useRef({});// id -> {file, localUrl}  再試行用に元ファイルを保持
+  useEffect(()=>()=>{
+    // アンマウント時に未使用のローカルプレビューURLを解放
+    Object.values(pending.current).forEach(p=>{try{URL.revokeObjectURL(p.localUrl);}catch{}});
+  },[]);
+  const startUpload=async(id,file)=>{
+    try{
+      const resized=await resizeImageForUpload(file);
+      const url=await uploadToCloudinary(resized,pct=>onUpdate(id,{progress:pct}));
+      onUpdate(id,{url,uploading:false,progress:100,error:null});
+      const p=pending.current[id];if(p){try{URL.revokeObjectURL(p.localUrl);}catch{}delete pending.current[id];}
+    }catch(err){
+      onUpdate(id,{uploading:false,error:err.message||"アップロードに失敗しました"});
+    }
+  };
   const add=e=>{
     const files=Array.from(e.target.files||[]);
-    files.forEach(f=>{
-      const r=new FileReader();
-      r.onload=ev=>onAdd({id:Date.now()+Math.random(),url:ev.target.result,name:f.name});
-      r.readAsDataURL(f);
-    });
     e.target.value="";
+    files.forEach(f=>{
+      const id=Date.now()+Math.random();
+      const localUrl=URL.createObjectURL(f);
+      pending.current[id]={file:f,localUrl};
+      onAdd({id,url:localUrl,name:f.name,uploading:true,progress:0});
+      startUpload(id,f);
+    });
+  };
+  const retry=p=>{
+    const pend=pending.current[p.id];
+    if(!pend)return;// 元ファイルを保持していない場合（再読み込み後など）は再試行不可
+    onUpdate(p.id,{uploading:true,progress:0,error:null});
+    startUpload(p.id,pend.file);
+  };
+  const handleDel=id=>{
+    const pend=pending.current[id];
+    if(pend){try{URL.revokeObjectURL(pend.localUrl);}catch{}delete pending.current[id];}
+    onDel(id);
   };
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
       {photos.map(p=>(
         <div key={p.id} style={{position:"relative",aspectRatio:"1",borderRadius:10,overflow:"hidden",background:"var(--grp)"}}>
-          <img src={p.url} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-          {!readOnly&&<button onClick={()=>onDel(p.id)} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:20,height:20,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>}
+          <img src={p.url} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover",opacity:p.uploading?0.5:(p.error?0.4:1)}}/>
+          {p.uploading&&(
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,background:"rgba(0,0,0,.25)"}}>
+              <div style={{width:22,height:22,border:"2.5px solid rgba(255,255,255,.4)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+              <span style={{fontSize:10,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{p.progress||0}%</span>
+            </div>
+          )}
+          {p.error&&!p.uploading&&(
+            <div onClick={()=>retry(p)} style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"rgba(184,84,80,.85)",cursor:"pointer",padding:4,textAlign:"center"}}>
+              <span style={{fontSize:16}}>⚠️</span>
+              <span style={{fontSize:9,fontWeight:700,color:"#fff"}}>失敗・タップで再試行</span>
+            </div>
+          )}
+          {!readOnly&&<button onClick={()=>handleDel(p.id)} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:20,height:20,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>}
         </div>
       ))}
       {!readOnly&&(
@@ -3518,13 +3603,14 @@ function WorkLogModal({log,customers,onSave,onClose}){
   });
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const toggleTag=t=>setForm(f=>({...f,tags:f.tags.includes(t)?f.tags.filter(x=>x!==t):[...f.tags,t]}));
+  const uploading=form.photos.some(p=>p.uploading);
   return(
     <div className="stk fu">
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>{log?"作業記録を編集":"作業記録を追加"}</div>
         <div style={{display:"flex",gap:6}}>
           <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
-          <button className="btn bp bsm" onClick={()=>onSave(form)}>💾 保存</button>
+          <button className="btn bp bsm" disabled={uploading} style={uploading?{opacity:.5,cursor:"not-allowed"}:undefined} onClick={()=>{if(!uploading)onSave(form);}}>{uploading?"⏳ アップロード中…":"💾 保存"}</button>
         </div>
       </div>
       <div className="stk">
@@ -3546,7 +3632,11 @@ function WorkLogModal({log,customers,onSave,onClose}){
         <Fld label="作業メモ"><textarea className="inp" rows={4} placeholder="作業内容・使用部品・注意事項など..." value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}/></Fld>
         <div>
           <div className="fl">写真（{form.photos.length}枚）</div>
-          <PhotoGrid photos={form.photos} onAdd={p=>setForm(f=>({...f,photos:[...f.photos,p]}))} onDel={id=>setForm(f=>({...f,photos:f.photos.filter(p=>p.id!==id)}))}/>
+          <PhotoGrid photos={form.photos}
+            onAdd={p=>setForm(f=>({...f,photos:[...f.photos,p]}))}
+            onUpdate={(id,patch)=>setForm(f=>({...f,photos:f.photos.map(p=>p.id===id?{...p,...patch}:p)}))}
+            onDel={id=>setForm(f=>({...f,photos:f.photos.filter(p=>p.id!==id)}))}/>
+          {uploading&&<div className="cmu xs mt4">📤 写真をクラウドにアップロード中です。完了するまで保存できません。</div>}
         </div>
       </div>
     </div>
@@ -3874,7 +3964,7 @@ export default function App(){
     customers:IC,quotes:IQ,invoices:II,expenses:IE,worklogs:IW,
     settings:DEF_SETTINGS,meta:{savedAt:null},
   }));
-  useSaveDB(db);
+  const saveError=useSaveDB(db);
   const set=useCallback(k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn})),[]);
   const{customers,quotes,invoices,expenses,worklogs,settings}=db;
   const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
@@ -3938,12 +4028,17 @@ export default function App(){
                 </div>
               </div>
             )}
-            <div style={{fontSize:11,color:"rgba(255,255,255,.3)",marginBottom:8,paddingLeft:3}}>{db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
+            <div style={{fontSize:11,color:saveError?"#e07570":"rgba(255,255,255,.3)",fontWeight:saveError?700:400,marginBottom:8,paddingLeft:3}}>{saveError?"⚠️ 自動保存失敗":db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
             <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db)}>💾 JSONを保存</button>
             <button className="btn bsm" style={{width:"100%",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.55)",border:"1px solid rgba(255,255,255,.06)"}} onClick={()=>setPage("data")}>📂 データ管理</button>
           </div>
         </nav>
         <div className="mn">
+          {saveError&&(
+            <div style={{background:"#B85450",color:"#fff",padding:"7px 14px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:7,textAlign:"center",justifyContent:"center"}}>
+              ⚠️ 端末への自動保存に失敗しています（容量不足の可能性）。「💾 JSONを保存」で必ずバックアップしてください。
+            </div>
+          )}
           <div className="th np">
             <div className="b7" style={{fontSize:15}}>{cur?.icon} {cur?.label}</div>
             <div className="row" style={{gap:6}}>
