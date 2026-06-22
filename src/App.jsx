@@ -247,6 +247,11 @@ const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
 const today=()=>new Date().toISOString().split("T")[0];
 const nextId=arr=>{const ns=arr.map(x=>parseInt(String(x.id||0).replace(/\D/g,""))||0);return ns.length?Math.max(...ns)+1:1;};
 const fullName=c=>c?`${c.lastName||""}${c.firstName?" "+c.firstName:""}`.trim()||"—":"—";
+// フォームに変更があれば確認ダイアログを出してからクローズする
+const confirmClose=(initial,current,onClose)=>{
+  if(JSON.stringify(initial)===JSON.stringify(current)){onClose();return;}
+  if(confirm("入力内容が保存されていません。\n破棄してよいですか？"))onClose();
+};
 const yr=d=>new Date(d).getFullYear();
 const mo=d=>new Date(d).getMonth()+1;
 
@@ -259,6 +264,7 @@ const DEF_SETTINGS={
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
   kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,gaiChuDaiko:7000,gaiChuDaikoTax:0.1,
   unitList:DEF_UNIT_LIST,
+  expCategories:EXPENSE_CATEGORIES,
   workMaster:[
     {id:1,desc:"バンパー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
     {id:2,desc:"フェンダー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
@@ -1107,11 +1113,13 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
-        // エラーを画面表示（デバッグ）
         const d=document.createElement("div");
-        d.style.cssText="position:fixed;top:60px;left:10px;right:10px;background:red;color:#fff;padding:12px;border-radius:10px;font-size:12px;z-index:9999;word-break:break-all;";
-        d.textContent=err.message+"\n"+String(err.stack||"").slice(0,300);
-        document.body.appendChild(d);setTimeout(()=>d.remove(),20000);
+        d.style.cssText="position:fixed;top:60px;left:10px;right:10px;background:var(--re,#B85450);color:#fff;padding:14px 16px;border-radius:12px;font-size:13px;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);";
+        d.innerHTML=`<span style="font-size:20px">⚠️</span><div><div style="font-weight:700;margin-bottom:3px">PDF生成に失敗しました</div><div style="opacity:.85;font-size:12px">もう一度お試しください。繰り返す場合はブラウザを更新してください。</div></div>`;
+        const btn=document.createElement("button");
+        btn.textContent="✕";btn.style.cssText="position:absolute;top:8px;right:10px;background:none;border:none;color:#fff;font-size:16px;cursor:pointer;padding:2px 6px;";
+        btn.onclick=()=>d.remove();d.appendChild(btn);
+        document.body.appendChild(d);setTimeout(()=>d.remove(),8000);
       }
     }
 
@@ -1504,8 +1512,9 @@ window.addEventListener("afterprint",function(){
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,onNavigate}){
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
+  const greet=useMemo(()=>{const h=now.getHours();if(h<11)return"おはようございます ☀️";if(h<18)return"こんにちは 👋";return"お疲れ様です 🌙";},[now]);
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
   const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts}=useMemo(()=>{
@@ -1548,7 +1557,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
-      <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>おはようございます 👋</div></div>
+      <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>{greet}</div></div>
       <div className="g4" style={{gap:9}}>
         {/* 今月の売上カード */}
         <div onClick={()=>toggle("sales")} className="sc" style={{background:"#3D5A8A",cursor:"pointer",userSelect:"none"}}>
@@ -1654,14 +1663,15 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           </div>
         </div>
       </div>
-      {uCnt>0&&<div className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)"}}>
-        <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div className="cre b7 lg">{fmt(uAmt)}</div></div>
+      {uCnt>0&&<div onClick={()=>onNavigate?.("invoices")} className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)",cursor:"pointer",userSelect:"none"}}>
+        <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div style={{display:"flex",alignItems:"center",gap:8}}><div className="cre b7 lg">{fmt(uAmt)}</div><span className="cmu" style={{fontSize:15}}>›</span></div></div>
       </div>}
       {shakkenAlerts.length>0&&(
-        <div className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden"}}>
+        <div onClick={()=>onNavigate?.("customers")} className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden",cursor:"pointer",userSelect:"none"}}>
           <div style={{padding:"11px 14px",borderBottom:"1px solid rgba(255,149,0,.15)",display:"flex",alignItems:"center",gap:9}}>
             <Ico e="🚗" bg="rgba(255,149,0,.15)"/>
-            <div><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
+            <div style={{flex:1}}><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
+            <span className="cmu" style={{fontSize:15}}>›</span>
           </div>
           {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>(
             <div key={`${customer.id}-${vehicle.id}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
@@ -1806,7 +1816,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
   const[form,setForm]=useState(E);
-  const filtered=customers.filter(c=>fullName(c).includes(search)||c.phone?.includes(search));
+  const filtered=[...customers].filter(c=>fullName(c).includes(search)||c.phone?.includes(search)).sort((a,b)=>fullName(a).localeCompare(fullName(b),"ja"));
   const save=()=>{
     if(!form.lastName)return;
     // 車両のidが未設定のものに採番
@@ -1834,7 +1844,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"新規顧客登録":"顧客編集"}</div>
         <div style={{display:"flex",gap:6}}>
           {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
-          <button className="btn bs bsm" onClick={()=>setModal(null)}>キャンセル</button>
+          <button className="btn bs bsm" onClick={()=>confirmClose(E,form,()=>setModal(null))}>キャンセル</button>
           <button className="btn bp bsm" onClick={save}>👥 {modal==="add"?"登録":"保存"}</button>
         </div>
       </div>
@@ -1848,11 +1858,11 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
           <input className="inp" placeholder="例：ヤマダタロウ" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{color:"var(--re)"}}>*</span></div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
           <input className="inp" placeholder="例：東京都足立区1-2-3" value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>電話番号 <span style={{color:"var(--re)"}}>*</span></div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>電話番号 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
           <input className="inp" placeholder="例：03-1234-5678" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
@@ -1955,7 +1965,8 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
 // ── Quote ──────────────────────────────────────────────────
 function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
+  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""}),[]);// eslint-disable-line
+  const[form,setForm]=useState(init);
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
@@ -1966,12 +1977,15 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         <div style={{fontSize:18,fontWeight:800}}>見積書</div>
         <div style={{display:"flex",gap:6}}>
           {doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}
-          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave(form)}>保存</button>
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
+        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
+        {(()=>{const cust=customers.find(c=>c.id===Number(form.customerId));const vs=cust?.vehicles||[];return vs.length>0&&(<Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
+          <option value="">未選択</option>{vs.map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
+        </select></Fld>);})()}
         <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
         <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
         <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
@@ -2017,7 +2031,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
   };
   const toInv=form=>{
     const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")}))));
-    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
+    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:form.vehicleId||"",dueDate:"",status:"未入金"}]);
     setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
@@ -2026,7 +2040,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>見積書</div><button className="btn bp bsm" onClick={()=>setModal("add")}>＋ 作成</button></div>
       <div className="lst">
-        {quotes.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
+        {[...quotes].sort((a,b)=>b.date.localeCompare(a.date)).map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
           <div key={q.id} className="li" onClick={()=>setModal(q)}>
             <Ico e="📋" bg="rgba(0,122,255,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{fullName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
@@ -2044,7 +2058,8 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
 // ── Repair Invoice Form ────────────────────────────────────
 function RepairForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
+  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""}),[]);// eslint-disable-line
+  const[form,setForm]=useState(init);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
@@ -2055,7 +2070,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>🔧 鈑金修理 請求書</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave({...form,type:"repair"})}>保存</button>
         </div>
       </div>
@@ -2112,7 +2127,8 @@ const DEF_SHAKKEN_ITEMS=[
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
   const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1,_fromSettings:true};
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
+  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}}),[]);// eslint-disable-line
+  const[form,setForm]=useState(init);
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
@@ -2130,7 +2146,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>🚗 車検 請求書</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave({...form,type:"shakken"})}>保存</button>
         </div>
       </div>
@@ -2349,8 +2365,14 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
     return true;
   });
   const save=form=>{
-    if(modal.doc===null)setInvoices(p=>[...p,{...form,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
-    else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
+    // 既存の入金記録と新しい請求合計を比較してステータスを自動更新
+    const payments=form.payments||[];
+    const paid=payments.reduce((s,p)=>s+p.amount,0);
+    const newTotal=invTotal(form,settings);
+    const autoStatus=payments.length>0?(paid>=newTotal?"入金済":"未入金"):form.status;
+    const saved={...form,status:autoStatus};
+    if(modal.doc===null)setInvoices(p=>[...p,{...saved,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
+    else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...saved,id:i.id}:i));
     // 車検の場合、外注先代行料を経費に自動登録
     if(form.type==="shakken"&&form.shakken?.gaiChuDaiko>0){
       const gaichu=form.shakken.gaiChuDaiko;
@@ -2407,7 +2429,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
       <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       <div className="seg">{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
       <div className="stk" style={{gap:9}}>
-        {filtered.map(inv=>{
+        {[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).map(inv=>{
           const c=customers.find(c=>c.id===inv.customerId);
           const v=(c?.vehicles||[]).find(v=>v.id===inv.vehicleId);
           const isS=inv.type==="shakken";
@@ -2499,9 +2521,10 @@ function CombinedInvoice({invoices,customers,settings}){
 }
 
 // ── Expenses ───────────────────────────────────────────────
-const Expenses=React.memo(function Expenses({expenses,setExpenses}){
+const Expenses=React.memo(function Expenses({expenses,setExpenses,settings}){
+  const expCats=settings?.expCategories?.length?settings.expCategories:EXPENSE_CATEGORIES;
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
+  const[form,setForm]=useState({date:today(),category:expCats[0],desc:"",amount:0,receipt:false});
   const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
@@ -2525,22 +2548,22 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses}){
               if(!form.desc)return;
               setForm(f=>({...f,aiLoading:true}));
               try{
-                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${expCats.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
                 console.log("AI仕分けレスポンス:",JSON.stringify(d));
                 const cat=(d.content?.[0]?.text||"").trim();
                 console.log("取得カテゴリ:",cat);
-                const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
+                const matched=expCats.find(c=>cat===c)||expCats.find(c=>cat.includes(c))||expCats.find(c=>c.includes(cat));
                 console.log("マッチ結果:",matched);
                 if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
-                else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
+                else setForm(f=>({...f,category:expCats[0],aiLoading:false}));
               }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
           </div>
         </Fld>
         <Fld label="勘定科目（カテゴリ）">
           <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-            {EXP_CAT.map(c=><option key={c}>{c}</option>)}
+            {expCats.map(c=><option key={c}>{c}</option>)}
           </select>
         </Fld>
         <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
@@ -3252,7 +3275,7 @@ function WorkMasterSettings({workMaster=[],onChange}){
     else onChange(workMaster.map(w=>w.id===editId?{...w,...form,partsCost:Number(form.partsCost),gijutsu:Number(form.gijutsu)}:w));
     setEditId(null);
   };
-  const del=id=>onChange(workMaster.filter(w=>w.id!==id));
+  const del=id=>{if(confirm("このマスターを削除しますか？"))onChange(workMaster.filter(w=>w.id!==id));};
   return(
     <div className="card">
       <div className="rb mb12">
@@ -3293,6 +3316,37 @@ function WorkMasterSettings({workMaster=[],onChange}){
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+// 経費カテゴリ設定コンポーネント（追加・削除・並び替え）
+function ExpCategorySettings({cats=[],onChange}){
+  const[newCat,setNewCat]=useState("");
+  const add=()=>{
+    const v=newCat.trim();
+    if(!v||cats.includes(v))return;
+    onChange([...cats,v]);setNewCat("");
+  };
+  const del=c=>{if(confirm(`「${c}」を削除しますか？\n過去の経費データには影響しません。`))onChange(cats.filter(x=>x!==c));};
+  const reset=()=>{if(confirm("カテゴリをデフォルトに戻しますか？"))onChange(EXPENSE_CATEGORIES);};
+  return(
+    <div className="card">
+      <div className="rb mb12">
+        <div style={{fontSize:14,fontWeight:800}}>💴 経費カテゴリ</div>
+        <button className="btn bs bsm" onClick={reset}>リセット</button>
+      </div>
+      <div className="lst" style={{marginBottom:12}}>
+        {cats.map(c=>(
+          <div key={c} className="fr">
+            <span style={{flex:1,fontSize:13,fontWeight:500}}>{c}</span>
+            {cats.length>1&&<button className="btn bd bsm" onClick={()=>del(c)}>削除</button>}
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <input className="inp" style={{flex:1}} placeholder="新しいカテゴリ名" value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <button className="btn bp bsm" onClick={add}>追加</button>
       </div>
     </div>
   );
@@ -3473,6 +3527,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
         </div>
       </div>
       <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
+      <ExpCategorySettings cats={form.expCategories||EXPENSE_CATEGORIES} onChange={cats=>setForm(f=>({...f,expCategories:cats}))}/>
     </div>
   );
 }
@@ -3591,7 +3646,7 @@ function PhotoGrid({photos,onAdd,onUpdate,onDel,readOnly=false}){
 }
 
 function WorkLogModal({log,customers,onSave,onClose}){
-  const[form,setForm]=useState({
+  const init=useMemo(()=>({
     customerId:log?.customerId||(customers[0]?.id||""),
     vehicleId:log?.vehicleId||"",
     date:log?.date||today(),
@@ -3600,16 +3655,23 @@ function WorkLogModal({log,customers,onSave,onClose}){
     photos:log?.photos||[],
     tags:log?.tags||[],
     status:log?.status||"完了",
-  });
+  }),[]);// eslint-disable-line
+  const[form,setForm]=useState(init);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const toggleTag=t=>setForm(f=>({...f,tags:f.tags.includes(t)?f.tags.filter(x=>x!==t):[...f.tags,t]}));
   const uploading=form.photos.some(p=>p.uploading);
+  // 写真比較はURLのみで行う（進捗・エラー等の一時フィールドは無視）
+  const isDirty=useMemo(()=>{
+    const normalize=f=>({...f,photos:(f.photos||[]).map(p=>({id:p.id,url:p.url,name:p.name}))});
+    return JSON.stringify(normalize(init))!==JSON.stringify(normalize(form));
+  },[form]);
+  const handleClose=()=>{if(!isDirty||confirm("入力内容が保存されていません。\n破棄してよいですか？"))onClose();};
   return(
     <div className="stk fu">
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>{log?"作業記録を編集":"作業記録を追加"}</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bs bsm" onClick={handleClose}>キャンセル</button>
           <button className="btn bp bsm" disabled={uploading} style={uploading?{opacity:.5,cursor:"not-allowed"}:undefined} onClick={()=>{if(!uploading)onSave(form);}}>{uploading?"⏳ アップロード中…":"💾 保存"}</button>
         </div>
       </div>
@@ -3986,13 +4048,13 @@ export default function App(){
 
   const render=()=>{
     switch(page){
-      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings}/>;
+      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} onNavigate={setPage}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
-      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
+      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")} settings={settings}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
