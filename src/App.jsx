@@ -385,10 +385,14 @@ function useSaveDB(db){
   },[db]);
   return saveError;
 }
-const doExport=db=>{
-  const b=new Blob([JSON.stringify({...db,meta:{...db.meta,ex:new Date().toISOString()}},null,2)],{type:"application/json"});
+const doExport=(db,setDb)=>{
+  const now=new Date().toISOString();
+  const exported={...db,meta:{...db.meta,exportedAt:now,ex:now}};
+  const b=new Blob([JSON.stringify(exported,null,2)],{type:"application/json"});
   const u=URL.createObjectURL(b);const a=document.createElement("a");
-  a.href=u;a.download=`bankin_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`;a.click();URL.revokeObjectURL(u);
+  a.href=u;a.download=`bankin_${now.slice(0,10).replace(/-/g,"")}.json`;a.click();URL.revokeObjectURL(u);
+  // exportedAt を即時反映
+  if(setDb)setDb(d=>({...d,meta:{...d.meta,exportedAt:now}}));
 };
 const doImport=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{res(JSON.parse(e.target.result))}catch{rej(new Error("JSON解析失敗"))}};r.onerror=()=>rej(new Error("読み込みエラー"));r.readAsText(f);});
 
@@ -510,12 +514,16 @@ const sbSubscribe=(conf,onUpdate)=>{
 function useSbSync(db,setDb){
   const[syncState,setSyncState]=useState("idle"); // idle | ok | error | syncing
   const[syncMsg,setSyncMsg]=useState("");
+  const[lastSyncAt,setLastSyncAt]=useState(null); // Date | null
+  const[syncErrDetail,setSyncErrDetail]=useState(""); // エラー詳細（未同期件数等）
   const conf=getSbConf();
   const enabled=!!(conf.url&&conf.anonKey);
 
   // db変更時にsave (debounce 2s)
   const dbRef=useRef(db);
   useEffect(()=>{dbRef.current=db;},[db]);
+
+  const markSynced=()=>{const now=new Date();setLastSyncAt(now);setSyncErrDetail("");};
 
   // 初回ロード（dbRef確定後に実行）
   useEffect(()=>{
@@ -524,10 +532,10 @@ function useSbSync(db,setDb){
     sbLoad(conf).then(remote=>{
       if(remote){
         setDb(local=>({...local,...remote,meta:{...remote.meta,savedAt:new Date().toISOString()}}));
-        setSyncState("ok");setSyncMsg("Supabaseから読み込み完了");
+        setSyncState("ok");setSyncMsg("Supabaseから読み込み完了");markSynced();
       }else{
         // 初回: localをpush（最新dbをdbRef.currentから取得）
-        sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+        sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");markSynced();}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
       }
     }).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -538,7 +546,13 @@ function useSbSync(db,setDb){
     clearTimeout(timerRef.current);
     timerRef.current=setTimeout(()=>{
       setSyncState("syncing");
-      sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+      sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));markSynced();}).catch(err=>{
+        setSyncState("error");setSyncMsg(err.message);
+        // エラー時：未同期の可能性があるデータ件数を補足
+        const d=dbRef.current;
+        const cnt=(d.customers?.length||0)+(d.invoices?.length||0);
+        setSyncErrDetail(`顧客${d.customers?.length||0}件・請求${d.invoices?.length||0}件が未同期の可能性があります`);
+      });
     },2000);
     return()=>clearTimeout(timerRef.current);
   },[db,enabled]);
@@ -562,11 +576,11 @@ function useSbSync(db,setDb){
       const remote=await sbLoad(conf);
       if(remote)setDb(local=>({...local,...remote}));
       await sbSave(conf,db);
-      setSyncState("ok");setSyncMsg("同期完了 "+new Date().toLocaleTimeString("ja-JP"));
+      setSyncState("ok");setSyncMsg("同期完了 "+new Date().toLocaleTimeString("ja-JP"));markSynced();
     }catch(err){setSyncState("error");setSyncMsg(err.message);}
   };
 
-  return{syncState,syncMsg,enabled,manualSync};
+  return{syncState,syncMsg,lastSyncAt,syncErrDetail,enabled,manualSync};
 }
 
 // SQL for Supabase setup
@@ -1218,15 +1232,23 @@ window.addEventListener("afterprint",function(){
     }
   };
   const isIOSDevice=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+  const[zoom,setZoom]=useState(85);// デフォルト85%（iPadでA4全体が見えやすいサイズ）
   return(
     <div style={{position:"fixed",inset:0,zIndex:500,display:"flex",flexDirection:"column",background:"var(--grp)"}}>
       {/* 上部ボタンバー：常に表示 */}
-      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8}}>
+      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8}}>
         <div style={{fontSize:15,fontWeight:800,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{theme.emoji} {ttl}</div>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
           <button className="btn bp bsm" onClick={doPrint}>🖨️ 印刷</button>
           <button className="btn bs bsm" onClick={onClose}>← 戻る</button>
         </div>
+      </div>
+      {/* ズームスライダー */}
+      <div className="np" style={{background:"var(--bg2)",borderBottom:"1px solid var(--sep)",padding:"6px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        <span style={{fontSize:11,color:"var(--lb2)",whiteSpace:"nowrap"}}>プレビュー</span>
+        <input type="range" min={40} max={100} value={zoom} onChange={e=>setZoom(Number(e.target.value))} style={{flex:1,accentColor:"var(--bl)"}}/>
+        <span style={{fontSize:11,fontWeight:700,color:"var(--bl)",minWidth:34,textAlign:"right"}}>{zoom}%</span>
+        <span style={{fontSize:10,color:"var(--lb3)",whiteSpace:"nowrap"}}>A4=100%</span>
       </div>
       {/* iOS向け印刷案内バナー */}
       {isIOSDevice&&(
@@ -1237,8 +1259,13 @@ window.addEventListener("afterprint",function(){
       )}
 
       {/* プレビュー本体：スクロール可能 */}
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px 8px 40px"}}>
-        <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"16px 8px 40px",background:"#d0ceca"}}>
+        {/* A4 = 210mm×297mm。96dpi換算で794×1123px。scale()で縮小表示 */}
+        <div style={{display:"flex",justifyContent:"center"}}>
+          {/* 外枠：縮小後サイズでスペースを確保 */}
+          <div style={{width:794*zoom/100,height:1123*zoom/100,flexShrink:0,position:"relative",boxShadow:"0 4px 32px rgba(0,0,0,.25)",borderRadius:zoom>70?6:2,overflow:"hidden"}}>
+            {/* 内側：実寸794px幅のprintエリアをscaleで縮小 */}
+            <div id="print-area" style={{position:"absolute",top:0,left:0,width:794,minHeight:1123,transformOrigin:"top left",transform:`scale(${zoom/100})`,background:"#fff",border:`2px solid ${theme.border}`,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
         <div style={{background:theme.accent,padding:"6px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1499,7 +1526,9 @@ window.addEventListener("afterprint",function(){
         )}
 
         {doc.note&&<div style={{margin:"0 20px 16px",padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
-        </div>{/* end print-area */}
+            </div>{/* end print-area (scaled) */}
+          </div>{/* end A4 outer frame */}
+        </div>{/* end centering flex */}
 
         {/* 下部ボタン */}
         <div className="np" style={{display:"flex",gap:9,justifyContent:"center",padding:"20px 8px 8px"}}>
@@ -1512,9 +1541,15 @@ window.addEventListener("afterprint",function(){
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,onNavigate}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,meta,onNavigate,onExport}){
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
   const greet=useMemo(()=>{const h=now.getHours();if(h<11)return"おはようございます ☀️";if(h<18)return"こんにちは 👋";return"お疲れ様です 🌙";},[now]);
+  // バックアップリマインダー：最終エクスポートから30日以上で警告
+  const backupDays=useMemo(()=>{
+    const t=meta?.exportedAt||meta?.ex;
+    if(!t)return 999;
+    return Math.floor((now.getTime()-new Date(t).getTime())/86400000);
+  },[meta,now]);
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
   const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts}=useMemo(()=>{
@@ -1558,6 +1593,19 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   return(
     <div className="stk fu">
       <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>{greet}</div></div>
+      {/* バックアップリマインダー */}
+      {backupDays>=30&&(
+        <div style={{background:backupDays>=60?"rgba(184,84,80,.1)":"rgba(154,110,58,.09)",border:`1px solid ${backupDays>=60?"rgba(184,84,80,.3)":"rgba(154,110,58,.25)"}`,borderRadius:12,padding:"11px 14px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18,flexShrink:0}}>{backupDays>=60?"🔴":"🟡"}</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700,color:backupDays>=60?"var(--re)":"var(--or)"}}>
+              {backupDays>=999?"JSONバックアップが未実施です":"最終バックアップから"+backupDays+"日経過しています"}
+            </div>
+            <div className="cmu xs mt4">データ消失に備え、定期的にJSONファイルに保存してください。</div>
+          </div>
+          <button className="btn bsm" style={{background:"var(--bl)",color:"#fff",flexShrink:0}} onClick={onExport}>💾 今すぐ保存</button>
+        </div>
+      )}
       <div className="g4" style={{gap:9}}>
         {/* 今月の売上カード */}
         <div onClick={()=>toggle("sales")} className="sc" style={{background:"#3D5A8A",cursor:"pointer",userSelect:"none"}}>
@@ -2333,7 +2381,7 @@ function PaymentModal({inv,total,onSave,onClose}){
             <div className="stk" style={{gap:9}}>
               <div className="g2" style={{gap:9}}>
                 <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
-                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
               </div>
               <Fld label="メモ" opt={true}><input className="inp" placeholder="経費分・残金など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
               <button className="btn bp" style={{width:"100%"}} onClick={add}>＋ 入金を記録</button>
@@ -2566,7 +2614,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,settings}){
             {expCats.map(c=><option key={c}>{c}</option>)}
           </select>
         </Fld>
-        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
       </div>
     </div>
@@ -3372,13 +3420,17 @@ function UnitInput({onAdd}){
   );
 }
 
-function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
+function Settings({settings,setSettings,syncState,syncMsg,lastSyncAt,syncErrDetail,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
   const[sbForm,setSbForm]=useState(()=>getSbConf());
   const[sbSaved,setSbSaved]=useState(false);
   const[showSql,setShowSql]=useState(false);
   const[copied,setCopied]=useState(false);
+  // 相対時刻用：1分毎に再レンダリングして「XX分前」を更新
+  const[,setTick]=useState(0);
+  useEffect(()=>{const id=setInterval(()=>setTick(t=>t+1),60000);return()=>clearInterval(id);},[]);
+  const relTime=t=>{if(!t)return null;const m=Math.round((Date.now()-t.getTime())/60000);if(m<1)return"たった今";if(m<60)return`${m}分前`;const h=Math.floor(m/60);if(h<24)return`${h}時間前`;return`${Math.floor(h/24)}日前`;};
 
   const save=useCallback(()=>{setSettings(form);setSaved(true);setTimeout(()=>setSaved(false),2000);},[form,setSettings]);
   const saveSb=useCallback(()=>{setSbConf(sbForm);setSbSaved(true);setTimeout(()=>{setSbSaved(false);window.location.reload();},1200);},[sbForm]);
@@ -3387,7 +3439,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
   const updN=useCallback(k=>e=>setForm(f=>({...f,[k]:Number(e.target.value)})),[]);
   const syncColor={ok:"rgba(52,199,89,.12)",error:"rgba(255,59,48,.1)",syncing:"rgba(0,122,255,.08)",idle:"var(--fi)"}[syncState]||"var(--fi)";
   const syncIcon={ok:"🟢",error:"🔴",syncing:"🔄",idle:"⚪"}[syncState]||"⚪";
-  const syncLabel={ok:"同期中",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
+  const syncLabel={ok:"同期済",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
 
   return(
     <div className="stk fu">
@@ -3398,14 +3450,30 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
         <div className="rb mb12">
           <div className="row" style={{gap:8}}>
             <span style={{fontSize:20}}>☁️</span>
-            <div><div style={{fontSize:14,fontWeight:800}}>Supabase クラウド同期</div><div className="xs cmu">PC・iPhone でリアルタイム共有</div></div>
+            <div>
+              <div style={{fontSize:14,fontWeight:800}}>Supabase クラウド同期</div>
+              <div className="xs cmu">PC・iPhone でリアルタイム共有</div>
+            </div>
           </div>
           <div className="row" style={{gap:6}}>
             {sbEnabled&&<button className="btn bsm" style={{background:"rgba(0,122,255,.1)",color:"var(--bl)"}} onClick={onManualSync}>🔄 今すぐ同期</button>}
             <div style={{padding:"4px 10px",borderRadius:8,background:syncColor,fontSize:12,fontWeight:700}}>{syncIcon} {syncLabel}</div>
           </div>
         </div>
-        {syncMsg&&<div className="xs cmu mb12" style={{marginLeft:2}}>{syncState==="error"?"❌ "+syncMsg:"最終同期: "+syncMsg}</div>}
+        {/* 最終同期時刻 */}
+        {sbEnabled&&(
+          <div style={{marginBottom:10,padding:"8px 12px",borderRadius:9,background:"rgba(0,0,0,.04)",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:15}}>{syncState==="error"?"⚠️":"🕐"}</span>
+            <div style={{flex:1}}>
+              {lastSyncAt
+                ? <div className="xs"><span style={{fontWeight:700}}>最終同期: </span><span>{relTime(lastSyncAt)}（{lastSyncAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}）</span></div>
+                : <div className="xs cmu">まだ同期されていません</div>
+              }
+              {syncState==="error"&&syncErrDetail&&<div className="xs" style={{color:"var(--re)",marginTop:2}}>{syncErrDetail}</div>}
+              {syncState==="error"&&syncMsg&&<div className="xs cmu" style={{marginTop:2}}>エラー: {syncMsg}</div>}
+            </div>
+          </div>
+        )}
 
         <div className="stk" style={{gap:9}}>
           <Fld label="Project URL">
@@ -4029,7 +4097,7 @@ export default function App(){
   const saveError=useSaveDB(db);
   const set=useCallback(k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn})),[]);
   const{customers,quotes,invoices,expenses,worklogs,settings}=db;
-  const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
+  const{syncState,syncMsg,lastSyncAt,syncErrDetail,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
   const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
   const cur=PAGES.find(p=>p.id===page);
   // Supabase Auth ログイン
@@ -4048,7 +4116,7 @@ export default function App(){
 
   const render=()=>{
     switch(page){
-      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} onNavigate={setPage}/>;
+      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} meta={db.meta} onNavigate={setPage} onExport={()=>doExport(db,setDb)}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
@@ -4058,8 +4126,8 @@ export default function App(){
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
-      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
-      case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db)}/>;
+      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} lastSyncAt={lastSyncAt} syncErrDetail={syncErrDetail} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
+      case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db,setDb)}/>;
       default: return null;
     }
   };
@@ -4086,12 +4154,13 @@ export default function App(){
                 <span style={{width:7,height:7,borderRadius:3.5,background:syncDot,display:"inline-block",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:11,fontWeight:600,color:syncState==="error"?"#e07570":syncState==="ok"?"#7ec49a":"rgba(255,255,255,.55)"}}>{syncState==="syncing"?"同期中…":syncState==="ok"?"クラウド同期中":syncState==="error"?"同期エラー":"Supabase未接続"}</div>
-                  {syncMsg&&<div style={{fontSize:10,color:"rgba(255,255,255,.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{syncMsg}</div>}
+                  {lastSyncAt&&syncState!=="error"&&<div style={{fontSize:10,color:"rgba(255,255,255,.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{const m=Math.round((Date.now()-lastSyncAt.getTime())/60000);return m<1?"たった今":m<60?`${m}分前`:`${Math.floor(m/60)}時間前`;})()}</div>}
+                  {syncState==="error"&&<div style={{fontSize:10,color:"#e07570",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>設定を確認してください</div>}
                 </div>
               </div>
             )}
             <div style={{fontSize:11,color:saveError?"#e07570":"rgba(255,255,255,.3)",fontWeight:saveError?700:400,marginBottom:8,paddingLeft:3}}>{saveError?"⚠️ 自動保存失敗":db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
-            <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db)}>💾 JSONを保存</button>
+            <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db,setDb)}>💾 JSONを保存</button>
             <button className="btn bsm" style={{width:"100%",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.55)",border:"1px solid rgba(255,255,255,.06)"}} onClick={()=>setPage("data")}>📂 データ管理</button>
           </div>
         </nav>
@@ -4105,7 +4174,7 @@ export default function App(){
             <div className="b7" style={{fontSize:15}}>{cur?.icon} {cur?.label}</div>
             <div className="row" style={{gap:6}}>
               {unpaid>0&&<span className="bdg drd">{unpaid}件未収</span>}
-              <button className="btn bp bsm" onClick={()=>doExport(db)} style={{padding:"4px 10px",fontSize:11}}>💾保存</button>
+              <button className="btn bp bsm" onClick={()=>doExport(db,setDb)} style={{padding:"4px 10px",fontSize:11}}>💾保存</button>
             </div>
           </div>
           <div className="pw">{render()}</div>
