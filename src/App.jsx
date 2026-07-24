@@ -1933,7 +1933,11 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
           <div key={c.id}>
             <div className="li" onClick={()=>setExpId(expId===c.id?null:c.id)}>
               <div style={{width:36,height:36,borderRadius:18,background:"var(--bl)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,flexShrink:0}}>{(c.lastName||"?")[0]}</div>
-              <div style={{flex:1,minWidth:0}}><div className="b6 trn">{fullName(c)}</div><div className="cmu sm trn">{c.phone}{c.email?` · ${c.email}`:""}</div></div>
+              <div style={{flex:1,minWidth:0}}>
+                {c.firstName&&<div style={{fontSize:11,color:"var(--lb2)",letterSpacing:"0.05em"}} className="trn">{c.firstName}</div>}
+                <div className="b6 trn">{c.lastName||"—"}</div>
+                <div className="cmu sm trn">{c.phone}{c.email?` · ${c.email}`:""}</div>
+              </div>
               {c.note&&<span className="bdg dbl">{c.note}</span>}
               <span className="cmu" style={{fontSize:15,transition:"transform .2s",transform:expId===c.id?"rotate(90deg)":"none"}}>›</span>
             </div>
