@@ -1825,7 +1825,13 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
   const[form,setForm]=useState(E);
-  const filtered=customers.filter(c=>fullName(c).includes(search)||c.phone?.includes(search));
+  const filtered=customers
+    .filter(c=>fullName(c).includes(search)||c.phone?.includes(search)||(c.firstName||"").includes(search))
+    .sort((a,b)=>{
+      const fa=a.firstName||a.lastName||"";
+      const fb=b.firstName||b.lastName||"";
+      return fa.localeCompare(fb,"ja");
+    });
   const save=()=>{
     if(!form.lastName)return;
     // 車両のidが未設定のものに採番
