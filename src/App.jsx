@@ -22,7 +22,6 @@ const G = () => (
     @keyframes fU{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes fI{from{opacity:0}to{opacity:1}}
     @keyframes sI{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-    @keyframes spin{to{transform:rotate(360deg)}}
     .fu{animation:fU .3s var(--tr) both;} .si{animation:sI .25s var(--tr) both;}
     .card{background:var(--bg2);border-radius:var(--r);box-shadow:var(--sh);padding:18px;transition:box-shadow var(--tr);border:1px solid var(--sep);}
     .card:hover{box-shadow:var(--sh2);}
@@ -172,6 +171,64 @@ const JURYOZEI_TRUCK={
   8.0: {n:65600, y13:131200, y18:144000},
 };
 
+// 和暦変換ヘルパー
+const ERAS=[
+  {name:"令和",start:2019,startMonth:5},
+  {name:"平成",start:1989,startMonth:1},
+  {name:"昭和",start:1926,startMonth:12},
+];
+// YYYY-MM → {era, year, month} 例: "2019-05" → {era:"令和",year:1,month:5}
+const toWareki=ym=>{
+  if(!ym)return{era:"令和",year:"",month:""};
+  const[y,m]=ym.split("-").map(Number);
+  for(const e of ERAS){
+    if(y>e.start||(y===e.start&&m>=e.startMonth)){
+      return{era:e.name,year:y-e.start+1,month:m};
+    }
+  }
+  return{era:"昭和",year:y-1926+1,month:m};
+};
+// {era, year, month} → "YYYY-MM"
+const fromWareki=(era,year,month)=>{
+  const e=ERAS.find(e=>e.name===era)||ERAS[0];
+  const y=e.start+Number(year)-1;
+  if(!year||!month||isNaN(y))return"";
+  return`${y}-${String(month).padStart(2,"0")}`;
+};
+
+// 和暦月入力コンポーネント
+function WarekiMonthInput({value,onChange,className="inp"}){
+  const w=toWareki(value);
+  const[era,setEra]=useState(w.era||"令和");
+  const[year,setYear]=useState(w.year||"");
+  const[month,setMonth]=useState(w.month||"");
+  // valueが外から変わったとき同期
+  useEffect(()=>{
+    const w2=toWareki(value);
+    setEra(w2.era||"令和");
+    setYear(w2.year||"");
+    setMonth(w2.month||"");
+  },[value]);
+  const emit=(e,y,m)=>{
+    const ym=fromWareki(e,y,m);
+    if(ym)onChange(ym);
+  };
+  return(
+    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+      <select className={className} style={{flex:"0 0 auto",width:90}} value={era} onChange={e=>{setEra(e.target.value);emit(e.target.value,year,month);}}>
+        {ERAS.map(e=><option key={e.name}>{e.name}</option>)}
+      </select>
+      <input className={className} type="number" inputMode="numeric" placeholder="年" min={1} max={99} value={year}
+        style={{width:64}} onChange={e=>{setYear(e.target.value);emit(era,e.target.value,month);}}/>
+      <span style={{fontSize:13,color:"var(--lb2)"}}>年</span>
+      <input className={className} type="number" inputMode="numeric" placeholder="月" min={1} max={12} value={month}
+        style={{width:56}} onChange={e=>{setMonth(e.target.value);emit(era,year,e.target.value);}}/>
+      <span style={{fontSize:13,color:"var(--lb2)"}}>月</span>
+      {value&&<span style={{fontSize:11,color:"var(--lb2)"}}>({value})</span>}
+    </div>
+  );
+}
+
 // 経過年数を判定（firstReg: "YYYY-MM"）
 // 登録車：12年10ヶ月後から13年経過扱い
 // 軽自動車：13年経過した年の11月1日から13年経過扱い
@@ -247,11 +304,6 @@ const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
 const today=()=>new Date().toISOString().split("T")[0];
 const nextId=arr=>{const ns=arr.map(x=>parseInt(String(x.id||0).replace(/\D/g,""))||0);return ns.length?Math.max(...ns)+1:1;};
 const fullName=c=>c?`${c.lastName||""}${c.firstName?" "+c.firstName:""}`.trim()||"—":"—";
-// フォームに変更があれば確認ダイアログを出してからクローズする
-const confirmClose=(initial,current,onClose)=>{
-  if(JSON.stringify(initial)===JSON.stringify(current)){onClose();return;}
-  if(confirm("入力内容が保存されていません。\n破棄してよいですか？"))onClose();
-};
 const yr=d=>new Date(d).getFullYear();
 const mo=d=>new Date(d).getMonth()+1;
 
@@ -264,7 +316,6 @@ const DEF_SETTINGS={
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
   kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,gaiChuDaiko:7000,gaiChuDaikoTax:0.1,
   unitList:DEF_UNIT_LIST,
-  expCategories:EXPENSE_CATEGORIES,
   workMaster:[
     {id:1,desc:"バンパー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
     {id:2,desc:"フェンダー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
@@ -303,50 +354,15 @@ const IW=[
 // ── Cloudinary ─────────────────────────────────────────────
 const CLOUDINARY_CLOUD="dezdfn2i5";
 const CLOUDINARY_PRESET="bankin_receipts";
-// XHRベース：アップロード進捗(%)を取れるようにするためfetchではなくXHRを使用
-const uploadToCloudinary=(file,onProgress)=>new Promise((resolve,reject)=>{
+const uploadToCloudinary=async(file)=>{
   const fd=new FormData();
   fd.append("file",file);
   fd.append("upload_preset",CLOUDINARY_PRESET);
   fd.append("folder","bankin_erp");
-  const xhr=new XMLHttpRequest();
-  xhr.open("POST",`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
-  if(onProgress)xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded/e.total*100));};
-  xhr.onload=()=>{
-    if(xhr.status>=200&&xhr.status<300){
-      try{resolve(JSON.parse(xhr.responseText).secure_url);}
-      catch{reject(new Error("アップロード応答の解析に失敗しました"));}
-    }else reject(new Error(`アップロード失敗（${xhr.status}）`));
-  };
-  xhr.onerror=()=>reject(new Error("ネットワークエラー：アップロードに失敗しました"));
-  xhr.send(fd);
-});
-// 写真をアップロード前に縮小（iPadのカメラ写真は数MBになりがちなので長辺1600pxに圧縮）
-// 失敗した場合は元ファイルをそのまま返す（圧縮は最適化であり必須ではないため）
-const resizeImageForUpload=async(file,maxDim=1600,quality=0.82)=>{
-  try{
-    let src,revoke;
-    if(window.createImageBitmap){
-      try{src=await createImageBitmap(file,{imageOrientation:"from-image"});}catch{src=null;}
-    }
-    if(!src){
-      const url=URL.createObjectURL(file);
-      src=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url;});
-      revoke=url;
-    }
-    const w=src.width,h=src.height;
-    const scale=Math.min(1,maxDim/Math.max(w,h));
-    const cw=Math.max(1,Math.round(w*scale)),ch=Math.max(1,Math.round(h*scale));
-    const canvas=document.createElement("canvas");
-    canvas.width=cw;canvas.height=ch;
-    canvas.getContext("2d").drawImage(src,0,0,cw,ch);
-    if(revoke)URL.revokeObjectURL(revoke);
-    if(src.close)src.close();
-    const blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",quality));
-    return blob||file;
-  }catch{
-    return file;
-  }
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
+  if(!res.ok)throw new Error("アップロード失敗");
+  const data=await res.json();
+  return data.secure_url;
 };
 
 // ── Storage (localStorage) ─────────────────────────────────
@@ -366,33 +382,20 @@ const migrateWeightToKg=db=>{
   };
 };
 const loadDB=init=>{try{const r=localStorage.getItem(DK);if(r)return migrateWeightToKg({...init,...JSON.parse(r)});}catch{}return init;};
-const saveDB=db=>{
-  try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));return{ok:true};}
-  catch(err){return{ok:false,error:err};}
-};
-// debounce付き保存hook（1秒待ってから書き込み）。保存失敗（容量超過等）をUIに伝えるためsaveErrorを返す
+const saveDB=db=>{try{localStorage.setItem(DK,JSON.stringify({...db,meta:{...db.meta,savedAt:new Date().toISOString()}}));}catch{}};
+// debounce付き保存hook（1秒待ってから書き込み）
 function useSaveDB(db){
   const t=useRef(null);
-  const[saveError,setSaveError]=useState(false);
   useEffect(()=>{
     clearTimeout(t.current);
-    t.current=setTimeout(()=>{
-      const r=saveDB(db);
-      setSaveError(!r.ok);
-      if(!r.ok)console.error("保存失敗:",r.error);
-    },1000);
+    t.current=setTimeout(()=>saveDB(db),1000);
     return()=>clearTimeout(t.current);
   },[db]);
-  return saveError;
 }
-const doExport=(db,setDb)=>{
-  const now=new Date().toISOString();
-  const exported={...db,meta:{...db.meta,exportedAt:now,ex:now}};
-  const b=new Blob([JSON.stringify(exported,null,2)],{type:"application/json"});
+const doExport=db=>{
+  const b=new Blob([JSON.stringify({...db,meta:{...db.meta,ex:new Date().toISOString()}},null,2)],{type:"application/json"});
   const u=URL.createObjectURL(b);const a=document.createElement("a");
-  a.href=u;a.download=`bankin_${now.slice(0,10).replace(/-/g,"")}.json`;a.click();URL.revokeObjectURL(u);
-  // exportedAt を即時反映
-  if(setDb)setDb(d=>({...d,meta:{...d.meta,exportedAt:now}}));
+  a.href=u;a.download=`bankin_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`;a.click();URL.revokeObjectURL(u);
 };
 const doImport=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{res(JSON.parse(e.target.result))}catch{rej(new Error("JSON解析失敗"))}};r.onerror=()=>rej(new Error("読み込みエラー"));r.readAsText(f);});
 
@@ -514,16 +517,12 @@ const sbSubscribe=(conf,onUpdate)=>{
 function useSbSync(db,setDb){
   const[syncState,setSyncState]=useState("idle"); // idle | ok | error | syncing
   const[syncMsg,setSyncMsg]=useState("");
-  const[lastSyncAt,setLastSyncAt]=useState(null); // Date | null
-  const[syncErrDetail,setSyncErrDetail]=useState(""); // エラー詳細（未同期件数等）
   const conf=getSbConf();
   const enabled=!!(conf.url&&conf.anonKey);
 
   // db変更時にsave (debounce 2s)
   const dbRef=useRef(db);
   useEffect(()=>{dbRef.current=db;},[db]);
-
-  const markSynced=()=>{const now=new Date();setLastSyncAt(now);setSyncErrDetail("");};
 
   // 初回ロード（dbRef確定後に実行）
   useEffect(()=>{
@@ -532,10 +531,10 @@ function useSbSync(db,setDb){
     sbLoad(conf).then(remote=>{
       if(remote){
         setDb(local=>({...local,...remote,meta:{...remote.meta,savedAt:new Date().toISOString()}}));
-        setSyncState("ok");setSyncMsg("Supabaseから読み込み完了");markSynced();
+        setSyncState("ok");setSyncMsg("Supabaseから読み込み完了");
       }else{
         // 初回: localをpush（最新dbをdbRef.currentから取得）
-        sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");markSynced();}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
+        sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg("初回アップロード完了");}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
       }
     }).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -546,13 +545,7 @@ function useSbSync(db,setDb){
     clearTimeout(timerRef.current);
     timerRef.current=setTimeout(()=>{
       setSyncState("syncing");
-      sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));markSynced();}).catch(err=>{
-        setSyncState("error");setSyncMsg(err.message);
-        // エラー時：未同期の可能性があるデータ件数を補足
-        const d=dbRef.current;
-        const cnt=(d.customers?.length||0)+(d.invoices?.length||0);
-        setSyncErrDetail(`顧客${d.customers?.length||0}件・請求${d.invoices?.length||0}件が未同期の可能性があります`);
-      });
+      sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
     },2000);
     return()=>clearTimeout(timerRef.current);
   },[db,enabled]);
@@ -576,11 +569,11 @@ function useSbSync(db,setDb){
       const remote=await sbLoad(conf);
       if(remote)setDb(local=>({...local,...remote}));
       await sbSave(conf,db);
-      setSyncState("ok");setSyncMsg("同期完了 "+new Date().toLocaleTimeString("ja-JP"));markSynced();
+      setSyncState("ok");setSyncMsg("同期完了 "+new Date().toLocaleTimeString("ja-JP"));
     }catch(err){setSyncState("error");setSyncMsg(err.message);}
   };
 
-  return{syncState,syncMsg,lastSyncAt,syncErrDetail,enabled,manualSync};
+  return{syncState,syncMsg,enabled,manualSync};
 }
 
 // SQL for Supabase setup
@@ -1127,13 +1120,11 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
       }catch(err){
         loadingToast.remove();
         console.error("PDF生成エラー:",err);
+        // エラーを画面表示（デバッグ）
         const d=document.createElement("div");
-        d.style.cssText="position:fixed;top:60px;left:10px;right:10px;background:var(--re,#B85450);color:#fff;padding:14px 16px;border-radius:12px;font-size:13px;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);";
-        d.innerHTML=`<span style="font-size:20px">⚠️</span><div><div style="font-weight:700;margin-bottom:3px">PDF生成に失敗しました</div><div style="opacity:.85;font-size:12px">もう一度お試しください。繰り返す場合はブラウザを更新してください。</div></div>`;
-        const btn=document.createElement("button");
-        btn.textContent="✕";btn.style.cssText="position:absolute;top:8px;right:10px;background:none;border:none;color:#fff;font-size:16px;cursor:pointer;padding:2px 6px;";
-        btn.onclick=()=>d.remove();d.appendChild(btn);
-        document.body.appendChild(d);setTimeout(()=>d.remove(),8000);
+        d.style.cssText="position:fixed;top:60px;left:10px;right:10px;background:red;color:#fff;padding:12px;border-radius:10px;font-size:12px;z-index:9999;word-break:break-all;";
+        d.textContent=err.message+"\n"+String(err.stack||"").slice(0,300);
+        document.body.appendChild(d);setTimeout(()=>d.remove(),20000);
       }
     }
 
@@ -1232,23 +1223,15 @@ window.addEventListener("afterprint",function(){
     }
   };
   const isIOSDevice=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
-  const[zoom,setZoom]=useState(85);// デフォルト85%（iPadでA4全体が見えやすいサイズ）
   return(
     <div style={{position:"fixed",inset:0,zIndex:500,display:"flex",flexDirection:"column",background:"var(--grp)"}}>
       {/* 上部ボタンバー：常に表示 */}
-      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8}}>
+      <div className="np" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--sep)",flexShrink:0,gap:8}}>
         <div style={{fontSize:15,fontWeight:800,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{theme.emoji} {ttl}</div>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
           <button className="btn bp bsm" onClick={doPrint}>🖨️ 印刷</button>
           <button className="btn bs bsm" onClick={onClose}>← 戻る</button>
         </div>
-      </div>
-      {/* ズームスライダー */}
-      <div className="np" style={{background:"var(--bg2)",borderBottom:"1px solid var(--sep)",padding:"6px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <span style={{fontSize:11,color:"var(--lb2)",whiteSpace:"nowrap"}}>プレビュー</span>
-        <input type="range" min={40} max={100} value={zoom} onChange={e=>setZoom(Number(e.target.value))} style={{flex:1,accentColor:"var(--bl)"}}/>
-        <span style={{fontSize:11,fontWeight:700,color:"var(--bl)",minWidth:34,textAlign:"right"}}>{zoom}%</span>
-        <span style={{fontSize:10,color:"var(--lb3)",whiteSpace:"nowrap"}}>A4=100%</span>
       </div>
       {/* iOS向け印刷案内バナー */}
       {isIOSDevice&&(
@@ -1259,13 +1242,8 @@ window.addEventListener("afterprint",function(){
       )}
 
       {/* プレビュー本体：スクロール可能 */}
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"16px 8px 40px",background:"#d0ceca"}}>
-        {/* A4 = 210mm×297mm。96dpi換算で794×1123px。scale()で縮小表示 */}
-        <div style={{display:"flex",justifyContent:"center"}}>
-          {/* 外枠：縮小後サイズでスペースを確保 */}
-          <div style={{width:794*zoom/100,height:1123*zoom/100,flexShrink:0,position:"relative",boxShadow:"0 4px 32px rgba(0,0,0,.25)",borderRadius:zoom>70?6:2,overflow:"hidden"}}>
-            {/* 内側：実寸794px幅のprintエリアをscaleで縮小 */}
-            <div id="print-area" style={{position:"absolute",top:0,left:0,width:794,minHeight:1123,transformOrigin:"top left",transform:`scale(${zoom/100})`,background:"#fff",border:`2px solid ${theme.border}`,color:"#000"}}>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px 8px 40px"}}>
+        <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
         <div style={{background:theme.accent,padding:"6px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1526,9 +1504,7 @@ window.addEventListener("afterprint",function(){
         )}
 
         {doc.note&&<div style={{margin:"0 20px 16px",padding:"9px 12px",background:theme.light,borderRadius:7,fontSize:11,border:`1px solid ${theme.border}`}}><b>備考:</b> {doc.note}</div>}
-            </div>{/* end print-area (scaled) */}
-          </div>{/* end A4 outer frame */}
-        </div>{/* end centering flex */}
+        </div>{/* end print-area */}
 
         {/* 下部ボタン */}
         <div className="np" style={{display:"flex",gap:9,justifyContent:"center",padding:"20px 8px 8px"}}>
@@ -1541,15 +1517,8 @@ window.addEventListener("afterprint",function(){
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,meta,onNavigate,onExport}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings}){
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
-  const greet=useMemo(()=>{const h=now.getHours();if(h<11)return"おはようございます ☀️";if(h<18)return"こんにちは 👋";return"お疲れ様です 🌙";},[now]);
-  // バックアップリマインダー：最終エクスポートから30日以上で警告
-  const backupDays=useMemo(()=>{
-    const t=meta?.exportedAt||meta?.ex;
-    if(!t)return 999;
-    return Math.floor((now.getTime()-new Date(t).getTime())/86400000);
-  },[meta,now]);
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
   const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts}=useMemo(()=>{
@@ -1592,20 +1561,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
-      <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>{greet}</div></div>
-      {/* バックアップリマインダー */}
-      {backupDays>=30&&(
-        <div style={{background:backupDays>=60?"rgba(184,84,80,.1)":"rgba(154,110,58,.09)",border:`1px solid ${backupDays>=60?"rgba(184,84,80,.3)":"rgba(154,110,58,.25)"}`,borderRadius:12,padding:"11px 14px",display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:18,flexShrink:0}}>{backupDays>=60?"🔴":"🟡"}</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700,color:backupDays>=60?"var(--re)":"var(--or)"}}>
-              {backupDays>=999?"JSONバックアップが未実施です":"最終バックアップから"+backupDays+"日経過しています"}
-            </div>
-            <div className="cmu xs mt4">データ消失に備え、定期的にJSONファイルに保存してください。</div>
-          </div>
-          <button className="btn bsm" style={{background:"var(--bl)",color:"#fff",flexShrink:0}} onClick={onExport}>💾 今すぐ保存</button>
-        </div>
-      )}
+      <div><div className="cmu sm">{y}年{m}月 · {settings.shopName}</div><div style={{fontSize:23,fontWeight:800,letterSpacing:-.5}}>おはようございます 👋</div></div>
       <div className="g4" style={{gap:9}}>
         {/* 今月の売上カード */}
         <div onClick={()=>toggle("sales")} className="sc" style={{background:"#3D5A8A",cursor:"pointer",userSelect:"none"}}>
@@ -1711,15 +1667,14 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           </div>
         </div>
       </div>
-      {uCnt>0&&<div onClick={()=>onNavigate?.("invoices")} className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)",cursor:"pointer",userSelect:"none"}}>
-        <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div style={{display:"flex",alignItems:"center",gap:8}}><div className="cre b7 lg">{fmt(uAmt)}</div><span className="cmu" style={{fontSize:15}}>›</span></div></div>
+      {uCnt>0&&<div className="card" style={{background:"linear-gradient(135deg,#FFF3F3,#FFF 60%)",border:"1px solid rgba(255,59,48,.15)"}}>
+        <div className="rb"><div className="row" style={{gap:9}}><Ico e="⚠️" bg="rgba(255,59,48,.12)"/><div><div className="b7">未収金アラート</div><div className="cmu sm">{uCnt}件の未入金請求があります</div></div></div><div className="cre b7 lg">{fmt(uAmt)}</div></div>
       </div>}
       {shakkenAlerts.length>0&&(
-        <div onClick={()=>onNavigate?.("customers")} className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden",cursor:"pointer",userSelect:"none"}}>
+        <div className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden"}}>
           <div style={{padding:"11px 14px",borderBottom:"1px solid rgba(255,149,0,.15)",display:"flex",alignItems:"center",gap:9}}>
             <Ico e="🚗" bg="rgba(255,149,0,.15)"/>
-            <div style={{flex:1}}><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
-            <span className="cmu" style={{fontSize:15}}>›</span>
+            <div><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
           </div>
           {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>(
             <div key={`${customer.id}-${vehicle.id}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
@@ -1832,7 +1787,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
           <Fld label="車種名"><input className="inp" placeholder="プリウス" value={f.carName} onChange={e=>setF(p=>({...p,carName:e.target.value}))}/></Fld>
           <Fld label="ナンバー"><input className="inp" placeholder="品川300あ1234" value={f.plateNo} onChange={e=>setF(p=>({...p,plateNo:e.target.value}))}/></Fld>
           <Fld label="車台番号"><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
-          <Fld label="初度登録年月"><input type="month" className="inp" value={f.firstReg} onChange={e=>setF(p=>({...p,firstReg:e.target.value}))}/></Fld>
+          <Fld label="初度登録年月"><WarekiMonthInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
           <Fld label="車種区分（自賠責に影響）" style={{gridColumn:"1/-1"}}>
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
           </Fld>
@@ -1864,7 +1819,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
   const[form,setForm]=useState(E);
-  const filtered=[...customers].filter(c=>fullName(c).includes(search)||c.phone?.includes(search)).sort((a,b)=>fullName(a).localeCompare(fullName(b),"ja"));
+  const filtered=customers.filter(c=>fullName(c).includes(search)||c.phone?.includes(search));
   const save=()=>{
     if(!form.lastName)return;
     // 車両のidが未設定のものに採番
@@ -1892,7 +1847,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"新規顧客登録":"顧客編集"}</div>
         <div style={{display:"flex",gap:6}}>
           {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
-          <button className="btn bs bsm" onClick={()=>confirmClose(E,form,()=>setModal(null))}>キャンセル</button>
+          <button className="btn bs bsm" onClick={()=>setModal(null)}>キャンセル</button>
           <button className="btn bp bsm" onClick={save}>👥 {modal==="add"?"登録":"保存"}</button>
         </div>
       </div>
@@ -1906,11 +1861,11 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
           <input className="inp" placeholder="例：ヤマダタロウ" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{color:"var(--re)"}}>*</span></div>
           <input className="inp" placeholder="例：東京都足立区1-2-3" value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>電話番号 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>電話番号 <span style={{color:"var(--re)"}}>*</span></div>
           <input className="inp" placeholder="例：03-1234-5678" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
         </div>
         <div>
@@ -1947,7 +1902,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div><input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><input type="month" className="inp" value={v.firstReg||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:e.target.value}:x)}))}/></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><WarekiMonthInput value={v.firstReg||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:val}:x)}))}/></div>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
@@ -2013,8 +1968,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
 // ── Quote ──────────────────────────────────────────────────
 function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""}),[]);// eslint-disable-line
-  const[form,setForm]=useState(init);
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
@@ -2025,15 +1979,12 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         <div style={{fontSize:18,fontWeight:800}}>見積書</div>
         <div style={{display:"flex",gap:6}}>
           {doc&&onToInv&&<button className="btn bg bsm" onClick={()=>onToInv(form)}>→ 請求書に変換</button>}
-          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave(form)}>保存</button>
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
-        {(()=>{const cust=customers.find(c=>c.id===Number(form.customerId));const vs=cust?.vehicles||[];return vs.length>0&&(<Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
-          <option value="">未選択</option>{vs.map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
-        </select></Fld>);})()}
+        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></Fld>
         <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
         <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
         <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
@@ -2079,7 +2030,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
   };
   const toInv=form=>{
     const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")}))));
-    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:form.vehicleId||"",dueDate:"",status:"未入金"}]);
+    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
     setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
@@ -2088,7 +2039,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>見積書</div><button className="btn bp bsm" onClick={()=>setModal("add")}>＋ 作成</button></div>
       <div className="lst">
-        {[...quotes].sort((a,b)=>b.date.localeCompare(a.date)).map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
+        {quotes.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
           <div key={q.id} className="li" onClick={()=>setModal(q)}>
             <Ico e="📋" bg="rgba(0,122,255,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{fullName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
@@ -2106,8 +2057,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
 // ── Repair Invoice Form ────────────────────────────────────
 function RepairForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""}),[]);// eslint-disable-line
-  const[form,setForm]=useState(init);
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||""});
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
@@ -2118,7 +2068,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>🔧 鈑金修理 請求書</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave({...form,type:"repair"})}>保存</button>
         </div>
       </div>
@@ -2175,8 +2125,7 @@ const DEF_SHAKKEN_ITEMS=[
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
   const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1,_fromSettings:true};
-  const init=useMemo(()=>({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}}),[]);// eslint-disable-line
-  const[form,setForm]=useState(init);
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
@@ -2194,7 +2143,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>🚗 車検 請求書</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={()=>confirmClose(init,form,onClose)}>キャンセル</button>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
           <button className="btn bp bsm" onClick={()=>onSave({...form,type:"shakken"})}>保存</button>
         </div>
       </div>
@@ -2381,7 +2330,7 @@ function PaymentModal({inv,total,onSave,onClose}){
             <div className="stk" style={{gap:9}}>
               <div className="g2" style={{gap:9}}>
                 <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
-                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
               </div>
               <Fld label="メモ" opt={true}><input className="inp" placeholder="経費分・残金など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
               <button className="btn bp" style={{width:"100%"}} onClick={add}>＋ 入金を記録</button>
@@ -2413,14 +2362,8 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
     return true;
   });
   const save=form=>{
-    // 既存の入金記録と新しい請求合計を比較してステータスを自動更新
-    const payments=form.payments||[];
-    const paid=payments.reduce((s,p)=>s+p.amount,0);
-    const newTotal=invTotal(form,settings);
-    const autoStatus=payments.length>0?(paid>=newTotal?"入金済":"未入金"):form.status;
-    const saved={...form,status:autoStatus};
-    if(modal.doc===null)setInvoices(p=>[...p,{...saved,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
-    else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...saved,id:i.id}:i));
+    if(modal.doc===null)setInvoices(p=>[...p,{...form,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
+    else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
     // 車検の場合、外注先代行料を経費に自動登録
     if(form.type==="shakken"&&form.shakken?.gaiChuDaiko>0){
       const gaichu=form.shakken.gaiChuDaiko;
@@ -2477,7 +2420,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
       <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
       <div className="seg">{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
       <div className="stk" style={{gap:9}}>
-        {[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).map(inv=>{
+        {filtered.map(inv=>{
           const c=customers.find(c=>c.id===inv.customerId);
           const v=(c?.vehicles||[]).find(v=>v.id===inv.vehicleId);
           const isS=inv.type==="shakken";
@@ -2569,10 +2512,9 @@ function CombinedInvoice({invoices,customers,settings}){
 }
 
 // ── Expenses ───────────────────────────────────────────────
-const Expenses=React.memo(function Expenses({expenses,setExpenses,settings}){
-  const expCats=settings?.expCategories?.length?settings.expCategories:EXPENSE_CATEGORIES;
+const Expenses=React.memo(function Expenses({expenses,setExpenses}){
   const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:expCats[0],desc:"",amount:0,receipt:false});
+  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
   const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
   const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
@@ -2596,25 +2538,25 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,settings}){
               if(!form.desc)return;
               setForm(f=>({...f,aiLoading:true}));
               try{
-                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${expCats.join("、")}\n摘要: ${form.desc}`}]})});
+                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
                 const d=await res.json();
                 console.log("AI仕分けレスポンス:",JSON.stringify(d));
                 const cat=(d.content?.[0]?.text||"").trim();
                 console.log("取得カテゴリ:",cat);
-                const matched=expCats.find(c=>cat===c)||expCats.find(c=>cat.includes(c))||expCats.find(c=>c.includes(cat));
+                const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
                 console.log("マッチ結果:",matched);
                 if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
-                else setForm(f=>({...f,category:expCats[0],aiLoading:false}));
+                else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
               }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
             }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
           </div>
         </Fld>
         <Fld label="勘定科目（カテゴリ）">
           <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-            {expCats.map(c=><option key={c}>{c}</option>)}
+            {EXP_CAT.map(c=><option key={c}>{c}</option>)}
           </select>
         </Fld>
-        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
         <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
       </div>
     </div>
@@ -3323,7 +3265,7 @@ function WorkMasterSettings({workMaster=[],onChange}){
     else onChange(workMaster.map(w=>w.id===editId?{...w,...form,partsCost:Number(form.partsCost),gijutsu:Number(form.gijutsu)}:w));
     setEditId(null);
   };
-  const del=id=>{if(confirm("このマスターを削除しますか？"))onChange(workMaster.filter(w=>w.id!==id));};
+  const del=id=>onChange(workMaster.filter(w=>w.id!==id));
   return(
     <div className="card">
       <div className="rb mb12">
@@ -3368,37 +3310,6 @@ function WorkMasterSettings({workMaster=[],onChange}){
     </div>
   );
 }
-// 経費カテゴリ設定コンポーネント（追加・削除・並び替え）
-function ExpCategorySettings({cats=[],onChange}){
-  const[newCat,setNewCat]=useState("");
-  const add=()=>{
-    const v=newCat.trim();
-    if(!v||cats.includes(v))return;
-    onChange([...cats,v]);setNewCat("");
-  };
-  const del=c=>{if(confirm(`「${c}」を削除しますか？\n過去の経費データには影響しません。`))onChange(cats.filter(x=>x!==c));};
-  const reset=()=>{if(confirm("カテゴリをデフォルトに戻しますか？"))onChange(EXPENSE_CATEGORIES);};
-  return(
-    <div className="card">
-      <div className="rb mb12">
-        <div style={{fontSize:14,fontWeight:800}}>💴 経費カテゴリ</div>
-        <button className="btn bs bsm" onClick={reset}>リセット</button>
-      </div>
-      <div className="lst" style={{marginBottom:12}}>
-        {cats.map(c=>(
-          <div key={c} className="fr">
-            <span style={{flex:1,fontSize:13,fontWeight:500}}>{c}</span>
-            {cats.length>1&&<button className="btn bd bsm" onClick={()=>del(c)}>削除</button>}
-          </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        <input className="inp" style={{flex:1}} placeholder="新しいカテゴリ名" value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
-        <button className="btn bp bsm" onClick={add}>追加</button>
-      </div>
-    </div>
-  );
-}
 const SettingsField=React.memo(function SettingsField({label,value,onChange,placeholder,type="text",opt=false}){
   return(
     <Fld label={label} opt={opt}>
@@ -3420,17 +3331,13 @@ function UnitInput({onAdd}){
   );
 }
 
-function Settings({settings,setSettings,syncState,syncMsg,lastSyncAt,syncErrDetail,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
+function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:sbEnabled,hasPin,setShowPinSetup}){
   const[form,setForm]=useState({...settings});
   const[saved,setSaved]=useState(false);
   const[sbForm,setSbForm]=useState(()=>getSbConf());
   const[sbSaved,setSbSaved]=useState(false);
   const[showSql,setShowSql]=useState(false);
   const[copied,setCopied]=useState(false);
-  // 相対時刻用：1分毎に再レンダリングして「XX分前」を更新
-  const[,setTick]=useState(0);
-  useEffect(()=>{const id=setInterval(()=>setTick(t=>t+1),60000);return()=>clearInterval(id);},[]);
-  const relTime=t=>{if(!t)return null;const m=Math.round((Date.now()-t.getTime())/60000);if(m<1)return"たった今";if(m<60)return`${m}分前`;const h=Math.floor(m/60);if(h<24)return`${h}時間前`;return`${Math.floor(h/24)}日前`;};
 
   const save=useCallback(()=>{setSettings(form);setSaved(true);setTimeout(()=>setSaved(false),2000);},[form,setSettings]);
   const saveSb=useCallback(()=>{setSbConf(sbForm);setSbSaved(true);setTimeout(()=>{setSbSaved(false);window.location.reload();},1200);},[sbForm]);
@@ -3439,7 +3346,7 @@ function Settings({settings,setSettings,syncState,syncMsg,lastSyncAt,syncErrDeta
   const updN=useCallback(k=>e=>setForm(f=>({...f,[k]:Number(e.target.value)})),[]);
   const syncColor={ok:"rgba(52,199,89,.12)",error:"rgba(255,59,48,.1)",syncing:"rgba(0,122,255,.08)",idle:"var(--fi)"}[syncState]||"var(--fi)";
   const syncIcon={ok:"🟢",error:"🔴",syncing:"🔄",idle:"⚪"}[syncState]||"⚪";
-  const syncLabel={ok:"同期済",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
+  const syncLabel={ok:"同期中",error:"エラー",syncing:"同期中…",idle:"未接続"}[syncState]||"未接続";
 
   return(
     <div className="stk fu">
@@ -3450,30 +3357,14 @@ function Settings({settings,setSettings,syncState,syncMsg,lastSyncAt,syncErrDeta
         <div className="rb mb12">
           <div className="row" style={{gap:8}}>
             <span style={{fontSize:20}}>☁️</span>
-            <div>
-              <div style={{fontSize:14,fontWeight:800}}>Supabase クラウド同期</div>
-              <div className="xs cmu">PC・iPhone でリアルタイム共有</div>
-            </div>
+            <div><div style={{fontSize:14,fontWeight:800}}>Supabase クラウド同期</div><div className="xs cmu">PC・iPhone でリアルタイム共有</div></div>
           </div>
           <div className="row" style={{gap:6}}>
             {sbEnabled&&<button className="btn bsm" style={{background:"rgba(0,122,255,.1)",color:"var(--bl)"}} onClick={onManualSync}>🔄 今すぐ同期</button>}
             <div style={{padding:"4px 10px",borderRadius:8,background:syncColor,fontSize:12,fontWeight:700}}>{syncIcon} {syncLabel}</div>
           </div>
         </div>
-        {/* 最終同期時刻 */}
-        {sbEnabled&&(
-          <div style={{marginBottom:10,padding:"8px 12px",borderRadius:9,background:"rgba(0,0,0,.04)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:15}}>{syncState==="error"?"⚠️":"🕐"}</span>
-            <div style={{flex:1}}>
-              {lastSyncAt
-                ? <div className="xs"><span style={{fontWeight:700}}>最終同期: </span><span>{relTime(lastSyncAt)}（{lastSyncAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}）</span></div>
-                : <div className="xs cmu">まだ同期されていません</div>
-              }
-              {syncState==="error"&&syncErrDetail&&<div className="xs" style={{color:"var(--re)",marginTop:2}}>{syncErrDetail}</div>}
-              {syncState==="error"&&syncMsg&&<div className="xs cmu" style={{marginTop:2}}>エラー: {syncMsg}</div>}
-            </div>
-          </div>
-        )}
+        {syncMsg&&<div className="xs cmu mb12" style={{marginLeft:2}}>{syncState==="error"?"❌ "+syncMsg:"最終同期: "+syncMsg}</div>}
 
         <div className="stk" style={{gap:9}}>
           <Fld label="Project URL">
@@ -3595,7 +3486,6 @@ function Settings({settings,setSettings,syncState,syncMsg,lastSyncAt,syncErrDeta
         </div>
       </div>
       <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
-      <ExpCategorySettings cats={form.expCategories||EXPENSE_CATEGORIES} onChange={cats=>setForm(f=>({...f,expCategories:cats}))}/>
     </div>
   );
 }
@@ -3643,63 +3533,23 @@ function DataManager({db,onImport,onExport}){
 const WL_TAGS=["鈑金","塗装","車検","整備","鈑金塗装","外装","内装","エンジン","電装","タイヤ","ガラス","その他"];
 const WL_STATUS=["作業中","完了","保留"];
 
-function PhotoGrid({photos,onAdd,onUpdate,onDel,readOnly=false}){
+function PhotoGrid({photos,onAdd,onDel,readOnly=false}){
   const ref=useRef();
-  const pending=useRef({});// id -> {file, localUrl}  再試行用に元ファイルを保持
-  useEffect(()=>()=>{
-    // アンマウント時に未使用のローカルプレビューURLを解放
-    Object.values(pending.current).forEach(p=>{try{URL.revokeObjectURL(p.localUrl);}catch{}});
-  },[]);
-  const startUpload=async(id,file)=>{
-    try{
-      const resized=await resizeImageForUpload(file);
-      const url=await uploadToCloudinary(resized,pct=>onUpdate(id,{progress:pct}));
-      onUpdate(id,{url,uploading:false,progress:100,error:null});
-      const p=pending.current[id];if(p){try{URL.revokeObjectURL(p.localUrl);}catch{}delete pending.current[id];}
-    }catch(err){
-      onUpdate(id,{uploading:false,error:err.message||"アップロードに失敗しました"});
-    }
-  };
   const add=e=>{
     const files=Array.from(e.target.files||[]);
-    e.target.value="";
     files.forEach(f=>{
-      const id=Date.now()+Math.random();
-      const localUrl=URL.createObjectURL(f);
-      pending.current[id]={file:f,localUrl};
-      onAdd({id,url:localUrl,name:f.name,uploading:true,progress:0});
-      startUpload(id,f);
+      const r=new FileReader();
+      r.onload=ev=>onAdd({id:Date.now()+Math.random(),url:ev.target.result,name:f.name});
+      r.readAsDataURL(f);
     });
-  };
-  const retry=p=>{
-    const pend=pending.current[p.id];
-    if(!pend)return;// 元ファイルを保持していない場合（再読み込み後など）は再試行不可
-    onUpdate(p.id,{uploading:true,progress:0,error:null});
-    startUpload(p.id,pend.file);
-  };
-  const handleDel=id=>{
-    const pend=pending.current[id];
-    if(pend){try{URL.revokeObjectURL(pend.localUrl);}catch{}delete pending.current[id];}
-    onDel(id);
+    e.target.value="";
   };
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
       {photos.map(p=>(
         <div key={p.id} style={{position:"relative",aspectRatio:"1",borderRadius:10,overflow:"hidden",background:"var(--grp)"}}>
-          <img src={p.url} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover",opacity:p.uploading?0.5:(p.error?0.4:1)}}/>
-          {p.uploading&&(
-            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,background:"rgba(0,0,0,.25)"}}>
-              <div style={{width:22,height:22,border:"2.5px solid rgba(255,255,255,.4)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-              <span style={{fontSize:10,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,.5)"}}>{p.progress||0}%</span>
-            </div>
-          )}
-          {p.error&&!p.uploading&&(
-            <div onClick={()=>retry(p)} style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"rgba(184,84,80,.85)",cursor:"pointer",padding:4,textAlign:"center"}}>
-              <span style={{fontSize:16}}>⚠️</span>
-              <span style={{fontSize:9,fontWeight:700,color:"#fff"}}>失敗・タップで再試行</span>
-            </div>
-          )}
-          {!readOnly&&<button onClick={()=>handleDel(p.id)} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:20,height:20,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>}
+          <img src={p.url} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          {!readOnly&&<button onClick={()=>onDel(p.id)} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:6,width:20,height:20,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>}
         </div>
       ))}
       {!readOnly&&(
@@ -3714,7 +3564,7 @@ function PhotoGrid({photos,onAdd,onUpdate,onDel,readOnly=false}){
 }
 
 function WorkLogModal({log,customers,onSave,onClose}){
-  const init=useMemo(()=>({
+  const[form,setForm]=useState({
     customerId:log?.customerId||(customers[0]?.id||""),
     vehicleId:log?.vehicleId||"",
     date:log?.date||today(),
@@ -3723,24 +3573,16 @@ function WorkLogModal({log,customers,onSave,onClose}){
     photos:log?.photos||[],
     tags:log?.tags||[],
     status:log?.status||"完了",
-  }),[]);// eslint-disable-line
-  const[form,setForm]=useState(init);
+  });
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const toggleTag=t=>setForm(f=>({...f,tags:f.tags.includes(t)?f.tags.filter(x=>x!==t):[...f.tags,t]}));
-  const uploading=form.photos.some(p=>p.uploading);
-  // 写真比較はURLのみで行う（進捗・エラー等の一時フィールドは無視）
-  const isDirty=useMemo(()=>{
-    const normalize=f=>({...f,photos:(f.photos||[]).map(p=>({id:p.id,url:p.url,name:p.name}))});
-    return JSON.stringify(normalize(init))!==JSON.stringify(normalize(form));
-  },[form]);
-  const handleClose=()=>{if(!isDirty||confirm("入力内容が保存されていません。\n破棄してよいですか？"))onClose();};
   return(
     <div className="stk fu">
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>{log?"作業記録を編集":"作業記録を追加"}</div>
         <div style={{display:"flex",gap:6}}>
-          <button className="btn bs bsm" onClick={handleClose}>キャンセル</button>
-          <button className="btn bp bsm" disabled={uploading} style={uploading?{opacity:.5,cursor:"not-allowed"}:undefined} onClick={()=>{if(!uploading)onSave(form);}}>{uploading?"⏳ アップロード中…":"💾 保存"}</button>
+          <button className="btn bs bsm" onClick={onClose}>キャンセル</button>
+          <button className="btn bp bsm" onClick={()=>onSave(form)}>💾 保存</button>
         </div>
       </div>
       <div className="stk">
@@ -3762,11 +3604,7 @@ function WorkLogModal({log,customers,onSave,onClose}){
         <Fld label="作業メモ"><textarea className="inp" rows={4} placeholder="作業内容・使用部品・注意事項など..." value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}/></Fld>
         <div>
           <div className="fl">写真（{form.photos.length}枚）</div>
-          <PhotoGrid photos={form.photos}
-            onAdd={p=>setForm(f=>({...f,photos:[...f.photos,p]}))}
-            onUpdate={(id,patch)=>setForm(f=>({...f,photos:f.photos.map(p=>p.id===id?{...p,...patch}:p)}))}
-            onDel={id=>setForm(f=>({...f,photos:f.photos.filter(p=>p.id!==id)}))}/>
-          {uploading&&<div className="cmu xs mt4">📤 写真をクラウドにアップロード中です。完了するまで保存できません。</div>}
+          <PhotoGrid photos={form.photos} onAdd={p=>setForm(f=>({...f,photos:[...f.photos,p]}))} onDel={id=>setForm(f=>({...f,photos:f.photos.filter(p=>p.id!==id)}))}/>
         </div>
       </div>
     </div>
@@ -4094,10 +3932,10 @@ export default function App(){
     customers:IC,quotes:IQ,invoices:II,expenses:IE,worklogs:IW,
     settings:DEF_SETTINGS,meta:{savedAt:null},
   }));
-  const saveError=useSaveDB(db);
+  useSaveDB(db);
   const set=useCallback(k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn})),[]);
   const{customers,quotes,invoices,expenses,worklogs,settings}=db;
-  const{syncState,syncMsg,lastSyncAt,syncErrDetail,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
+  const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
   const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
   const cur=PAGES.find(p=>p.id===page);
   // Supabase Auth ログイン
@@ -4116,18 +3954,18 @@ export default function App(){
 
   const render=()=>{
     switch(page){
-      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} meta={db.meta} onNavigate={setPage} onExport={()=>doExport(db,setDb)}/>;
+      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
-      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")} settings={settings}/>;
+      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
-      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} lastSyncAt={lastSyncAt} syncErrDetail={syncErrDetail} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
-      case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db,setDb)}/>;
+      case"settings":    return <Settings settings={settings} setSettings={set("settings")} syncState={syncState} syncMsg={syncMsg} onManualSync={manualSync} enabled={sbEnabled} hasPin={hasPin} setShowPinSetup={setShowPinSetup}/>;
+      case"data":        return <DataManager db={db} onImport={d=>setDb(p=>({...p,...d}))} onExport={()=>doExport(db)}/>;
       default: return null;
     }
   };
@@ -4154,27 +3992,21 @@ export default function App(){
                 <span style={{width:7,height:7,borderRadius:3.5,background:syncDot,display:"inline-block",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:11,fontWeight:600,color:syncState==="error"?"#e07570":syncState==="ok"?"#7ec49a":"rgba(255,255,255,.55)"}}>{syncState==="syncing"?"同期中…":syncState==="ok"?"クラウド同期中":syncState==="error"?"同期エラー":"Supabase未接続"}</div>
-                  {lastSyncAt&&syncState!=="error"&&<div style={{fontSize:10,color:"rgba(255,255,255,.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{const m=Math.round((Date.now()-lastSyncAt.getTime())/60000);return m<1?"たった今":m<60?`${m}分前`:`${Math.floor(m/60)}時間前`;})()}</div>}
-                  {syncState==="error"&&<div style={{fontSize:10,color:"#e07570",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>設定を確認してください</div>}
+                  {syncMsg&&<div style={{fontSize:10,color:"rgba(255,255,255,.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{syncMsg}</div>}
                 </div>
               </div>
             )}
-            <div style={{fontSize:11,color:saveError?"#e07570":"rgba(255,255,255,.3)",fontWeight:saveError?700:400,marginBottom:8,paddingLeft:3}}>{saveError?"⚠️ 自動保存失敗":db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
-            <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db,setDb)}>💾 JSONを保存</button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.3)",marginBottom:8,paddingLeft:3}}>{db.meta?.savedAt?`保存: ${new Date(db.meta.savedAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}`:"自動保存中"}</div>
+            <button className="btn bsm" style={{width:"100%",marginBottom:5,background:"rgba(255,255,255,.10)",color:"rgba(255,255,255,.75)",border:"1px solid rgba(255,255,255,.08)"}} onClick={()=>doExport(db)}>💾 JSONを保存</button>
             <button className="btn bsm" style={{width:"100%",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.55)",border:"1px solid rgba(255,255,255,.06)"}} onClick={()=>setPage("data")}>📂 データ管理</button>
           </div>
         </nav>
         <div className="mn">
-          {saveError&&(
-            <div style={{background:"#B85450",color:"#fff",padding:"7px 14px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:7,textAlign:"center",justifyContent:"center"}}>
-              ⚠️ 端末への自動保存に失敗しています（容量不足の可能性）。「💾 JSONを保存」で必ずバックアップしてください。
-            </div>
-          )}
           <div className="th np">
             <div className="b7" style={{fontSize:15}}>{cur?.icon} {cur?.label}</div>
             <div className="row" style={{gap:6}}>
               {unpaid>0&&<span className="bdg drd">{unpaid}件未収</span>}
-              <button className="btn bp bsm" onClick={()=>doExport(db,setDb)} style={{padding:"4px 10px",fontSize:11}}>💾保存</button>
+              <button className="btn bp bsm" onClick={()=>doExport(db)} style={{padding:"4px 10px",fontSize:11}}>💾保存</button>
             </div>
           </div>
           <div className="pw">{render()}</div>
