@@ -1773,7 +1773,7 @@ function ShakkenShoOCR({onResult,onClose}){
 
 // ── VehicleModal ───────────────────────────────────────────
 function VehicleModal({v,onSave,onClose,onDel}){
-  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",weight:v?.weight||1500,shakkenExpiry:v?.shakkenExpiry||""});
+  const[f,setF]=useState({carName:v?.carName||"",plateNo:v?.plateNo||"",chassisNo:v?.chassisNo||"",firstReg:v?.firstReg||"",carType:v?.carType||"自家用乗用（普通・小型）",shakkenExpiry:v?.shakkenExpiry||""});
   const[showOCR,setShowOCR]=useState(false);
   const handleOCR=(parsed)=>{
     const wRaw=Number(parsed.weight)||0;
@@ -1799,9 +1799,6 @@ function VehicleModal({v,onSave,onClose,onDel}){
           <Fld label="初度登録年月"><WarekiMonthInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
           <Fld label="車種区分（自賠責に影響）" style={{gridColumn:"1/-1"}}>
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
-          </Fld>
-          <Fld label="車両重量（kg）">
-            <input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}/>
           </Fld>
           <Fld label="次回車検期限" style={{gridColumn:"1/-1"}}>
             <WarekiMonthInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/>
@@ -1849,7 +1846,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
   if(modal) return(
     <>
     {form._ocrTarget!=null&&<ShakkenShoOCR
-      onResult={parsed=>{setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed,weight:Number(parsed.weight)||v.weight}:v)}));}}
+      onResult={parsed=>{setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed}:v)}));}}
       onClose={()=>setForm(f=>({...f,_ocrTarget:null}))}/>}
     <div className="stk fu">
       <div className="rb">
@@ -1888,7 +1885,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)"}}>🚗 車両情報 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意・複数台登録可</span></div>
-            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"自家用乗用（普通・小型）",weight:1500}]}))}>＋ 車両追加</button>
+            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"自家用乗用（普通・小型）"}]}))}>＋ 車両追加</button>
           </div>
           {(form.vehicles||[]).length===0&&(
             <div style={{textAlign:"center",padding:"14px",background:"var(--grp)",borderRadius:11,color:"var(--lb2)",fontSize:13}}>車両未登録 — 「＋ 車両追加」で追加</div>
@@ -1914,7 +1911,6 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><WarekiMonthInput value={v.firstReg||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:val}:x)}))}/></div>
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
-                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
                 <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><WarekiMonthInput value={v.shakkenExpiry||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:val}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[[`自賠責（${getShakkenMonths(v.carType||"乗用")}ヶ月）`,fmt(calcJibaiseki(v.carType||"乗用",getShakkenMonths(v.carType||"乗用")))],[`重量税（${getShakkenMonths(v.carType||"乗用")/12}年）`,"手入力"]].map(([l,val])=>(
@@ -1963,7 +1959,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 {(c.vehicles||[]).length===0&&<div className="cmu sm">車両未登録</div>}
                 {(c.vehicles||[]).map(v=>(
                   <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
-                    <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType} {v.weight}kg</div></div>
+                    <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType}</div></div>
                     <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div><div className="xs cmu">重量税 手入力</div></div></div>
                   </div>
                 ))}
