@@ -1795,7 +1795,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
             <input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={f.weight} onChange={e=>setF(p=>({...p,weight:Number(e.target.value)}))}/>
           </Fld>
           <Fld label="次回車検期限" style={{gridColumn:"1/-1"}}>
-            <input type="month" className="inp" value={f.shakkenExpiry||""} onChange={e=>setF(p=>({...p,shakkenExpiry:e.target.value}))}/>
+            <WarekiMonthInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/>
           </Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
@@ -1906,7 +1906,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                   <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
                 </div>
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
-                <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><input type="month" className="inp" value={v.shakkenExpiry||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:e.target.value}:x)}))}/></div>
+                <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><WarekiMonthInput value={v.shakkenExpiry||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:val}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[["自賠責（24ヶ月）",fmt(calcJibaiseki(v.carType||"乗用",24))],["重量税（2年）",fmt(calcJuryozei(v.weight||1500,v.carType,v.firstReg))]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
