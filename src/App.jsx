@@ -2134,7 +2134,11 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
   useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,24),juryozei:calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg)}}));},[form.vehicleId,auto]);
-  const setS=(k,v)=>setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
+  const setS=(k,v)=>{
+    // 自賠責・重量税を手入力したら自動計算をオフ
+    if(k==="jibaiseki"||k==="juryozei") setAuto(false);
+    setForm(f=>({...f,shakken:{...f.shakken,[k]:Number(v)}}));
+  };
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
@@ -2178,7 +2182,19 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               <div key={key} className="fr">
                 <div style={{flex:1,minWidth:0}}>
                   <div className="sm b6">{label}</div>
-                  <div className="xs cmu">{hint}</div>
+                  <div className="xs cmu" style={{display:"flex",alignItems:"center",gap:6}}>
+                    {hint}
+                    {!auto&&(key==="jibaiseki"||key==="juryozei")&&vehicle&&(
+                      <button className="btn bs" style={{fontSize:10,padding:"2px 7px",height:"auto"}}
+                        onClick={()=>{
+                          setAuto(true);
+                          setForm(f=>({...f,shakken:{...f.shakken,
+                            jibaiseki:calcJibaiseki(vehicle.carType,24),
+                            juryozei:calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg)
+                          }}));
+                        }}>↩ 自動に戻す</button>
+                    )}
+                  </div>
                   {key==="jibaiseki"&&(
                     <div className="row" style={{gap:5,marginTop:4}}>
                       <input type="checkbox" id="mochikomi" checked={form.shakken.jibaisekiMochikomi||false}
