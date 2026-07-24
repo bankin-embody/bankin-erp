@@ -1810,7 +1810,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
           <div className="g2" style={{gap:7}}>
-            {[[`自賠責（${getShakkenMonths(f.carType)}ヶ月）`,fmt(calcJibaiseki(f.carType,getShakkenMonths(f.carType)))],[`重量税（${getShakkenMonths(f.carType)/12}年）`,fmt(calcJuryozei(f.weight,f.carType,f.firstReg))]].map(([l,val])=>(
+            {[[`自賠責（${getShakkenMonths(f.carType)}ヶ月）`,fmt(calcJibaiseki(f.carType,getShakkenMonths(f.carType)))],[`重量税（${getShakkenMonths(f.carType)/12}年）`,"手入力"]].map(([l,val])=>(
               <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{val}</div></div>
             ))}
           </div>
@@ -1917,7 +1917,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車両重量（kg）</div><input type="number" inputMode="decimal" className="inp" step="10" min="0" placeholder="例: 1500" value={v.weight||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,weight:Number(e.target.value)}:x)}))}/></div>
                 <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><WarekiMonthInput value={v.shakkenExpiry||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:val}:x)}))}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[[`自賠責（${getShakkenMonths(v.carType||"乗用")}ヶ月）`,fmt(calcJibaiseki(v.carType||"乗用",getShakkenMonths(v.carType||"乗用")))],[`重量税（${getShakkenMonths(v.carType||"乗用")/12}年）`,fmt(calcJuryozei(v.weight||1500,v.carType,v.firstReg))]].map(([l,val])=>(
+                  {[[`自賠責（${getShakkenMonths(v.carType||"乗用")}ヶ月）`,fmt(calcJibaiseki(v.carType||"乗用",getShakkenMonths(v.carType||"乗用")))],[`重量税（${getShakkenMonths(v.carType||"乗用")/12}年）`,"手入力"]].map(([l,val])=>(
                     <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
                       <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
                       <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
@@ -1964,7 +1964,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 {(c.vehicles||[]).map(v=>(
                   <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
                     <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType} {v.weight}kg</div></div>
-                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div><div className="xs cmu">重量税 {fmt(calcJuryozei(v.weight,v.carType,v.firstReg))}{getElapsedClass(v.firstReg,v.carType?.includes("軽"))!=="n"?" ⚠️":""}</div></div></div>
+                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div><div className="xs cmu">重量税 手入力</div></div></div>
                   </div>
                 ))}
               </div>
@@ -2142,7 +2142,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
   const vehicle=(cust?.vehicles||[]).find(v=>v.id===Number(form.vehicleId));
-  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)),juryozei:calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg)}}));},[form.vehicleId,auto]);
+  useEffect(()=>{if(auto&&vehicle)setForm(f=>({...f,shakken:{...f.shakken,jibaiseki:calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType))}}));},[form.vehicleId,auto]);
   const setS=(k,v)=>{
     // 自賠責・重量税を手入力したら自動計算をオフ
     if(k==="jibaiseki"||k==="juryozei") setAuto(false);
@@ -2187,7 +2187,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             </div>
           </div>
           <div className="lst">
-            {[{key:"jibaiseki",label:`自賠責保険（${vehicle?getShakkenMonths(vehicle.carType):24}ヶ月）`,hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)))}`:"車両選択で自動入力"},{key:"juryozei",label:`重量税（${vehicle?getShakkenMonths(vehicle.carType)/12:2}年）`,hint:vehicle?`自動: ${fmt(calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg))}`:"車両選択で自動入力"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
+            {[{key:"jibaiseki",label:`自賠責保険（${vehicle?getShakkenMonths(vehicle.carType):24}ヶ月）`,hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)))}`:"車両選択で自動入力"},{key:"juryozei",label:`重量税（${vehicle?getShakkenMonths(vehicle.carType)/12:2}年）`,hint:"手入力してください"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
               <div key={key} className="fr">
                 <div style={{flex:1,minWidth:0}}>
                   <div className="sm b6">{label}</div>
@@ -2199,7 +2199,6 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                           setAuto(true);
                           setForm(f=>({...f,shakken:{...f.shakken,
                             jibaiseki:calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)),
-                            juryozei:calcJuryozei(vehicle.weight,vehicle.carType,vehicle.firstReg)
                           }}));
                         }}>↩ 自動に戻す</button>
                     )}
