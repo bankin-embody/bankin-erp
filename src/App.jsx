@@ -2493,7 +2493,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
                     <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={e=>{e.stopPropagation();setPayModal(inv);}}>💰 入金</button>
                     <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("invoice");}}>📄 請求書</button>
                     <button className="btn bsm" style={{background:"rgba(90,200,250,.15)",color:"#0077a8",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(inv);setPType("delivery");}}>📦 納品書</button>
-                    <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setInvoices(p=>p.filter(i=>i.id!==inv.id));}}>削除</button>
+                    <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？")){setExpenses(p=>p.filter(e=>e._invId!==inv.id));setInvoices(p=>p.filter(i=>i.id!==inv.id));}}}>削除</button>
                   </div>
                 </div>
               </div>
