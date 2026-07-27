@@ -1822,11 +1822,21 @@ function VehicleModal({v,onSave,onClose,onDel}){
   );
 }
 
-const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog}){
-  const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
+const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog,invoices=[]}){\n  const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
   const[form,setForm]=useState(E);
+  // 顧客ごとの未収金マップ（件数・金額）
+  const unpaidMap=useMemo(()=>{
+    const m={};
+    invoices.filter(i=>i.status==="未入金").forEach(i=>{
+      const amt=invTotal(i,{tax:i.tax??0.1});
+      if(!m[i.customerId])m[i.customerId]={cnt:0,amt:0};
+      m[i.customerId].cnt++;
+      m[i.customerId].amt+=amt;
+    });
+    return m;
+  },[invoices]);
   const filtered=customers
     .filter(c=>fullName(c).includes(search)||c.phone?.includes(search)||(c.firstName||"").includes(search))
     .sort((a,b)=>{
@@ -1951,6 +1961,10 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                 <div className="b6 trn">{c.lastName||"—"}</div>
                 <div className="cmu sm trn">{c.phone}{c.email?` · ${c.email}`:""}</div>
               </div>
+              {unpaidMap[c.id]&&<div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--re)"}}>未収 {fmt(unpaidMap[c.id].amt)}</div>
+                <div style={{fontSize:10,color:"var(--lb2)"}}>{unpaidMap[c.id].cnt}件</div>
+              </div>}
               {c.note&&<span className="bdg dbl">{c.note}</span>}
               <span className="cmu" style={{fontSize:15,transition:"transform .2s",transform:expId===c.id?"rotate(90deg)":"none"}}>›</span>
             </div>
@@ -3987,7 +4001,7 @@ export default function App(){
   const render=()=>{
     switch(page){
       case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings}/>;
-      case"customers":   return <Customers customers={customers} setCustomers={set("customers")} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
+      case"customers":   return <Customers customers={customers} setCustomers={set("customers")} invoices={invoices} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
