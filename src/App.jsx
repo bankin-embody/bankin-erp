@@ -1427,12 +1427,12 @@ window.addEventListener("afterprint",function(){
                     return(
                       <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid",breakInside:"avoid"}}>
                         <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",height:32}}>{it.desc}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center"}}>{it.unitLabel||"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.unit?fmt(it.unit):"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right"}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{amt?fmt(amt):"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,color:"#888"}}>{it.note||""}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.unitLabel||"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.unit?fmt(it.unit):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600,borderLeft:`1px solid ${theme.border}`}}>{amt?fmt(amt):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:"#888",borderLeft:`1px solid ${theme.border}`}}>{it.note||""}</td>
                       </tr>
                     );
                   })}
@@ -2133,9 +2133,9 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
 
 // ── Shakken Invoice Form ───────────────────────────────────
 const DEF_SHAKKEN_ITEMS=[
-  {desc:"2年24ヶ月定期点検基本作業",qty:1,unit:0,gijutsu:0,inspType:"24"},
-  {desc:"保安確認検査",qty:1,unit:0,gijutsu:0},
-  {desc:"OBD診断",qty:1,unit:0,gijutsu:0},
+  {desc:"2年24ヶ月定期点検基本作業",qty:0,unit:0,gijutsu:0,inspType:"24"},
+  {desc:"保安確認検査",qty:0,unit:0,gijutsu:0},
+  {desc:"OBD診断",qty:0,unit:0,gijutsu:0},
 ];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
