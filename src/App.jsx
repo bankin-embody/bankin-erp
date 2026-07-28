@@ -1822,7 +1822,8 @@ function VehicleModal({v,onSave,onClose,onDel}){
   );
 }
 
-const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog,invoices=[]}){\n  const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
+const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog,invoices=[]}){
+  const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
   const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
   const[form,setForm]=useState(E);
