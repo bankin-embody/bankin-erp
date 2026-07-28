@@ -1851,6 +1851,30 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
       .filter(v=>v.carName||v.plateNo||v.chassisNo)
       .map((v,i)=>v.id?v:{...v,id:Date.now()+i});
     const data={...form,vehicles};
+    // 重複チェック（編集時は自分自身を除外）
+    const others=customers.filter(c=>modal==="add"?true:c.id!==modal.id);
+    const warnings=[];
+    // 名前の重複
+    if(form.lastName){
+      const sameName=others.find(c=>c.lastName===form.lastName&&(c.firstName||"")===(form.firstName||""));
+      if(sameName)warnings.push(`同じ名前「${form.lastName}」の顧客がすでに登録されています。`);
+    }
+    // 電話番号の重複
+    if(form.phone){
+      const samePhone=others.find(c=>c.phone===form.phone);
+      if(samePhone)warnings.push(`同じ電話番号「${form.phone}」の顧客（${samePhone.lastName}）がすでに登録されています。`);
+    }
+    // ナンバープレートの重複
+    vehicles.forEach(v=>{
+      if(!v.plateNo)return;
+      others.forEach(c=>(c.vehicles||[]).forEach(cv=>{
+        if(cv.plateNo===v.plateNo)warnings.push(`ナンバー「${v.plateNo}」は${c.lastName}様にすでに登録されています。`);
+      }));
+    });
+    if(warnings.length>0){
+      const msg=warnings.join("\n")+"\n\nそれでも登録しますか？";
+      if(!confirm(msg))return;
+    }
     if(modal==="add")setCustomers(p=>[...p,{...data,id:nextId(p)}]);
     else setCustomers(p=>p.map(c=>c.id===modal.id?{...data,id:c.id}:c));
     setModal(null);
