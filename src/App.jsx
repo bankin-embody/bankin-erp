@@ -1975,45 +1975,68 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>顧客管理</div><button className="btn bp bsm" onClick={()=>{setForm(E);setModal("add");}}>＋ 顧客追加</button></div>
       <input className="inp" placeholder="🔍  名前・電話番号で検索" value={search} onChange={e=>setSearch(e.target.value)}/>
-      <div className="lst">
-        {filtered.map(c=>(
-          <div key={c.id}>
-            <div className="li" onClick={()=>setExpId(expId===c.id?null:c.id)}>
-              <div style={{width:36,height:36,borderRadius:18,background:"var(--bl)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,flexShrink:0}}>{(c.lastName||"?")[0]}</div>
-              <div style={{flex:1,minWidth:0}}>
-                {c.firstName&&<div style={{fontSize:11,color:"var(--lb2)",letterSpacing:"0.05em"}} className="trn">{c.firstName}</div>}
-                <div className="b6 trn">{c.lastName||"—"}</div>
-                <div className="cmu sm trn">{c.phone}{c.email?` · ${c.email}`:""}</div>
-              </div>
-              {unpaidMap[c.id]&&<div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--re)"}}>未収 {fmt(unpaidMap[c.id].amt)}</div>
-                <div style={{fontSize:10,color:"var(--lb2)"}}>{unpaidMap[c.id].cnt}件</div>
-              </div>}
-              {c.note&&<span className="bdg dbl">{c.note}</span>}
-              <span className="cmu" style={{fontSize:15,transition:"transform .2s",transform:expId===c.id?"rotate(90deg)":"none"}}>›</span>
-            </div>
-            {expId===c.id&&(
-              <div style={{background:"var(--grp)",padding:"9px 13px",borderBottom:"1px solid var(--sep)"}}>
-                <div className="rb mb8">
-                  <div className="sm b6">🚗 登録車両</div>
-                  <div className="row" style={{gap:6}}>
-                    <button className="btn bs bsm" onClick={()=>{setForm({...c,vehicles:c.vehicles||[]});setModal(c);}}>✏️ 顧客・車両編集</button>
-                    <button className="btn bp bsm" onClick={()=>setVModal({cid:c.id,v:null})}>＋ 車両</button>
-                  </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {filtered.map(c=>{
+          const unpaid=unpaidMap[c.id];
+          const vehicles=c.vehicles||[];
+          const isOpen=expId===c.id;
+          return(
+            <div key={c.id} style={{background:"var(--bg2)",borderRadius:14,boxShadow:"var(--sh)",border:unpaid?"1.5px solid rgba(255,59,48,.25)":"1px solid var(--sep)",overflow:"hidden"}}>
+              {/* カードヘッダー */}
+              <div style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",cursor:"pointer"}} onClick={()=>setExpId(isOpen?null:c.id)}>
+                <div style={{width:40,height:40,borderRadius:20,background:"var(--bl)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,flexShrink:0}}>{(c.lastName||"?")[0]}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  {c.firstName&&<div style={{fontSize:10,color:"var(--lb2)",letterSpacing:"0.05em"}}>{c.firstName}</div>}
+                  <div style={{fontWeight:700,fontSize:15,lineHeight:1.2}}>{c.lastName||"—"}</div>
+                  {(c.phone||c.email)&&<div style={{fontSize:11,color:"var(--lb2)",marginTop:2}}>{c.phone}{c.email?` · ${c.email}`:""}</div>}
                 </div>
-                {(()=>{const wc=(worklogs||[]).filter(w=>w.customerId===c.id).length;return wc>0&&(<button className="btn bsm" style={{width:"100%",marginBottom:8,background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700}} onClick={()=>onGoWorklog&&onGoWorklog(c.id)}>📸 作業記録を見る（{wc}件）</button>);})()}
-                {(c.vehicles||[]).length===0&&<div className="cmu sm">車両未登録</div>}
-                {(c.vehicles||[]).map(v=>(
-                  <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",marginBottom:6,cursor:"pointer",boxShadow:"var(--sh)"}}>
-                    <div className="rb"><div><div className="b6">{v.carName} <span className="cmu sm">{v.plateNo}</span></div><div className="cmu xs mt4">車台: {v.chassisNo} · {v.firstReg} · {v.carType}</div></div>
-                    <div style={{textAlign:"right"}}><div className="xs cmu">自賠責</div><div className="b7 sm cbl">{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div><div className="xs cmu">重量税 手入力</div></div></div>
-                  </div>
-                ))}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0}}>
+                  {unpaid&&<div style={{background:"rgba(255,59,48,.1)",borderRadius:7,padding:"3px 8px",textAlign:"right"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--re)"}}>未収 {fmt(unpaid.amt)}</div>
+                    <div style={{fontSize:10,color:"var(--re)",opacity:.7}}>{unpaid.cnt}件</div>
+                  </div>}
+                  {vehicles.length>0&&<div style={{fontSize:10,color:"var(--lb2)"}}>🚗 {vehicles.length}台</div>}
+                  <span style={{fontSize:13,color:"var(--lb2)",transition:"transform .2s",transform:isOpen?"rotate(90deg)":"none"}}>›</span>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
-        {!filtered.length&&<div className="li cmu" style={{justifyContent:"center"}}>顧客が見つかりません</div>}
+              {/* 展開エリア */}
+              {isOpen&&(
+                <div style={{borderTop:"1px solid var(--sep)",background:"var(--grp)",padding:"10px 13px",display:"flex",flexDirection:"column",gap:8}}>
+                  {/* ボタン列 */}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <button className="btn bs bsm" style={{flex:1}} onClick={()=>{setForm({...c,vehicles:c.vehicles||[]});setModal(c);}}>✏️ 編集</button>
+                    <button className="btn bp bsm" style={{flex:1}} onClick={()=>setVModal({cid:c.id,v:null})}>＋ 車両追加</button>
+                    {(worklogs||[]).filter(w=>w.customerId===c.id).length>0&&(
+                      <button className="btn bsm" style={{flex:"1 1 100%",background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700}} onClick={()=>onGoWorklog&&onGoWorklog(c.id)}>
+                        📸 作業記録（{(worklogs||[]).filter(w=>w.customerId===c.id).length}件）
+                      </button>
+                    )}
+                  </div>
+                  {/* 備考 */}
+                  {c.note&&<div style={{fontSize:11,color:"var(--lb2)",background:"var(--bg2)",borderRadius:7,padding:"5px 9px"}}>{c.note}</div>}
+                  {/* 車両一覧 */}
+                  {vehicles.length===0&&<div style={{fontSize:12,color:"var(--lb2)",textAlign:"center",padding:"4px 0"}}>車両未登録</div>}
+                  {vehicles.map(v=>(
+                    <div key={v.id} onClick={()=>setVModal({cid:c.id,v})} style={{background:"var(--bg2)",borderRadius:10,padding:"9px 11px",cursor:"pointer",border:"1px solid var(--sep)"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:13}}>{v.carName||"車名未入力"} <span style={{fontWeight:400,fontSize:11,color:"var(--lb2)"}}>{v.plateNo}</span></div>
+                          <div style={{fontSize:10,color:"var(--lb2)",marginTop:2}}>{v.carType}{v.firstReg?` · ${v.firstReg}`:""}{v.chassisNo?` · ${v.chassisNo}`:""}</div>
+                          {v.shakkenExpiry&&<div style={{fontSize:10,color:"var(--or)",marginTop:2}}>🔑 次回車検 {v.shakkenExpiry}</div>}
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontSize:10,color:"var(--lb2)"}}>自賠責</div>
+                          <div style={{fontSize:12,fontWeight:700,color:"var(--bl)"}}>{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {!filtered.length&&<div style={{textAlign:"center",color:"var(--lb2)",padding:"32px 0",fontSize:13}}>顧客が見つかりません</div>}
       </div>
       {vModal&&<VehicleModal v={vModal.v} onSave={vd=>saveV(vModal.cid,vModal.v?.id,vd)} onClose={()=>setVModal(null)} onDel={()=>{if(confirm("削除？")){setCustomers(p=>p.map(c=>c.id===vModal.cid?{...c,vehicles:(c.vehicles||[]).filter(v=>v.id!==vModal.v.id)}:c));setVModal(null);}}}/>}
     </div>
