@@ -1797,14 +1797,12 @@ function VehicleModal({v,onSave,onClose,onDel}){
         <div className="g2" style={{gap:9}}>
           <Fld label="車種名"><input className="inp" placeholder="プリウス" value={f.carName} onChange={e=>setF(p=>({...p,carName:e.target.value}))}/></Fld>
           <Fld label="ナンバー"><input className="inp" placeholder="品川300あ1234" value={f.plateNo} onChange={e=>setF(p=>({...p,plateNo:e.target.value}))}/></Fld>
-          <Fld label="車台番号"><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
-          <Fld label="初度登録年月"><WarekiMonthInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
           <Fld label="車種区分（自賠責に影響）" style={{gridColumn:"1/-1"}}>
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
           </Fld>
-          <Fld label="次回車検期限" style={{gridColumn:"1/-1"}}>
-            <WarekiMonthInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/>
-          </Fld>
+          <Fld label="初度登録年月"><WarekiMonthInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
+          <Fld label="次回車検期限"><WarekiMonthInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/></Fld>
+          <Fld label="車台番号" style={{gridColumn:"1/-1"}}><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
@@ -1968,6 +1966,12 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
             </div>
           ))}
         </div>
+      </div>
+      {/* 下部ボタン */}
+      <div style={{display:"flex",gap:8,paddingTop:8,borderTop:"1px solid var(--sep)"}}>
+        {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setCustomers(p=>p.filter(c=>c.id!==modal.id));setModal(null);}}}>削除</button>}
+        <button className="btn bs" style={{flex:1}} onClick={()=>setModal(null)}>キャンセル</button>
+        <button className="btn bp" style={{flex:2}} onClick={save}>👥 {modal==="add"?"登録":"保存"}</button>
       </div>
     </div>
     </>
