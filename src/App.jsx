@@ -1889,6 +1889,19 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
     {form._ocrTarget!=null&&<ShakkenShoOCR
       onResult={parsed=>{setForm(f=>({...f,_ocrTarget:null,vehicles:f.vehicles.map((v,i)=>i===f._ocrTarget?{...v,...parsed}:v)}));}}
       onClose={()=>setForm(f=>({...f,_ocrTarget:null}))}/>}
+    {vModal&&<VehicleModal v={vModal.v} onSave={vd=>{
+        if(vModal.vi!=null){
+          setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vModal.vi?{...x,...vd,id:x.id}:x)}));
+        } else {
+          setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{...vd,id:Date.now()}]}));
+        }
+        setVModal(null);
+      }} onClose={()=>setVModal(null)} onDel={()=>{
+        if(confirm("削除？")&&vModal.vi!=null){
+          setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vModal.vi)}));
+          setVModal(null);
+        }
+      }}/>}
     <div className="stk fu">
       <div className="rb">
         <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"新規顧客登録":"顧客編集"}</div>
