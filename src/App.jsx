@@ -1926,42 +1926,21 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)"}}>🚗 車両情報 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意・複数台登録可</span></div>
-            <button className="btn bg bsm" onClick={()=>setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{id:Date.now(),carName:"",plateNo:"",chassisNo:"",firstReg:"",carType:"自家用乗用（普通・小型）"}]}))}>＋ 車両追加</button>
+            <button className="btn bg bsm" onClick={()=>setVModal({cid:modal?.id||"new",v:null,inline:true})}>＋ 車両追加</button>
           </div>
           {(form.vehicles||[]).length===0&&(
             <div style={{textAlign:"center",padding:"14px",background:"var(--grp)",borderRadius:11,color:"var(--lb2)",fontSize:13}}>車両未登録 — 「＋ 車両追加」で追加</div>
           )}
           {(form.vehicles||[]).map((v,vi)=>(
-            <div key={v.id||vi} style={{border:"1px solid rgba(52,199,89,.3)",borderRadius:12,padding:"14px",marginBottom:10,background:"rgba(52,199,89,.03)"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#1a8f3a"}}>🚗 車両 {vi+1}{v.carName?` — ${v.carName}`:""}</div>
-                <button className="btn bd bsm" onClick={()=>setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vi)}))}>削除</button>
+            <div key={v.id||vi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--grp)",borderRadius:11,padding:"11px 13px",marginBottom:8,border:"1px solid var(--sep)"}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:13}}>{v.carName||"車名未入力"} <span style={{fontWeight:400,fontSize:11,color:"var(--lb2)"}}>{v.plateNo}</span></div>
+                <div style={{fontSize:11,color:"var(--lb2)",marginTop:2}}>{v.carType}{v.firstReg?` · ${v.firstReg}`:""}</div>
+                {v.shakkenExpiry&&<div style={{fontSize:11,color:"var(--or)",marginTop:2}}>🔑 次回車検 {v.shakkenExpiry}</div>}
               </div>
-              {/* 車検証OCRボタン */}
-              <button style={{width:"100%",marginBottom:11,padding:"10px",background:"linear-gradient(135deg,rgba(0,122,255,.1),rgba(52,199,89,.07))",border:"1.5px dashed rgba(0,122,255,.4)",borderRadius:10,color:"var(--bl)",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
-                onClick={()=>setForm(f=>({...f,_ocrTarget:vi}))}>
-                📷 車検証を撮影して自動入力
-              </button>
-              <div style={{display:"flex",flexDirection:"column",gap:11}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種名</div><input className="inp" placeholder="プリウス" value={v.carName||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carName:e.target.value}:x)}))}/></div>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>ナンバー</div><input className="inp" placeholder="品川300あ1234" value={v.plateNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,plateNo:e.target.value}:x)}))}/></div>
-                </div>
-                <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車台番号</div><input className="inp" placeholder="ZVW5012345" value={v.chassisNo||""} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,chassisNo:e.target.value}:x)}))}/></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>初度登録年月</div><WarekiMonthInput value={v.firstReg||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,firstReg:val}:x)}))}/></div>
-                  <div><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>車種区分</div><CarTypeSelect value={v.carType||"自家用乗用（普通・小型）"} onChange={e=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,carType:e.target.value}:x)}))}/></div>
-                </div>
-                <div style={{gridColumn:"1/-1"}}><div style={{fontSize:12,fontWeight:700,color:"var(--lb2)",marginBottom:5}}>次回車検期限</div><WarekiMonthInput value={v.shakkenExpiry||""} onChange={val=>setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vi?{...x,shakkenExpiry:val}:x)}))}/></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[[`自賠責（${getShakkenMonths(v.carType||"乗用")}ヶ月）`,fmt(calcJibaiseki(v.carType||"乗用",getShakkenMonths(v.carType||"乗用")))],[`重量税（${getShakkenMonths(v.carType||"乗用")/12}年）`,"手入力"]].map(([l,val])=>(
-                    <div key={l} style={{background:"var(--bg2)",borderRadius:9,padding:"8px 11px",border:"1px solid var(--sep)"}}>
-                      <div style={{fontSize:11,color:"var(--lb2)"}}>{l}</div>
-                      <div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-                {(()=>{const cls=getElapsedClass(v.firstReg,v.carType?.includes("軽"));return cls!=="n"&&<div style={{fontSize:11,color:"var(--re)",fontWeight:700}}>{cls==="y18"?"⚠️ 18年超":"⚠️ 13年超"}：割増税率</div>;})()}
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button className="btn bs bsm" onClick={()=>setVModal({cid:modal?.id||"new",v,vi,inline:true})}>編集</button>
+                <button className="btn bd bsm" onClick={()=>setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vi)}))}>削除</button>
               </div>
             </div>
           ))}
@@ -2054,7 +2033,29 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         })}
         {!filtered.length&&<div style={{textAlign:"center",color:"#aaa",padding:"40px 0",fontSize:13}}>顧客が見つかりません</div>}
       </div>
-      {vModal&&<VehicleModal v={vModal.v} onSave={vd=>saveV(vModal.cid,vModal.v?.id,vd)} onClose={()=>setVModal(null)} onDel={()=>{if(confirm("削除？")){setCustomers(p=>p.map(c=>c.id===vModal.cid?{...c,vehicles:(c.vehicles||[]).filter(v=>v.id!==vModal.v.id)}:c));setVModal(null);}}}/>}
+      {vModal&&<VehicleModal v={vModal.v} onSave={vd=>{
+        if(vModal.inline){
+          // 顧客編集フォーム内の車両を更新
+          if(vModal.vi!=null){
+            setForm(f=>({...f,vehicles:f.vehicles.map((x,i)=>i===vModal.vi?{...x,...vd,id:x.id}:x)}));
+          } else {
+            setForm(f=>({...f,vehicles:[...(f.vehicles||[]),{...vd,id:Date.now()}]}));
+          }
+          setVModal(null);
+        } else {
+          saveV(vModal.cid,vModal.v?.id,vd);
+        }
+      }} onClose={()=>setVModal(null)} onDel={()=>{
+        if(confirm("削除？")){
+          if(vModal.inline&&vModal.vi!=null){
+            setForm(f=>({...f,vehicles:f.vehicles.filter((_,i)=>i!==vModal.vi)}));
+            setVModal(null);
+          } else {
+            setCustomers(p=>p.map(c=>c.id===vModal.cid?{...c,vehicles:(c.vehicles||[]).filter(v=>v.id!==vModal.v.id)}:c));
+            setVModal(null);
+          }
+        }
+      }}/>}
     </div>
   );
 });
