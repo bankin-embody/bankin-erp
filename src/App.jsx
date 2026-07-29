@@ -610,9 +610,14 @@ function Modal({title,children,footer,onClose,wide=false,tall=false}){
     document.addEventListener("keydown",h);
     const prev=document.body.style.overflow;
     document.body.style.overflow="hidden";
+    // モーダル表示時にページトップへスクロール
+    const scrollEl=document.querySelector(".pg")||document.documentElement;
+    const prevScroll=scrollEl.scrollTop;
+    scrollEl.scrollTop=0;
     return()=>{
       document.removeEventListener("keydown",h);
       document.body.style.overflow=prev;
+      scrollEl.scrollTop=prevScroll;
     };
   },[onClose]);
   return(
