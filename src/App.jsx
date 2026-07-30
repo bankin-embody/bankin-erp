@@ -2140,7 +2140,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
   };
   const toInv=form=>{
     const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")}))));
-    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金"}]);
+    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金",date:today()}]);
     setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
@@ -4127,6 +4127,13 @@ export default function App(){
           </div>
         </nav>
         <div className="mn">
+          {syncState==="error"&&sbEnabled&&(
+            <div onClick={()=>setPage("settings")} style={{background:"#B85450",color:"#fff",padding:"9px 16px",display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0}}>
+              <span style={{fontSize:16}}>⚠️</span>
+              <div style={{flex:1}}>クラウド同期エラー — タップして設定を確認</div>
+              <span style={{opacity:.7,fontSize:11}}>{syncMsg}</span>
+            </div>
+          )}
           <div className="th np">
             <div className="b7" style={{fontSize:15}}>{cur?.icon} {cur?.label}</div>
             <div className="row" style={{gap:6}}>
