@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import ReactDOM from "react-dom";
 
 const G = () => (
   <style>{`
@@ -610,17 +611,12 @@ function Modal({title,children,footer,onClose,wide=false,tall=false}){
     document.addEventListener("keydown",h);
     const prev=document.body.style.overflow;
     document.body.style.overflow="hidden";
-    // モーダル表示時にページトップへスクロール
-    const scrollEl=document.querySelector(".pg")||document.documentElement;
-    const prevScroll=scrollEl.scrollTop;
-    scrollEl.scrollTop=0;
     return()=>{
       document.removeEventListener("keydown",h);
       document.body.style.overflow=prev;
-      scrollEl.scrollTop=prevScroll;
     };
   },[onClose]);
-  return(
+  return ReactDOM.createPortal(
     <div className={`mbg${tall?" tall":""}`} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>      
       <div className={`msh si${tall?" tall":""}${wide?" print-wide":""}`} style={wide?{maxWidth:820}:{}}>
         <div className="mhd"/>
@@ -630,7 +626,8 @@ function Modal({title,children,footer,onClose,wide=false,tall=false}){
         </div>
         <div className="mbdy">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
