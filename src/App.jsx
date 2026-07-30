@@ -1530,7 +1530,7 @@ window.addEventListener("afterprint",function(){
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,setCustomers}){
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
@@ -1558,7 +1558,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const shakkenAlerts=[];
     customers.forEach(c=>{
       (c.vehicles||[]).forEach(v=>{
-        if(!v.shakkenExpiry)return;
+        if(!v.shakkenExpiry||v.haisha)return;
         const exp=new Date(v.shakkenExpiry+"-01");
         // 月末を期限とする
         exp.setMonth(exp.getMonth()+1);exp.setDate(0);
@@ -1689,20 +1689,43 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
             <Ico e="🚗" bg="rgba(255,149,0,.15)"/>
             <div><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
           </div>
-          {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>(
-            <div key={`${customer.id}-${vehicle.id}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600}}>{fullName(customer)}</div>
-                <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.carName} {vehicle.plateNo}</div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:12,fontWeight:700,color:urgent?"var(--re)":"var(--or)"}}>
-                  {daysLeft<=0?"期限超過":`あと${daysLeft}日`}
+          {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>{
+            const updateVehicle=(patch)=>setCustomers(cs=>cs.map(c=>c.id===customer.id?{...c,vehicles:(c.vehicles||[]).map(v=>v.id===vehicle.id?{...v,...patch}:v)}:c));
+            const months=getShakkenMonths(vehicle.carType);
+            const doComplete=()=>{
+              const base=new Date();
+              base.setMonth(base.getMonth()+months);
+              const next=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,"0")}`;
+              if(confirm(`車検完了として次回期限を ${next} に更新しますか？`))updateVehicle({shakkenExpiry:next});
+            };
+            const doHaisha=()=>{if(confirm(`${vehicle.carName||vehicle.plateNo} を廃車済みにしますか？\nアラートから除外されます。`))updateVehicle({haisha:true,shakkenExpiry:""});};
+            const doManual=()=>{
+              const input=prompt(`次回車検期限を入力してください（例: 2027-05）\n現在: ${vehicle.shakkenExpiry||"未設定"}`);
+              if(input&&/^\d{4}-\d{2}$/.test(input))updateVehicle({shakkenExpiry:input});
+              else if(input)alert("形式が正しくありません（例: 2027-05）");
+            };
+            return(
+              <div key={`${customer.id}-${vehicle.id}`} style={{borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px 5px"}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600}}>{fullName(customer)}</div>
+                    <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.carName} {vehicle.plateNo}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:urgent?"var(--re)":"var(--or)"}}>
+                      {daysLeft<=0?"期限超過":`あと${daysLeft}日`}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.shakkenExpiry}</div>
+                  </div>
                 </div>
-                <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.shakkenExpiry}</div>
+                <div style={{display:"flex",gap:6,padding:"0 14px 9px"}}>
+                  <button className="btn bsm" style={{flex:1,background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700,fontSize:11}} onClick={doComplete}>✅ 車検完了</button>
+                  <button className="btn bsm" style={{flex:1,background:"rgba(0,122,255,.08)",color:"var(--bl)",fontWeight:700,fontSize:11}} onClick={doManual}>📅 期限変更</button>
+                  <button className="btn bsm" style={{flex:1,background:"rgba(128,128,128,.1)",color:"#666",fontWeight:700,fontSize:11}} onClick={doHaisha}>🗑️ 廃車</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -4079,7 +4102,7 @@ export default function App(){
 
   const render=()=>{
     switch(page){
-      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings}/>;
+      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} setCustomers={set("customers")}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} invoices={invoices} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
