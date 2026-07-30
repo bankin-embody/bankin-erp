@@ -1732,6 +1732,51 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   );
 });
 
+// 検索付き顧客選択コンポーネント
+function CustomerSelect({customers,value,onChange,includeAll=false}){
+  const[search,setSearch]=useState("");
+  const[open,setOpen]=useState(false);
+  const ref=useRef(null);
+  const selected=customers.find(c=>String(c.id)===String(value));
+  const filtered=customers.filter(c=>{
+    if(!search)return true;
+    return(c.lastName||"").includes(search)||(c.firstName||"").includes(search)||(c.phone||"").includes(search);
+  });
+  useEffect(()=>{
+    const handler=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[]);
+  const select=(id)=>{onChange(id);setOpen(false);setSearch("");};
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <div className="inp" style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",background:"var(--fi)"}} onClick={()=>setOpen(o=>!o)}>
+        <span style={{flex:1,fontSize:13}}>{includeAll&&!value?"全顧客":selected?displayName(selected):"顧客を選択"}</span>
+        <span style={{color:"var(--lb2)",fontSize:11}}>▼</span>
+      </div>
+      {open&&ReactDOM.createPortal(
+        <div style={{position:"fixed",zIndex:9999,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.18)",minWidth:220,maxWidth:320,overflow:"hidden",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:r.width}:{top:100,left:20};})()}}>
+          <div style={{padding:"8px 10px",borderBottom:"1px solid #eee"}}>
+            <input className="inp" style={{fontSize:12,padding:"6px 10px"}} placeholder="🔍 名前・電話で検索" value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
+          </div>
+          <div style={{maxHeight:220,overflowY:"auto"}}>
+            {includeAll&&<div onClick={()=>select("")} style={{padding:"9px 14px",fontSize:13,cursor:"pointer",background:!value?"rgba(0,122,255,.08)":"",fontWeight:!value?700:400}}>全顧客</div>}
+            {filtered.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#aaa"}}>見つかりません</div>}
+            {filtered.map(c=>(
+              <div key={c.id} onClick={()=>select(c.id)} style={{padding:"9px 14px",cursor:"pointer",background:String(c.id)===String(value)?"rgba(0,122,255,.08)":"",borderBottom:"1px solid #f5f5f5"}}>
+                {c.firstName&&<div style={{fontSize:10,color:"#aaa"}}>{c.firstName}</div>}
+                <div style={{fontSize:13,fontWeight:String(c.id)===String(value)?700:400}}>{c.lastName||"—"}</div>
+                {c.phone&&<div style={{fontSize:11,color:"#aaa"}}>{c.phone}</div>}
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // 車種区分セレクト（グループ化）
 function CarTypeSelect({value,onChange}){
   return(
@@ -2117,7 +2162,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value)}))}>{customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}</select></Fld>
+        <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v)}))}/></Fld>
         <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
         <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
         <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
@@ -2208,7 +2253,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
       <div className="stk">
         <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.25)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--or)"}}>🔧 鈑金修理用請求書</span></div>
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}</select></Fld>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
           <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
@@ -2287,7 +2332,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
       <div className="stk">
         <div style={{background:"rgba(0,122,255,.06)",border:"1px solid rgba(0,122,255,.2)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--bl)"}}>🚗 車検用請求書 — 法定費用は非課税・代行料のみ課税</span></div>
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}</select></Fld>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
           <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
@@ -2638,7 +2683,7 @@ function CombinedInvoice({invoices,customers,settings}){
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>合計請求書</div>{filtered.length>0&&<button className="btn bp bsm" onClick={()=>setPrint(true)}>🖨️ 印刷</button>}</div>
       <div className="card">
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={cid} onChange={e=>setCid(e.target.value)}><option value="">全顧客</option>{customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}</select></Fld><div/>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={cid} onChange={v=>setCid(v)} includeAll/></Fld><div/>
           <Fld label="開始日"><input type="date" className="inp" value={from} onChange={e=>setFrom(e.target.value)}/></Fld>
           <Fld label="終了日"><input type="date" className="inp" value={to} onChange={e=>setTo(e.target.value)}/></Fld>
         </div>
@@ -3735,7 +3780,7 @@ function WorkLogModal({log,customers,onSave,onClose}){
       </div>
       <div className="stk">
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><select className="sel" value={form.customerId} onChange={e=>setForm(f=>({...f,customerId:Number(e.target.value),vehicleId:""}))}>{customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}</select></Fld>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
           <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}><option value="">未選択</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}</select></Fld>
           <Fld label="作業日"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
           <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{WL_STATUS.map(s=><option key={s}>{s}</option>)}</select></Fld>
@@ -3856,10 +3901,9 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
       {/* フィルター */}
       <input className="inp" placeholder="🔍  タイトル・メモ・顧客名で検索" value={search} onChange={e=>setSearch(e.target.value)}/>
       <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-        <select className="sel" style={{flex:1,minWidth:120,padding:"7px 10px",fontSize:13}} value={filterCid} onChange={e=>setFilterCid(e.target.value)}>
-          <option value="">全顧客</option>
-          {customers.map(c=><option key={c.id} value={c.id}>{displayName(c)}</option>)}
-        </select>
+        <div style={{flex:1,minWidth:120}}>
+          <CustomerSelect customers={customers} value={filterCid} onChange={v=>setFilterCid(v)} includeAll/>
+        </div>
         <select className="sel" style={{flex:1,minWidth:100,padding:"7px 10px",fontSize:13}} value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
           <option value="">全ステータス</option>
           {WL_STATUS.map(s=><option key={s}>{s}</option>)}
