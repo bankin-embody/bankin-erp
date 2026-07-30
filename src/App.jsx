@@ -1708,7 +1708,10 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
               <div key={`${customer.id}-${vehicle.id}`} style={{borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px 5px"}}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:600}}>{fullName(customer)}</div>
+                    <div>
+                      {customer.firstName&&<div style={{fontSize:10,color:"var(--lb2)"}}>{customer.firstName}</div>}
+                      <div style={{fontSize:13,fontWeight:600}}>{customer.lastName||"—"}</div>
+                    </div>
                     <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.carName} {vehicle.plateNo}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
