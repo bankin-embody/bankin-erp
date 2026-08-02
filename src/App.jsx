@@ -314,6 +314,14 @@ const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
 const today=()=>new Date().toISOString().split("T")[0];
 const nextId=arr=>{const ns=arr.map(x=>parseInt(String(x.id||0).replace(/\D/g,""))||0);return ns.length?Math.max(...ns)+1:1;};
 const fullName=c=>c?`${c.lastName||""}${c.firstName?" "+c.firstName:""}`.trim()||"—":"—";
+// 印刷・PDF用：姓名のみ（フリガナなし）
+const printName=c=>{
+  if(!c)return"—";
+  // lastNameが「姓 名フリガナ」形式の場合、漢字部分のみ抽出
+  // firstName（フリガナ）は使わず、lastNameの漢字部分だけ返す
+  const name=(c.lastName||"").trim();
+  return name||"—";
+};
 // 選択欄用：読み仮名なしで名前のみ表示
 const displayName=c=>c?(c.lastName||"").trim()||"—":"—";
 const yr=d=>new Date(d).getFullYear();
@@ -781,7 +789,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   jpFont(pdf,"bold");
   pdf.setFontSize(15);
-  pdf.text(`${fullName(customer)}　様`,M,y+6);
+  pdf.text(`${printName(customer)}　様`,M,y+6);
   jpFont(pdf,"normal");
   pdf.setFontSize(9);
   let leftY=y+12;
@@ -1272,7 +1280,7 @@ window.addEventListener("afterprint",function(){
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>{fullName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>{printName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
             {vehicle&&<div style={{fontSize:11,color:"#555",marginBottom:4}}>
               車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
             </div>}
@@ -2691,7 +2699,7 @@ function CombinedInvoice({invoices,customers,settings}){
           <Fld label="終了日"><input type="date" className="inp" value={to} onChange={e=>setTo(e.target.value)}/></Fld>
         </div>
       </div>
-      {c&&<div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}><div className="xs cmu mb4">請求先</div><div className="b7 lg">{fullName(c)}</div>{c.address&&<div className="cmu sm mt4">{c.address}</div>}</div>}
+      {c&&<div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}><div className="xs cmu mb4">請求先</div><div className="b7 lg">{printName(c)}</div>{c.address&&<div className="cmu sm mt4">{c.address}</div>}</div>}
       <div className="lst">
         {filtered.map(inv=>(
           <div key={inv.id} className="li" style={{cursor:"default"}}>
