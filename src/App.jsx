@@ -1620,7 +1620,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           {mInvDetail.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);return(
             <div key={inv.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)"}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600}}>{fullName(c)}</div>
+                <div style={{fontSize:13,fontWeight:600}}>{displayName(c)}</div>
                 <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.date}　{inv.type==="shakken"?"車検":"鈑金"}</div>
               </div>
               <div style={{textAlign:"right"}}>
@@ -1642,7 +1642,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           {unpaidDetail.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);return(
             <div key={inv.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)"}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600}}>{fullName(c)}</div>
+                <div style={{fontSize:13,fontWeight:600}}>{displayName(c)}</div>
                 <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.date}　{inv.type==="shakken"?"車検":"鈑金"}</div>
               </div>
               <div style={{textAlign:"right"}}>
@@ -1680,7 +1680,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           <div className="stk" style={{gap:8}}>
             {rec.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);return(
               <div key={inv.id} className="rb" style={{borderBottom:"1px solid var(--sep)",paddingBottom:8}}>
-                <div><div className="b6 sm">{fullName(c)}</div><div className="cmu xs">{inv.id} · {inv.date}</div></div>
+                <div><div className="b6 sm">{displayName(c)}</div><div className="cmu xs">{inv.id} · {inv.date}</div></div>
                 <div style={{textAlign:"right"}}><div className="b7 sm">{fmt(gt(inv))}</div><span className={`bdg ${inv.status==="入金済"?"dgr":"drd"}`}>{inv.status}</span></div>
               </div>
             );})}
@@ -1717,7 +1717,6 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px 5px"}}>
                   <div>
                     <div>
-                      {customer.firstName&&<div style={{fontSize:10,color:"var(--lb2)"}}>{customer.firstName}</div>}
                       <div style={{fontSize:13,fontWeight:600}}>{customer.lastName||"—"}</div>
                     </div>
                     <div style={{fontSize:11,color:"var(--lb2)"}}>{vehicle.carName} {vehicle.plateNo}</div>
@@ -1775,7 +1774,6 @@ function CustomerSelect({customers,value,onChange,includeAll=false}){
             {filtered.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#aaa"}}>見つかりません</div>}
             {filtered.map(c=>(
               <div key={c.id} onClick={()=>select(c.id)} style={{padding:"9px 14px",cursor:"pointer",background:String(c.id)===String(value)?"rgba(0,122,255,.08)":"",borderBottom:"1px solid #f5f5f5"}}>
-                {c.firstName&&<div style={{fontSize:10,color:"#aaa"}}>{c.firstName}</div>}
                 <div style={{fontSize:13,fontWeight:String(c.id)===String(value)?700:400}}>{c.lastName||"—"}</div>
                 {c.phone&&<div style={{fontSize:11,color:"#aaa"}}>{c.phone}</div>}
               </div>
@@ -2231,7 +2229,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
         {quotes.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
           <div key={q.id} className="li" onClick={()=>setModal(q)}>
             <Ico e="📋" bg="rgba(0,122,255,.1)"/>
-            <div style={{flex:1,minWidth:0}}><div className="b6 trn">{fullName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
+            <div style={{flex:1,minWidth:0}}><div className="b6 trn">{displayName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
             <div style={{textAlign:"right",marginRight:7}}><div className="b7 sm">{fmt(total)}</div><span className={`bdg ${q.status==="承認済"?"dgr":q.status==="見積中"?"dbl":"dgy"}`}>{q.status}</span></div>
             <button className="btn bsm" style={{background:"rgba(255,149,0,.15)",color:"#b36500",fontWeight:700}} onClick={e=>{e.stopPropagation();setPrint(q);}}>🖨️ 印刷</button>
             <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setQuotes(p=>p.filter(x=>x.id!==q.id));}}>削除</button>
@@ -2560,7 +2558,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
     if(tTab==="shakken"&&i.type!=="shakken")return false;
     if(search){
       const c=customers.find(c=>c.id===i.customerId);
-      const name=fullName(c);
+      const name=displayName(c);
       if(!name.includes(search)&&!i.id.includes(search))return false;
     }
     return true;
@@ -2574,7 +2572,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
       const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
       const gaichuTotal=Math.floor(gaichu*(1+gaichuTax));
       const c=customers.find(c=>c.id===form.customerId);
-      const desc=`車検外注代行料（${c?fullName(c):""}）`;
+      const desc=`車検外注代行料（${c?displayName(c):""}）`;
       // 既存の同一請求書IDの外注費があれば上書き、なければ追加
       const invId=modal.doc===null?null:modal.doc.id;
       setExpenses(p=>{
@@ -2638,7 +2636,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span className={`bdg ${isS?"dbl":"dor"}`}>{isS?"🚗 車検":"🔧 鈑金修理"}</span>
-                    <span style={{fontSize:16,fontWeight:700}}>{fullName(c)}</span>
+                    <span style={{fontSize:16,fontWeight:700}}>{displayName(c)}</span>
                   </div>
                   <span style={{fontSize:18,fontWeight:800,color:isS?"var(--bl)":"var(--or)"}}>{fmt(gt(inv))}</span>
                 </div>
@@ -3837,7 +3835,7 @@ function WorkLogDetail({log,customer,vehicle,onClose,onEdit}){
             {(log.tags||[]).map(t=><span key={t} className="bdg dbl" style={{fontSize:11}}>{t}</span>)}
           </div>
           <div className="cmu sm">📅 {log.date}</div>
-          {customer&&<div className="cmu sm">👤 {fullName(customer)}</div>}
+          {customer&&<div className="cmu sm">👤 {displayName(customer)}</div>}
           {vehicle&&<div className="cmu sm">🚗 {vehicle.carName} {vehicle.plateNo}</div>}
         </div>
         {log.memo&&(
@@ -3892,7 +3890,7 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
     if(filterTag&&!w.tags?.includes(filterTag))return false;
     if(search){
       const c=customers.find(c=>c.id===w.customerId);
-      const text=`${w.title} ${w.memo} ${fullName(c)}`.toLowerCase();
+      const text=`${w.title} ${w.memo} ${displayName(c)}`.toLowerCase();
       if(!text.includes(search.toLowerCase()))return false;
     }
     return true;
@@ -3953,7 +3951,7 @@ const WorkLog=React.memo(function WorkLog({worklogs,setWorklogs,customers}){
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.title||"（無題）"}</div>
                     <div style={{fontSize:12,color:"var(--lb2)",marginTop:3}}>
-                      {fullName(c)}{v?` · 🚗 ${v.carName} ${v.plateNo}`:""} · {w.date}
+                      {displayName(c)}{v?` · 🚗 ${v.carName} ${v.plateNo}`:""} · {w.date}
                     </div>
                   </div>
                   <span className={`bdg ${sColor}`}>{w.status}</span>
