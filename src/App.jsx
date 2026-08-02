@@ -1768,16 +1768,22 @@ function CustomerSelect({customers,value,onChange,includeAll=false}){
   const[search,setSearch]=useState("");
   const[open,setOpen]=useState(false);
   const ref=useRef(null);
+  const dropRef=useRef(null);
   const selected=customers.find(c=>String(c.id)===String(value));
   const filtered=customers.filter(c=>{
     if(!search)return true;
     return(c.lastName||"").includes(search)||(c.firstName||"").includes(search)||(c.phone||"").includes(search);
   });
   useEffect(()=>{
-    const handler=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    if(!open)return;
+    const handler=e=>{
+      if(ref.current&&ref.current.contains(e.target))return;
+      if(dropRef.current&&dropRef.current.contains(e.target))return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown",handler);
     return()=>document.removeEventListener("mousedown",handler);
-  },[]);
+  },[open]);
   const select=(id)=>{onChange(id);setOpen(false);setSearch("");};
   return(
     <div ref={ref} style={{position:"relative"}}>
@@ -1786,7 +1792,7 @@ function CustomerSelect({customers,value,onChange,includeAll=false}){
         <span style={{color:"var(--lb2)",fontSize:11}}>▼</span>
       </div>
       {open&&ReactDOM.createPortal(
-        <div style={{position:"fixed",zIndex:9999,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.18)",minWidth:220,maxWidth:320,overflow:"hidden",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:r.width}:{top:100,left:20};})()}}>
+        <div ref={dropRef} style={{position:"fixed",zIndex:9999,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.18)",minWidth:220,maxWidth:320,overflow:"hidden",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:r.width}:{top:100,left:20};})()}}>
           <div style={{padding:"8px 10px",borderBottom:"1px solid #eee"}}>
             <input className="inp" style={{fontSize:12,padding:"6px 10px"}} placeholder="🔍 名前・電話で検索" value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
           </div>
