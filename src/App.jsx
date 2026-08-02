@@ -789,7 +789,18 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   jpFont(pdf,"bold");
   pdf.setFontSize(15);
-  pdf.text(`${printName(customer)}　様`,M,y+6);
+  if(customer?.company){
+    pdf.text(customer.company,M,y+6);
+    jpFont(pdf,"normal");
+    pdf.setFontSize(11);
+    if(customer.department){pdf.text(customer.department,M,y+12);y+=6;}
+    jpFont(pdf,"bold");
+    pdf.setFontSize(13);
+    pdf.text(`${customer.contact||printName(customer)}　様`,M,y+18);
+    y+=6;
+  }else{
+    pdf.text(`${printName(customer)}　様`,M,y+6);
+  }
   jpFont(pdf,"normal");
   pdf.setFontSize(9);
   let leftY=y+12;
@@ -1280,7 +1291,17 @@ window.addEventListener("afterprint",function(){
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>{printName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>
+              {customer?.company?(
+                <>
+                  <div>{customer.company}</div>
+                  {customer.department&&<div style={{fontSize:14,fontWeight:600}}>{customer.department}</div>}
+                  <div>{customer.contact||printName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></div>
+                </>
+              ):(
+                <>{printName(customer)} <span style={{fontSize:13,fontWeight:400}}>様</span></>
+              )}
+            </div>
             {vehicle&&<div style={{fontSize:11,color:"#555",marginBottom:4}}>
               車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
             </div>}
@@ -1902,7 +1923,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
 const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[],onGoWorklog,invoices=[]}){
   const[modal,setModal]=useState(null);const[vModal,setVModal]=useState(null);
   const[search,setSearch]=useState("");const[expId,setExpId]=useState(null);
-  const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",vehicles:[]};
+  const E={lastName:"",firstName:"",phone:"",email:"",address:"",note:"",company:"",department:"",contact:"",vehicles:[]};
   const[form,setForm]=useState(E);
   // 顧客ごとの未収金マップ（件数・金額）
   const unpaidMap=useMemo(()=>{
@@ -1998,6 +2019,23 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
         <div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>読み仮名 <span style={{fontWeight:400,color:"var(--lb3)"}}>任意</span></div>
           <input className="inp" placeholder="例：ヤマダタロウ" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{fontSize:16,padding:"14px 16px"}}/>
+        </div>
+        <div style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.12)",borderRadius:12,padding:"14px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--bl)",marginBottom:10}}>📋 法人・保険会社向け宛名 <span style={{fontWeight:400,color:"var(--lb2)"}}>任意</span></div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div>
+              <div style={{fontSize:12,color:"var(--lb2)",marginBottom:4}}>会社名</div>
+              <input className="inp" placeholder="例：損害保険ジャパン株式会社" value={form.company||""} onChange={e=>setForm(f=>({...f,company:e.target.value}))}/>
+            </div>
+            <div>
+              <div style={{fontSize:12,color:"var(--lb2)",marginBottom:4}}>部署名</div>
+              <input className="inp" placeholder="例：福島保険金サービス第一課" value={form.department||""} onChange={e=>setForm(f=>({...f,department:e.target.value}))}/>
+            </div>
+            <div>
+              <div style={{fontSize:12,color:"var(--lb2)",marginBottom:4}}>担当者名</div>
+              <input className="inp" placeholder="例：松原" value={form.contact||""} onChange={e=>setForm(f=>({...f,contact:e.target.value}))}/>
+            </div>
+          </div>
         </div>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--lb2)",marginBottom:6}}>住所 <span style={{color:"var(--re)"}}>*</span></div>
