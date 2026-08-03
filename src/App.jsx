@@ -2758,81 +2758,194 @@ function CombinedInvoice({invoices,customers,settings}){
 }
 
 // ── Expenses ───────────────────────────────────────────────
-const Expenses=React.memo(function Expenses({expenses,setExpenses}){
-  const[modal,setModal]=useState(null);const[tab,setTab]=useState("list");
-  const[form,setForm]=useState({date:today(),category:"材料費",desc:"",amount:0,receipt:false});
-  const save=()=>{if(!form.desc||!form.amount)return;if(modal==="add")setExpenses(p=>[...p,{...form,id:nextId(p),amount:Number(form.amount)}]);else setExpenses(p=>p.map(e=>e.id===modal.id?{...form,id:e.id,amount:Number(form.amount)}:e));setModal(null);};
-  const byCat={};expenses.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
-  const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...catE.map(e=>e[1]),1);
-  const byM={};expenses.forEach(e=>{const m=e.date.slice(0,7);byM[m]=(byM[m]||0)+e.amount;});
+const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],setInvoices,customers=[],settings}){
+  const[modal,setModal]=useState(null);
+  const[tab,setTab]=useState("all");
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const initForm=()=>({date:today(),category:"材料費",desc:"",amount:0,receipt:false,type:"expense",invId:""});
+  const[form,setForm]=useState(initForm());
+  const isPayment=form.category==="入金";
+  const save=()=>{
+    if(!form.desc||!form.amount)return;
+    const data={...form,id:modal==="add"?undefined:modal.id,amount:Number(form.amount)};
+    if(modal==="add"){
+      setExpenses(p=>[...p,{...data,id:nextId(p)}]);
+      // 入金の場合、紐付け請求書の入金状況を更新
+      if(isPayment&&form.invId){
+        const inv=invoices.find(i=>String(i.id)===String(form.invId));
+        if(inv){
+          const totalPaid=(expenses.filter(e=>String(e.invId)===String(form.invId)&&e.category==="入金").reduce((s,e)=>s+Number(e.amount),0))+Number(form.amount);
+          if(totalPaid>=gt(inv))setInvoices(p=>p.map(i=>String(i.id)===String(form.invId)?{...i,status:"入金済"}:i));
+        }
+      }
+    } else {
+      setExpenses(p=>p.map(e=>e.id===modal.id?{...data,id:e.id}:e));
+    }
+    setModal(null);
+  };
+  const del=()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}};
+
+  // 集計
+  const payments=expenses.filter(e=>e.category==="入金");
+  const expOnly=expenses.filter(e=>e.category!=="入金");
+  const totalExp=expOnly.reduce((s,e)=>s+e.amount,0);
+  const totalPay=payments.reduce((s,e)=>s+e.amount,0);
+  const byCat={};expOnly.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
+  const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const mx=Math.max(...catE.map(e=>e[1]),1);
+
+  const filtered=tab==="payment"?payments:tab==="expense"?expOnly:[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
+
+  // 経費入力フォーム
   if(modal) return(
     <div className="stk fu">
       <div className="rb">
-        <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?"経費入力":"経費編集"}</div>
+        <div style={{fontSize:18,fontWeight:800}}>{modal==="add"?(isPayment?"入金記録":"経費入力"):(isPayment?"入金編集":"経費編集")}</div>
         <div style={{display:"flex",gap:6}}>
-          {modal!=="add"&&<button className="btn bd bsm" onClick={()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}}}>削除</button>}
+          {modal!=="add"&&<button className="btn bd bsm" onClick={del}>削除</button>}
           <button className="btn bs bsm" onClick={()=>setModal(null)}>キャンセル</button>
           <button className="btn bp bsm" onClick={save}>保存</button>
         </div>
       </div>
       <div className="stk">
+        {/* 種別選択 */}
+        <div className="seg">
+          <button className={`st ${!isPayment?"on":""}`} onClick={()=>setForm(f=>({...f,category:"材料費"}))}>💸 経費</button>
+          <button className={`st ${isPayment?"on":""}`} onClick={()=>setForm(f=>({...f,category:"入金"}))}>💰 入金</button>
+        </div>
         <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
-        <Fld label="内容・摘要">
-          <div className="row" style={{gap:6}}>
-            <input className="inp" style={{flex:1}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: ガソリン代、塗料購入"/>
-            <button className="btn bsm" style={{background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}} onClick={async()=>{
-              if(!form.desc)return;
-              setForm(f=>({...f,aiLoading:true}));
-              try{
-                const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
-                const d=await res.json();
-                console.log("AI仕分けレスポンス:",JSON.stringify(d));
-                const cat=(d.content?.[0]?.text||"").trim();
-                console.log("取得カテゴリ:",cat);
-                const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
-                console.log("マッチ結果:",matched);
-                if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
-                else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
-              }catch(e){console.error("AI仕分けエラー:",e);setForm(f=>({...f,aiLoading:false}));}
-            }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
-          </div>
-        </Fld>
-        <Fld label="勘定科目（カテゴリ）">
-          <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-            {EXP_CAT.map(c=><option key={c}>{c}</option>)}
-          </select>
-        </Fld>
-        <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
-        <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
+        {isPayment?(
+          <>
+            <Fld label="紐付け請求書（任意）">
+              <select className="sel" value={form.invId||""} onChange={e=>setForm(f=>({...f,invId:e.target.value,desc:e.target.value?(()=>{const inv=invoices.find(i=>String(i.id)===e.target.value);const c=customers.find(c=>c.id===inv?.customerId);return `${displayName(c)} 入金`;})():f.desc}))}>
+                <option value="">紐付けなし</option>
+                {[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).map(inv=>{
+                  const c=customers.find(c=>c.id===inv.customerId);
+                  const paid=expenses.filter(e=>String(e.invId)===String(inv.id)&&e.category==="入金").reduce((s,e)=>s+e.amount,0);
+                  const total=gt(inv);
+                  return<option key={inv.id} value={inv.id}>{displayName(c)} / {inv.id} / {fmt(total)} （入金済 {fmt(paid)}）</option>;
+                })}
+              </select>
+            </Fld>
+            <Fld label="摘要"><input className="inp" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: 車検預かり金、残金入金"/></Fld>
+            <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+            {form.invId&&(()=>{
+              const inv=invoices.find(i=>String(i.id)===String(form.invId));
+              const total=inv?gt(inv):0;
+              const paid=expenses.filter(e=>String(e.invId)===String(form.invId)&&e.category==="入金"&&e.id!==modal?.id).reduce((s,e)=>s+e.amount,0);
+              const remaining=total-paid;
+              return inv&&<div style={{background:"rgba(52,199,89,.08)",border:"1px solid rgba(52,199,89,.2)",borderRadius:10,padding:"10px 13px",fontSize:12}}>
+                <div className="rb"><span style={{color:"var(--lb2)"}}>請求額</span><span style={{fontWeight:700}}>{fmt(total)}</span></div>
+                <div className="rb"><span style={{color:"var(--lb2)"}}>入金済</span><span style={{fontWeight:700,color:"#1a8f3a"}}>{fmt(paid)}</span></div>
+                <div className="rb"><span style={{color:"var(--lb2)"}}>残金</span><span style={{fontWeight:700,color:remaining>0?"var(--re)":"#1a8f3a"}}>{fmt(remaining)}</span></div>
+              </div>;
+            })()}
+          </>
+        ):(
+          <>
+            <Fld label="内容・摘要">
+              <div className="row" style={{gap:6}}>
+                <input className="inp" style={{flex:1}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: ガソリン代、塗料購入"/>
+                <button className="btn bsm" style={{background:"rgba(88,86,214,.1)",color:"#5856D6",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}} onClick={async()=>{
+                  if(!form.desc)return;
+                  setForm(f=>({...f,aiLoading:true}));
+                  try{
+                    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:50,messages:[{role:"user",content:`鈑金塗装店の経費を以下のカテゴリから1つだけ選んでください。カテゴリ名のみ回答してください。\nカテゴリ: ${EXP_CAT.join("、")}\n摘要: ${form.desc}`}]})});
+                    const d=await res.json();
+                    const cat=(d.content?.[0]?.text||"").trim();
+                    const matched=EXP_CAT.find(c=>cat===c)||EXP_CAT.find(c=>cat.includes(c))||EXP_CAT.find(c=>c.includes(cat));
+                    if(matched)setForm(f=>({...f,category:matched,aiLoading:false}));
+                    else setForm(f=>({...f,category:EXP_CAT[0],aiLoading:false}));
+                  }catch(e){setForm(f=>({...f,aiLoading:false}));}
+                }}>{form.aiLoading?"…":"🤖 AI仕分け"}</button>
+              </div>
+            </Fld>
+            <Fld label="勘定科目">
+              <select className="sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+                {EXP_CAT.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </Fld>
+            <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
+            <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
+          </>
+        )}
+      </div>
+      {/* 下部ボタン */}
+      <div style={{display:"flex",gap:8,paddingTop:8,borderTop:"1px solid var(--sep)"}}>
+        <button className="btn bs" style={{flex:1}} onClick={()=>setModal(null)}>キャンセル</button>
+        <button className="btn bp" style={{flex:2}} onClick={save}>保存</button>
       </div>
     </div>
   );
+
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>経費管理</div><button className="btn bp bsm" onClick={()=>{setForm({date:today(),category:"材料費",desc:"",amount:0,receipt:false});setModal("add");}}>＋ 入力</button></div>
-      <div className="seg">{[["list","一覧"],["chart","集計"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
-      {tab==="list"?(
-        <div className="lst">{[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
-          <div key={e.id} className="li" onClick={()=>{setForm({...e});setModal(e);}}>
-            <Ico e={e.receipt?"🧾":"📝"} bg="rgba(255,149,0,.1)"/>
-            <div style={{flex:1,minWidth:0}}><div className="b6 trn">{e.desc}</div><div className="cmu sm">{e.date} · <span className="bdg dor" style={{fontSize:10}}>{e.category}</span></div></div>
-            <div className="b7 sm">{fmt(e.amount)}</div>
-          </div>
-        ))}{!expenses.length&&<div className="li cmu" style={{justifyContent:"center"}}>経費データがありません</div>}</div>
-      ):(
+      {/* ヘッダー */}
+      <div className="rb">
+        <div style={{fontSize:20,fontWeight:800}}>経費・入金管理</div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="btn bsm" style={{background:"rgba(52,199,89,.12)",color:"#1a8f3a",fontWeight:700}} onClick={()=>{setForm({...initForm(),category:"入金"});setModal("add");}}>💰 入金</button>
+          <button className="btn bp bsm" onClick={()=>{setForm(initForm());setModal("add");}}>＋ 経費</button>
+        </div>
+      </div>
+      {/* サマリーカード */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <div style={{background:"linear-gradient(135deg,#FFF3F3,#fff)",border:"1px solid rgba(184,84,80,.15)",borderRadius:14,padding:"12px 14px"}}>
+          <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>今月の経費</div>
+          <div style={{fontSize:18,fontWeight:800,color:"var(--re)"}}>{fmt(expOnly.filter(e=>e.date.startsWith(today().slice(0,7))).reduce((s,e)=>s+e.amount,0))}</div>
+          <div style={{fontSize:10,color:"var(--lb2)",marginTop:2}}>累計 {fmt(totalExp)}</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,#F0FFF4,#fff)",border:"1px solid rgba(52,199,89,.2)",borderRadius:14,padding:"12px 14px"}}>
+          <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>今月の入金</div>
+          <div style={{fontSize:18,fontWeight:800,color:"#1a8f3a"}}>{fmt(payments.filter(e=>e.date.startsWith(today().slice(0,7))).reduce((s,e)=>s+e.amount,0))}</div>
+          <div style={{fontSize:10,color:"var(--lb2)",marginTop:2}}>累計 {fmt(totalPay)}</div>
+        </div>
+      </div>
+      {/* タブ */}
+      <div className="seg">
+        {[["all","すべて"],["expense","経費"],["payment","入金"],["chart","集計"]].map(([k,l])=>(
+          <button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>
+        ))}
+      </div>
+      {tab==="chart"?(
         <div className="stk">
-          <div className="card"><div style={{fontSize:14,fontWeight:700}} className="mb12">カテゴリ別</div>
+          <div className="card">
+            <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>カテゴリ別経費</div>
             <div className="stk" style={{gap:8}}>{catE.map(([cat,amt])=>(
-              <div key={cat}><div className="rb mb4"><span className="sm b6">{cat}</span><span className="sm cmu">{fmt(amt)}</span></div>
+              <div key={cat}>
+                <div className="rb mb4"><span className="sm b6">{cat}</span><span className="sm cmu">{fmt(amt)}</span></div>
                 <div style={{height:6,background:"var(--fi)",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${amt/mx*100}%`,background:"linear-gradient(90deg,#FF9500,#FF6B00)",borderRadius:3,transition:"width .8s ease"}}/></div>
               </div>
             ))}</div>
           </div>
-          <div className="card"><div style={{fontSize:14,fontWeight:700}} className="mb12">月別合計</div>
-            {Object.entries(byM).sort((a,b)=>b[0].localeCompare(a[0])).map(([m,amt])=>(
-              <div key={m} className="rb" style={{padding:"6px 0",borderBottom:"1px solid var(--sep)"}}><span className="sm">{m}</span><span className="b7">{fmt(amt)}</span></div>
-            ))}
-          </div>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {filtered.map(e=>{
+            const isP=e.category==="入金";
+            const inv=e.invId?invoices.find(i=>String(i.id)===String(e.invId)):null;
+            const c=inv?customers.find(c=>c.id===inv.customerId):null;
+            return(
+              <div key={e.id} onClick={()=>{setForm({...e});setModal(e);}} style={{background:"#fff",borderRadius:14,boxShadow:"0 2px 8px rgba(0,0,0,.06)",border:`1px solid ${isP?"rgba(52,199,89,.2)":"rgba(0,0,0,.07)"}`,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:40,height:40,borderRadius:20,background:isP?"rgba(52,199,89,.12)":"rgba(255,149,0,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                  {isP?"💰":e.receipt?"🧾":"📝"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:13}}>{e.desc}</div>
+                  <div style={{fontSize:11,color:"var(--lb2)",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span>{e.date}</span>
+                    {!isP&&<span style={{background:"rgba(255,149,0,.1)",color:"var(--or)",borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:600}}>{e.category}</span>}
+                    {inv&&<span style={{color:"var(--bl)",fontSize:10}}>📄 {displayName(c)} No.{inv.id}</span>}
+                  </div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color:isP?"#1a8f3a":"var(--re)"}}>{isP?"＋":"－"}{fmt(e.amount)}</div>
+                  {!isP&&e.receipt&&<div style={{fontSize:10,color:"var(--lb2)"}}>領収書あり</div>}
+                </div>
+              </div>
+            );
+          })}
+          {!filtered.length&&<div style={{textAlign:"center",color:"var(--lb2)",padding:"32px 0",fontSize:13}}>データがありません</div>}
         </div>
       )}
     </div>
@@ -4205,7 +4318,7 @@ export default function App(){
       case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
-      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")}/>;
+      case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")} invoices={invoices} setInvoices={set("invoices")} customers={customers} settings={settings}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
