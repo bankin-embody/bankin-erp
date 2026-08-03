@@ -2768,18 +2768,35 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
   const save=()=>{
     if(!form.desc||!form.amount)return;
     const data={...form,id:modal==="add"?undefined:modal.id,amount:Number(form.amount)};
+    const isPay=form.category==="入金";
     if(modal==="add"){
-      setExpenses(p=>[...p,{...data,id:nextId(p)}]);
-      // 入金の場合、紐付け請求書の入金状況を更新
-      if(isPayment&&form.invId){
-        const inv=invoices.find(i=>String(i.id)===String(form.invId));
-        if(inv){
-          const totalPaid=(expenses.filter(e=>String(e.invId)===String(form.invId)&&e.category==="入金").reduce((s,e)=>s+Number(e.amount),0))+Number(form.amount);
-          if(totalPaid>=gt(inv))setInvoices(p=>p.map(i=>String(i.id)===String(form.invId)?{...i,status:"入金済"}:i));
+      setExpenses(p=>{
+        const updated=[...p,{...data,id:nextId(p)}];
+        // 入金の場合、紐付け請求書のステータスを更新
+        if(isPay&&form.invId){
+          const inv=invoices.find(i=>String(i.id)===String(form.invId));
+          if(inv){
+            const totalPaid=updated.filter(e=>String(e.invId)===String(form.invId)&&e.category==="入金").reduce((s,e)=>s+Number(e.amount),0);
+            const total=gt(inv);
+            const newStatus=totalPaid>=total?"入金済":"未入金";
+            if(newStatus==="入金済"){
+              setInvoices(p=>p.map(i=>String(i.id)===String(form.invId)?{...i,status:"入金済"}:i));
+            }
+          }
         }
-      }
+        return updated;
+      });
     } else {
       setExpenses(p=>p.map(e=>e.id===modal.id?{...data,id:e.id}:e));
+      // 編集時も紐付け請求書のステータスを再計算
+      if(isPay&&form.invId){
+        const inv=invoices.find(i=>String(i.id)===String(form.invId));
+        if(inv){
+          const totalPaid=expenses.filter(e=>e.id!==modal.id&&String(e.invId)===String(form.invId)&&e.category==="入金").reduce((s,e)=>s+Number(e.amount),0)+Number(form.amount);
+          const newStatus=totalPaid>=gt(inv)?"入金済":"未入金";
+          setInvoices(p=>p.map(i=>String(i.id)===String(form.invId)?{...i,status:newStatus}:i));
+        }
+      }
     }
     setModal(null);
   };
