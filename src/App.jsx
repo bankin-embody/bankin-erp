@@ -2892,6 +2892,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
                 {EXP_CAT.map(c=><option key={c}>{c}</option>)}
               </select>
             </Fld>
+            <Fld label="支払い先" opt><input className="inp" placeholder="例：〇〇商会、ガソリンスタンド" value={form.payee||""} onChange={e=>setForm(f=>({...f,payee:e.target.value}))}/></Fld>
             <Fld label="金額（円）"><input type="number" inputMode="decimal" className="inp" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}/></Fld>
             <div className="row" style={{gap:9}}><input type="checkbox" id="rc" checked={form.receipt} onChange={e=>setForm(f=>({...f,receipt:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--bl)"}}/><label htmlFor="rc" className="b6 sm" style={{cursor:"pointer"}}>領収書あり</label></div>
           </>
@@ -2962,6 +2963,7 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
                   <div style={{fontSize:11,color:"var(--lb2)",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
                     <span>{e.date}</span>
                     {!isP&&<span style={{background:"rgba(255,149,0,.1)",color:"var(--or)",borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:600}}>{e.category}</span>}
+                    {e.payee&&!isP&&<span style={{color:"var(--lb2)"}}>📍 {e.payee}</span>}
                     {inv&&<span style={{color:"var(--bl)",fontSize:10}}>📄 {displayName(c)} No.{inv.id}</span>}
                   </div>
                 </div>
