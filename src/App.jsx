@@ -1567,10 +1567,20 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
     const mS=mInv.reduce((s,i)=>s+gt(i),0);
     const unpaidInvs=invoices.filter(i=>i.status==="未入金");
-    // 経費管理の入金データから請求書ごとの入金済額を計算
+    // 請求書ごとの入金済額（expenses + inv.payments両方から集計）
     const paidMap={};
     expenses.filter(e=>e.category==="入金"&&e.invId).forEach(e=>{
-      paidMap[String(e.invId)]=(paidMap[String(e.invId)]||0)+Number(e.amount);
+      const key=String(e.invId);
+      paidMap[key]=(paidMap[key]||0)+Number(e.amount);
+    });
+    // inv.paymentsも集計（_fromInvPaymentsでない場合のみ、重複防止）
+    invoices.forEach(inv=>{
+      (inv.payments||[]).forEach(p=>{
+        const key=String(inv.id);
+        // expensesに_fromInvPaymentsで既に含まれていれば除外
+        const alreadySynced=expenses.some(e=>e._fromInvPayments&&String(e.invId)===key&&e.id===`pay_${p.id}`);
+        if(!alreadySynced)paidMap[key]=(paidMap[key]||0)+Number(p.amount);
+      });
     });
     // 未収金は残金ベース
     const uAmt=unpaidInvs.reduce((s,i)=>s+Math.max(0,gt(i)-(paidMap[String(i.id)]||0)),0);
@@ -2691,7 +2701,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
                   </div>
                   <div style={{textAlign:"right"}}>
                     <span style={{fontSize:18,fontWeight:800,color:isS?"var(--bl)":"var(--or)"}}>{fmt(gt(inv))}</span>
-                    {(()=>{const paid=(expenses||[]).filter(e=>e.category==="入金"&&String(e.invId)===String(inv.id)).reduce((s,e)=>s+Number(e.amount),0);const remaining=gt(inv)-paid;return paid>0&&inv.status!=="入金済"&&<div style={{fontSize:11,fontWeight:700,color:"var(--re)",marginTop:1}}>残金 {fmt(remaining)}</div>;})()}
+                    {(()=>{const paid=((expenses||[]).filter(e=>e.category==="入金"&&String(e.invId)===String(inv.id)).reduce((s,e)=>s+Number(e.amount),0))||((inv.payments||[]).reduce((s,p)=>s+p.amount,0));const remaining=gt(inv)-paid;return paid>0&&inv.status!=="入金済"&&<div style={{fontSize:11,fontWeight:700,color:"var(--re)",marginTop:1}}>残金 {fmt(remaining)}</div>;})()}
                   </div>
                 </div>
                 {/* 2行目: 車両 + 書類番号 + 日付 */}
@@ -2726,7 +2736,28 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
         })}
         {!filtered.length&&<div className="lst"><div className="li cmu" style={{justifyContent:"center"}}>データがありません</div></div>}
       </div>
-      {payModal&&<PaymentModal inv={payModal} total={gt(payModal)} onSave={updated=>{setInvoices(p=>p.map(i=>i.id===updated.id?updated:i));setPayModal(updated);}} onClose={()=>setPayModal(null)}/>}
+      {payModal&&<PaymentModal inv={payModal} total={gt(payModal)} onSave={updated=>{
+        setInvoices(p=>p.map(i=>i.id===updated.id?updated:i));
+        // inv.paymentsをexpensesの入金データに同期
+        const invId=String(updated.id);
+        const c=customers.find(c=>c.id===updated.customerId);
+        setExpenses(prev=>{
+          // 既存のこの請求書に紐付いたinv.payments由来の入金を削除して再作成
+          const others=prev.filter(e=>!(e.category==="入金"&&e._fromInvPayments&&String(e.invId)===invId));
+          const newPayExpenses=(updated.payments||[]).map(p=>({
+            id:`pay_${p.id}`,
+            date:p.date,
+            category:"入金",
+            desc:p.memo||`${displayName(c)} 入金`,
+            amount:p.amount,
+            invId:updated.id,
+            _fromInvPayments:true,
+            receipt:false,
+          }));
+          return[...others,...newPayExpenses];
+        });
+        setPayModal(updated);
+      }} onClose={()=>setPayModal(null)}/>}
     </div>
   );
 });
