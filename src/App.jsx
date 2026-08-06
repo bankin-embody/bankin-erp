@@ -282,6 +282,7 @@ const calcJuryozei=(wKg,carType="",firstReg="")=>{
 const EXPENSE_CATEGORIES=[
   // 売上原価・材料
   "材料費","塗料・塗装材料費","部品・パーツ代","外注費・下請費",
+  "法定費用（預り）",
   // 労務・人件費
   "給与・賃金","法定福利費","福利厚生費",
   // 経費
@@ -290,7 +291,7 @@ const EXPENSE_CATEGORIES=[
   "旅費交通費","新聞図書費","保険料","租税公課","減価償却費","雑費"
 ];
 const EXP_CAT=EXPENSE_CATEGORIES;
-const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","その他":"雑費"};
+const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費・下請費":"外注工賃","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","法定費用（預り）":"預り金（法定費用）","その他":"雑費"};
 
 const calcJibaiseki=(t,m=24)=>{const tbl=JIBAISEKI[t]||JIBAISEKI["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
 
@@ -308,7 +309,19 @@ const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+(i.qty*(i.unit||0)
 const invTotal=(inv,st)=>{
   const{total}=calcItems(inv.items,inv.tax);
   if(inv.type!=="shakken")return total;
-  return total+calcGovFees(inv.shakken||{})+calcDaiko(inv.shakken?.daiko??st.daiko,inv.shakken?.daikoTax??st.daikoTax);
+  return total+calcGovFees(inv.shakken||{})+calcDaiko(inv.shakken?.daiko??st?.daiko,inv.shakken?.daikoTax??st?.daikoTax);
+};
+// 売上のみ（車検の法定費用＝預り金を除く）
+const invSales=(inv,st)=>{
+  const{total}=calcItems(inv.items,inv.tax);
+  if(inv.type!=="shakken")return total;
+  // 車検は整備費（部品代含む・課税）+ 代行手数料（課税）のみ売上
+  return total+calcDaiko(inv.shakken?.daiko??st?.daiko,inv.shakken?.daikoTax??st?.daikoTax);
+};
+// 車検の預り金（法定費用）
+const invGovFees=(inv)=>{
+  if(inv.type!=="shakken")return 0;
+  return calcGovFees(inv.shakken||{});
 };
 const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
 const today=()=>new Date().toISOString().split("T")[0];
@@ -3729,6 +3742,131 @@ function WorkMasterSettings({workMaster=[],onChange}){
     </div>
   );
 }
+// ── 収支内訳・白色申告 ─────────────────────────────────────
+const Shushi=React.memo(function Shushi({invoices,expenses,settings}){
+  const[year,setYear]=useState(new Date().getFullYear());
+  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const gs=useCallback(inv=>invSales(inv,settings),[settings]);
+
+  const years=useMemo(()=>{
+    const ys=new Set([...invoices.map(i=>yr(i.date)),...expenses.map(e=>yr(e.date))]);
+    ys.add(new Date().getFullYear());
+    return[...ys].sort((a,b)=>b-a);
+  },[invoices,expenses]);
+
+  const data=useMemo(()=>{
+    const invY=invoices.filter(i=>yr(i.date)===year);
+    const sales=invY.reduce((s,i)=>s+gs(i),0);
+    const azukari=invY.reduce((s,i)=>s+invGovFees(i),0);
+    const expY=expenses.filter(e=>yr(e.date)===year&&e.category!=="入金"&&e.category!=="法定費用（預り）");
+    const expTotal=expY.reduce((s,e)=>s+e.amount,0);
+    const byCat={};expY.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
+    const income=sales-expTotal;
+    const monthly=Array.from({length:12},(_,i)=>{
+      const m=i+1;
+      const ms=invY.filter(inv=>mo(inv.date)===m).reduce((s,i)=>s+gs(i),0);
+      return{m,ms};
+    });
+    return{sales,azukari,expTotal,byCat,income,monthly};
+  },[invoices,expenses,year,gs]);
+
+  const printPdf=async()=>{
+    await loadJsPDF();await ensureJpFont();
+    const{jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const W=210,M=15,cW=W-M*2;let y=15;
+    jpFont(pdf,"bold");pdf.setFontSize(14);
+    pdf.text(`収支内訳書（${year}年分）`,W/2,y,{align:"center"});y+=8;
+    jpFont(pdf,"normal");pdf.setFontSize(9);
+    pdf.text(`事業者名: ${settings.name||""}　　事業内容: 鈑金塗装・車検代行`,M,y);y+=10;
+    // 売上
+    pdf.setFillColor(61,90,138);pdf.setTextColor(255,255,255);
+    pdf.rect(M,y,cW,6,"F");jpFont(pdf,"bold");pdf.setFontSize(10);
+    pdf.text("売上（収入）",M+2,y+4.2);pdf.text(fmt(data.sales),W-M-2,y+4.2,{align:"right"});
+    y+=8;pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(9);
+    // 月別
+    pdf.text("月別売上内訳",M+2,y+3);y+=6;
+    const cols=3;const colW=cW/cols;let rowCount=0;
+    data.monthly.forEach(({m,ms},i)=>{
+      const cx=M+(i%cols)*colW;const cy=y+Math.floor(i/cols)*5;
+      pdf.text(`${m}月`,cx+2,cy+3.5);pdf.text(fmt(ms),cx+colW-2,cy+3.5,{align:"right"});
+      pdf.setDrawColor(220,220,220);pdf.line(cx,cy+5,cx+colW,cy+5);
+      rowCount=Math.floor(i/cols)+1;
+    });
+    y+=rowCount*5+6;
+    // 経費
+    pdf.setFillColor(61,90,138);pdf.setTextColor(255,255,255);
+    pdf.rect(M,y,cW,6,"F");jpFont(pdf,"bold");pdf.setFontSize(10);
+    pdf.text("経費（支出）",M+2,y+4.2);pdf.text(fmt(data.expTotal),W-M-2,y+4.2,{align:"right"});
+    y+=8;pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(9);
+    Object.entries(data.byCat).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt])=>{
+      pdf.text(KAMOKU[cat]||cat,M+4,y+3.5);pdf.text(fmt(amt),W-M-2,y+3.5,{align:"right"});
+      pdf.setDrawColor(220,220,220);pdf.line(M,y+5,W-M,y+5);y+=5;
+    });
+    y+=6;
+    // 所得
+    pdf.setFillColor(74,140,106);pdf.setTextColor(255,255,255);
+    pdf.rect(M,y,cW,8,"F");jpFont(pdf,"bold");pdf.setFontSize(12);
+    pdf.text("所得金額（売上 − 経費）",M+2,y+5.5);pdf.text(fmt(data.income),W-M-2,y+5.5,{align:"right"});
+    y+=12;pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(8);pdf.setTextColor(100,100,100);
+    pdf.text(`※ 車検法定費用（預り金）${fmt(data.azukari)}は売上に含まれていません`,M,y+4);
+    pdf.text("※ このデータはエムボディ鈑金ERPより出力されました",M,y+8);
+    pdf.save(`収支内訳_${year}.pdf`);
+  };
+
+  return(
+    <div className="stk fu">
+      <div className="rb">
+        <div style={{fontSize:20,fontWeight:800}}>収支内訳・申告</div>
+        <button className="btn bp bsm" onClick={printPdf}>📄 PDF出力</button>
+      </div>
+      <div className="seg">{years.map(y=><button key={y} className={`st ${y===year?"on":""}`} onClick={()=>setYear(y)}>{y}年</button>)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <div style={{background:"linear-gradient(135deg,#F0F8FF,#fff)",border:"1px solid rgba(61,90,138,.2)",borderRadius:14,padding:"13px 15px",gridColumn:"1/-1"}}>
+          <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>年間売上（{year}年）<span style={{fontSize:10,marginLeft:6,color:"var(--lb3)"}}>※法定費用除く</span></div>
+          <div style={{fontSize:24,fontWeight:800,color:"var(--bl)"}}>{fmt(data.sales)}</div>
+          <div style={{fontSize:11,color:"var(--lb2)",marginTop:3}}>法定費用（預り金）{fmt(data.azukari)} は含まれていません</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,#FFF3F3,#fff)",border:"1px solid rgba(184,84,80,.15)",borderRadius:14,padding:"13px 15px"}}>
+          <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>年間経費</div>
+          <div style={{fontSize:20,fontWeight:800,color:"var(--re)"}}>{fmt(data.expTotal)}</div>
+        </div>
+        <div style={{background:"linear-gradient(135deg,#F0FFF4,#fff)",border:"1px solid rgba(52,199,89,.2)",borderRadius:14,padding:"13px 15px"}}>
+          <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>所得（売上−経費）</div>
+          <div style={{fontSize:20,fontWeight:800,color:"#1a8f3a"}}>{fmt(data.income)}</div>
+        </div>
+      </div>
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>月別売上</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+          {data.monthly.map(({m,ms})=>(
+            <div key={m} style={{background:"var(--grp)",borderRadius:8,padding:"7px 10px"}}>
+              <div style={{fontSize:10,color:"var(--lb2)"}}>{m}月</div>
+              <div style={{fontSize:13,fontWeight:700}}>{fmt(ms)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>経費内訳</div>
+        {Object.entries(data.byCat).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>(
+          <div key={cat} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--sep)"}}>
+            <div><div style={{fontSize:13,fontWeight:600}}>{cat}</div><div style={{fontSize:10,color:"var(--lb2)"}}>{KAMOKU[cat]||""}</div></div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--re)"}}>{fmt(amt)}</div>
+          </div>
+        ))}
+        {Object.keys(data.byCat).length===0&&<div style={{textAlign:"center",color:"var(--lb2)",fontSize:13,padding:"12px 0"}}>経費データがありません</div>}
+      </div>
+      <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.2)",borderRadius:12,padding:"12px 14px",fontSize:12,color:"#7a5000"}}>
+        <div style={{fontWeight:700,marginBottom:4}}>⚠️ 申告時の注意</div>
+        <div>• 車検の自賠責・重量税等は預り金のため売上に含まれていません</div>
+        <div>• 外注費・部品代は経費管理に入力してください</div>
+        <div>• 白色申告は収支内訳書（一般用）に上記の数字を記入してください</div>
+      </div>
+    </div>
+  );
+});
+
 const SettingsField=React.memo(function SettingsField({label,value,onChange,placeholder,type="text",opt=false}){
   return(
     <Fld label={label} opt={opt}>
@@ -4335,6 +4473,7 @@ const PAGES=[
   {id:"combined",label:"合計請求書",icon:"📑"},
   {id:"worklog",label:"作業記録",icon:"📸"},
   {id:"expenses",label:"経費管理",icon:"💳"},
+  {id:"shushi",label:"収支内訳",icon:"📊"},
   {id:"cashbook",label:"金銭出納帳",icon:"📒"},
   {id:"sales",label:"売上・集計",icon:"📊"},
   {id:"declaration",label:"確定申告",icon:"📝"},
@@ -4379,6 +4518,7 @@ export default function App(){
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
       case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")} invoices={invoices} setInvoices={set("invoices")} customers={customers} settings={settings}/>;
+      case"shushi":      return <Shushi invoices={invoices} expenses={expenses} settings={settings}/>;
       case"cashbook":    return <CashBook invoices={invoices} expenses={expenses} settings={settings}/>;
       case"sales":       return <SalesReport invoices={invoices} expenses={expenses} settings={settings}/>;
       case"declaration": return <WhiteDeclaration invoices={invoices} expenses={expenses} settings={settings}/>;
