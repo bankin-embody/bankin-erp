@@ -1575,9 +1575,10 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const gs=useCallback(inv=>invSales(inv,settings),[settings]);// 売上用（車検は代行手数料のみ）
   const{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts,paidMap}=useMemo(()=>{
     const mInv=invoices.filter(i=>mo(i.date)===m&&yr(i.date)===y);
-    const mS=mInv.reduce((s,i)=>s+gt(i),0);
+    const mS=mInv.reduce((s,i)=>s+gs(i),0);// 今月売上（代行手数料ベース）
     const unpaidInvs=invoices.filter(i=>i.status==="未入金");
     // 請求書ごとの入金済額（expenses + inv.payments両方から集計）
     const paidMap={};
@@ -1597,12 +1598,12 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     // 未収金は残金ベース
     const uAmt=unpaidInvs.reduce((s,i)=>s+Math.max(0,gt(i)-(paidMap[String(i.id)]||0)),0);
     const uCnt=unpaidInvs.length;
-    const yS=invoices.filter(i=>yr(i.date)===y).reduce((s,i)=>s+gt(i),0);
-    const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y).reduce((s,e)=>s+e.amount,0);
+    const yS=invoices.filter(i=>yr(i.date)===y).reduce((s,i)=>s+gs(i),0);// 年度累計売上
+    const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y&&e.category!=="入金").reduce((s,e)=>s+e.amount,0);
     const monthly=Array.from({length:6},(_,i)=>{
       const d=new Date(y,m-1-(5-i),1);const mm=d.getMonth()+1;const yy=d.getFullYear();
-      const s=invoices.filter(inv=>mo(inv.date)===mm&&yr(inv.date)===yy).reduce((s,i)=>s+gt(i),0);
-      const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy).reduce((s,e)=>s+e.amount,0);
+      const s=invoices.filter(inv=>mo(inv.date)===mm&&yr(inv.date)===yy).reduce((s,i)=>s+gs(i),0);
+      const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy&&e.category!=="入金").reduce((s,e)=>s+e.amount,0);
       return{label:`${mm}月`,s,e};
     });
     const mx=Math.max(...monthly.map(d=>Math.max(d.s,d.e)),1);
@@ -1627,7 +1628,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     });
     shakkenAlerts.sort((a,b)=>a.exp-b.exp);
     return{mInv,mS,uAmt,uCnt,yS,mE,monthly,mx,rec,mInvDetail,unpaidDetail,shakkenAlerts,paidMap};
-  },[invoices,expenses,customers,gt,m,y,now]);
+  },[invoices,expenses,customers,gt,gs,m,y,now]);
   const toggle=k=>setOpenCard(p=>p===k?null:k);
   return(
     <div className="stk fu">
