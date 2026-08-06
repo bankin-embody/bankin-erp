@@ -346,7 +346,7 @@ const DEF_SETTINGS={
   shopTel:"03-0000-0000",shopFax:"",shopEmail:"info@suzuki-bankin.co.jp",
   invoiceNo:"T1234567890123",
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
-  kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,gaiChuDaiko:7000,gaiChuDaikoTax:0.1,
+  kensaShomei:1450,gijutsuKanri:400,daiko:10000,daikoTax:0.1,
   unitList:DEF_UNIT_LIST,
   workMaster:[
     {id:1,desc:"バンパー修理・塗装",unit:"式",partsCost:0,gijutsu:0},
@@ -2385,7 +2385,7 @@ const DEF_SHAKKEN_ITEMS=[
 ];
 function ShakkenForm({doc,customers,onSave,onClose,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,gaiChuDaiko:settings.gaiChuDaiko||0,gaiChuDaikoTax:settings.gaiChuDaikoTax??0.1,_fromSettings:true};
+  const defS={jibaiseki:0,juryozei:0,kensaShomei:settings.kensaShomei,gijutsuKanri:settings.gijutsuKanri,daiko:settings.daiko,daikoTax:settings.daikoTax,_fromSettings:true};
   const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),dueDate:doc?.dueDate||"",items:doc?.items||DEF_SHAKKEN_ITEMS.map(i=>({...i})),tax:doc?.tax??0.1,status:doc?.status||"未入金",note:doc?.note||"",shakken:{...defS,...(doc?.shakken||{})}});
   const[auto,setAuto]=useState(true);
   const cust=customers.find(c=>c.id===Number(form.customerId));
@@ -2470,19 +2470,6 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                 <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.daikoTax??settings.daikoTax} onChange={e=>setS("daikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
               </div>
             </div>
-            <div className="fr" style={{background:"rgba(255,149,0,.06)",borderRadius:8,margin:"4px 0"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div className="sm b6">🔧 外注先への代行料 <span className="bdg dgy" style={{marginLeft:4}}>外注費</span></div>
-                <div className="xs cmu">設定のデフォルト値を反映 — 保存時に経費へ自動登録</div>
-                {(form.shakken.daiko||0)>(form.shakken.gaiChuDaiko||0)&&(form.shakken.gaiChuDaiko||0)>0&&(
-                  <div className="xs" style={{color:"#34C759",fontWeight:700,marginTop:2}}>粗利: {fmt(calcDaiko(form.shakken.daiko,form.shakken.daikoTax??settings.daikoTax)-calcDaiko(form.shakken.gaiChuDaiko,form.shakken.gaiChuDaikoTax??0.1))}</div>
-                )}
-              </div>
-              <div className="row" style={{gap:6}}>
-                <input type="number" inputMode="decimal" className="inp" style={{width:100,padding:"6px 10px",fontSize:14}} value={form.shakken.gaiChuDaiko||0} onChange={e=>setS("gaiChuDaiko",e.target.value)}/>
-                <select className="sel" style={{width:75,padding:"6px 9px",fontSize:12}} value={form.shakken.gaiChuDaikoTax??0.1} onChange={e=>setS("gaiChuDaikoTax",e.target.value)}><option value={0.1}>10%</option><option value={0.08}>8%</option></select>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -2522,12 +2509,8 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
         <div className="card" style={{background:"var(--grp)"}}>
           <div className="xs cmu" style={{fontWeight:700,marginBottom:7}}>金額内訳</div>
           {(()=>{
-            const gaichu=form.shakken.gaiChuDaiko||0;
-            const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
-            const gaichuTotal=gaichu>0?Math.floor(gaichu*(1+gaichuTax)):0;
-            const profit=dWT-gaichuTotal;
+            const gaichu=0;const gaichuTax=0.1;const gaichuTotal=0;const profit=dWT;
             const rows=[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))]];
-            if(gaichu>0){rows.push(null,["🔧 外注先支払い（税込）",`-${fmt(gaichuTotal)}`],["　代行料粗利",fmt(profit)]);}
             return rows;
           })().map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
@@ -3999,21 +3982,6 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
             <div className="xs cmu mb4">代行料 税込プレビュー</div>
             <div className="b7 cbl">{fmt(calcDaiko(form.daiko||10000,form.daikoTax??0.1))}</div>
-          </div>
-          <div style={{borderTop:"1px solid var(--sep)",paddingTop:12,marginTop:4}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔧 外注先への代行料（デフォルト）</div>
-            <div className="g2" style={{gap:9}}>
-              <SettingsField label="外注先代行料（税抜・円）" placeholder="7000" type="number" value={form.gaiChuDaiko||0} onChange={updN("gaiChuDaiko")}/>
-              <Fld label="外注先 消費税率">
-                <select className="sel" value={form.gaiChuDaikoTax??0.1} onChange={e=>setForm(f=>({...f,gaiChuDaikoTax:Number(e.target.value)}))}>
-                  <option value={0.1}>10%</option><option value={0.08}>8%</option>
-                </select>
-              </Fld>
-            </div>
-            <div className="card" style={{background:"rgba(255,149,0,.06)",border:"1px solid rgba(255,149,0,.2)"}}>
-              <div className="xs cmu mb4">粗利プレビュー（代行料 − 外注費）</div>
-              <div className="b7" style={{color:"#FF9500"}}>{fmt(calcDaiko(form.daiko||10000,form.daikoTax??0.1)-Math.floor((form.gaiChuDaiko||0)*(1+(form.gaiChuDaikoTax??0.1))))}</div>
-            </div>
           </div>
         </div>
       </div>
