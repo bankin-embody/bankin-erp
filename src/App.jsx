@@ -3100,13 +3100,18 @@ const CashBook=React.memo(function CashBook({invoices,expenses,settings}){
 // ── Sales Report ───────────────────────────────────────────
 const SalesReport=React.memo(function SalesReport({invoices,expenses,settings}){
   const[year,setYear]=useState(new Date().getFullYear());
-  const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const gs=useCallback(inv=>invSales(inv,settings),[settings]);
   const{data,tots,mx}=useMemo(()=>{
-    const data=Array.from({length:12},(_,i)=>{const m=i+1;const s=invoices.filter(inv=>yr(inv.date)===year&&mo(inv.date)===m).reduce((sum,i)=>sum+gt(i),0);const e=expenses.filter(e=>yr(e.date)===year&&mo(e.date)===m).reduce((sum,e)=>sum+e.amount,0);return{m,s,e,p:s-e};});
+    const data=Array.from({length:12},(_,i)=>{
+      const m=i+1;
+      const s=invoices.filter(inv=>yr(inv.date)===year&&mo(inv.date)===m).reduce((sum,i)=>sum+gs(i),0);
+      const e=expenses.filter(e=>yr(e.date)===year&&mo(e.date)===m&&e.category!=="入金"&&e.category!=="法定費用（預り）").reduce((sum,e)=>sum+e.amount,0);
+      return{m,s,e,p:s-e};
+    });
     const tots=data.reduce((t,d)=>({s:t.s+d.s,e:t.e+d.e,p:t.p+d.p}),{s:0,e:0,p:0});
     const mx=Math.max(...data.map(d=>d.s),1);
     return{data,tots,mx};
-  },[invoices,expenses,year,gt]);
+  },[invoices,expenses,year,gs]);
   return(
     <div className="stk fu">
       <div className="rb"><div style={{fontSize:20,fontWeight:800}}>売上・集計</div><div className="row" style={{gap:6}}><button className="btn bs bsm" onClick={()=>setYear(y=>y-1)}>‹</button><span className="b7">{year}年</span><button className="btn bs bsm" onClick={()=>setYear(y=>y+1)}>›</button></div></div>
@@ -3146,22 +3151,24 @@ const WhiteDeclaration=React.memo(function WhiteDeclaration({invoices,expenses,s
   const[year,setYear]=useState(new Date().getFullYear()-1);
   const[showPrint,setShowPrint]=useState(false);
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
+  const gs=useCallback(inv=>invSales(inv,settings),[settings]);// 売上用
   const{yInv,yExp,tS,tE,prof,kGroup,monthly,q4}=useMemo(()=>{
     const yInv=invoices.filter(i=>yr(i.date)===year&&i.status!=="見積中");
-    const yExp=expenses.filter(e=>yr(e.date)===year);
-    const tS=yInv.reduce((s,i)=>s+gt(i),0);
+    // 経費から入金・法定費用（預り）を除外
+    const yExp=expenses.filter(e=>yr(e.date)===year&&e.category!=="入金"&&e.category!=="法定費用（預り）");
+    const tS=yInv.reduce((s,i)=>s+gs(i),0);// 売上（車検は代行手数料のみ）
     const tE=yExp.reduce((s,e)=>s+e.amount,0);
     const prof=tS-tE;
     const kGroup={};yExp.forEach(e=>{const k=KAMOKU[e.category]||"雑費";kGroup[k]=(kGroup[k]||0)+e.amount;});
     const monthly=Array.from({length:12},(_,i)=>{
       const m=i+1;
-      const s=yInv.filter(inv=>mo(inv.date)===m).reduce((sum,inv)=>sum+gt(inv),0);
+      const s=yInv.filter(inv=>mo(inv.date)===m).reduce((sum,inv)=>sum+gs(inv),0);
       const e=yExp.filter(ex=>mo(ex.date)===m).reduce((sum,ex)=>sum+ex.amount,0);
       return{m,s,e,p:s-e};
     });
     const q4=Array.from({length:4},(_,q)=>({q:q+1,s:monthly.slice(q*3,q*3+3).reduce((sum,d)=>sum+d.s,0)}));
     return{yInv,yExp,tS,tE,prof,kGroup,monthly,q4};
-  },[invoices,expenses,year,gt]);
+  },[invoices,expenses,year,gs]);
   // 経費カテゴリ一覧（収支内訳書の科目順）
   const EXP_ROWS=[
     {label:"売上原価（材料費等）",key:"売上原価（仕入）"},
