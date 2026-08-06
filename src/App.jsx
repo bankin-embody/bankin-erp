@@ -2640,20 +2640,6 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
   const save=form=>{
     if(modal.doc===null)setInvoices(p=>[...p,{...form,id:String(nextId(p.map(i=>({id:String(i.id).replace(/\D/g,"")}))))}]);
     else setInvoices(p=>p.map(i=>i.id===modal.doc.id?{...form,id:i.id}:i));
-    // 車検の場合、外注先代行料を経費に自動登録
-    if(form.type==="shakken"&&form.shakken?.gaiChuDaiko>0){
-      const gaichu=form.shakken.gaiChuDaiko;
-      const gaichuTax=form.shakken.gaiChuDaikoTax??0.1;
-      const gaichuTotal=Math.floor(gaichu*(1+gaichuTax));
-      const c=customers.find(c=>c.id===form.customerId);
-      const desc=`車検外注代行料（${c?displayName(c):""}）`;
-      // 既存の同一請求書IDの外注費があれば上書き、なければ追加
-      const invId=modal.doc===null?null:modal.doc.id;
-      setExpenses(p=>{
-        const filtered=invId?p.filter(e=>e._invId!==invId):p;
-        return [...filtered,{id:nextId(filtered),date:form.date,category:"外注費",desc,amount:gaichuTotal,receipt:false,_invId:form.id}];
-      });
-    }
     setModal(null);
   };
   if(modal?.mode==="repair") return <div className="stk fu"><RepairForm doc={modal.doc} customers={customers} onSave={save} onClose={()=>setModal(null)} settings={settings}/></div>;
