@@ -311,17 +311,16 @@ const invTotal=(inv,st)=>{
   if(inv.type!=="shakken")return total;
   return total+calcGovFees(inv.shakken||{})+calcDaiko(inv.shakken?.daiko??st?.daiko,inv.shakken?.daikoTax??st?.daikoTax);
 };
-// 売上のみ（車検の法定費用＝預り金を除く）
+// 売上のみ（車検は代行手数料のみ、鈑金は請求額全体）
 const invSales=(inv,st)=>{
-  const{total}=calcItems(inv.items,inv.tax);
-  if(inv.type!=="shakken")return total;
-  // 車検は整備費（部品代含む・課税）+ 代行手数料（課税）のみ売上
-  return total+calcDaiko(inv.shakken?.daiko??st?.daiko,inv.shakken?.daikoTax??st?.daikoTax);
+  if(inv.type!=="shakken")return calcItems(inv.items,inv.tax).total;
+  // 車検は代行手数料（税込）のみ売上
+  return calcDaiko(inv.shakken?.daiko??st?.daiko,inv.shakken?.daikoTax??st?.daikoTax);
 };
-// 車検の預り金（法定費用）
-const invGovFees=(inv)=>{
+// 車検の預り金（法定費用＋整備費＋部品代）= 請求額 − 代行手数料
+const invGovFees=(inv,st)=>{
   if(inv.type!=="shakken")return 0;
-  return calcGovFees(inv.shakken||{});
+  return invTotal(inv,st)-invSales(inv,st);
 };
 const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
 const today=()=>new Date().toISOString().split("T")[0];
@@ -3757,7 +3756,7 @@ const Shushi=React.memo(function Shushi({invoices,expenses,settings}){
   const data=useMemo(()=>{
     const invY=invoices.filter(i=>yr(i.date)===year);
     const sales=invY.reduce((s,i)=>s+gs(i),0);
-    const azukari=invY.reduce((s,i)=>s+invGovFees(i),0);
+    const azukari=invY.reduce((s,i)=>s+invGovFees(i,settings),0);
     const expY=expenses.filter(e=>yr(e.date)===year&&e.category!=="入金"&&e.category!=="法定費用（預り）");
     const expTotal=expY.reduce((s,e)=>s+e.amount,0);
     const byCat={};expY.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
@@ -3809,7 +3808,7 @@ const Shushi=React.memo(function Shushi({invoices,expenses,settings}){
     pdf.rect(M,y,cW,8,"F");jpFont(pdf,"bold");pdf.setFontSize(12);
     pdf.text("所得金額（売上 − 経費）",M+2,y+5.5);pdf.text(fmt(data.income),W-M-2,y+5.5,{align:"right"});
     y+=12;pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(8);pdf.setTextColor(100,100,100);
-    pdf.text(`※ 車検法定費用（預り金）${fmt(data.azukari)}は売上に含まれていません`,M,y+4);
+    pdf.text(`※ 車検預り金（整備費・法定費用等）${fmt(data.azukari)}は売上に含まれていません`,M,y+4);
     pdf.text("※ このデータはエムボディ鈑金ERPより出力されました",M,y+8);
     pdf.save(`収支内訳_${year}.pdf`);
   };
@@ -3825,7 +3824,7 @@ const Shushi=React.memo(function Shushi({invoices,expenses,settings}){
         <div style={{background:"linear-gradient(135deg,#F0F8FF,#fff)",border:"1px solid rgba(61,90,138,.2)",borderRadius:14,padding:"13px 15px",gridColumn:"1/-1"}}>
           <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>年間売上（{year}年）<span style={{fontSize:10,marginLeft:6,color:"var(--lb3)"}}>※法定費用除く</span></div>
           <div style={{fontSize:24,fontWeight:800,color:"var(--bl)"}}>{fmt(data.sales)}</div>
-          <div style={{fontSize:11,color:"var(--lb2)",marginTop:3}}>法定費用（預り金）{fmt(data.azukari)} は含まれていません</div>
+          <div style={{fontSize:11,color:"var(--lb2)",marginTop:3}}>預り金（整備費・法定費用等）{fmt(data.azukari)} は含まれていません</div>
         </div>
         <div style={{background:"linear-gradient(135deg,#FFF3F3,#fff)",border:"1px solid rgba(184,84,80,.15)",borderRadius:14,padding:"13px 15px"}}>
           <div style={{fontSize:11,color:"var(--lb2)",marginBottom:4}}>年間経費</div>
@@ -3859,7 +3858,7 @@ const Shushi=React.memo(function Shushi({invoices,expenses,settings}){
       </div>
       <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.2)",borderRadius:12,padding:"12px 14px",fontSize:12,color:"#7a5000"}}>
         <div style={{fontWeight:700,marginBottom:4}}>⚠️ 申告時の注意</div>
-        <div>• 車検の自賠責・重量税等は預り金のため売上に含まれていません</div>
+        <div>• 車検は代行手数料のみ売上計上、整備費・法定費用は預り金として除外</div>
         <div>• 外注費・部品代は経費管理に入力してください</div>
         <div>• 白色申告は収支内訳書（一般用）に上記の数字を記入してください</div>
       </div>
