@@ -2258,11 +2258,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
             </div>
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
-              <Fld label="単位">
-                <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
-                  {unitList.map(u=><option key={u} value={u}>{u}</option>)}
-                </select>
-              </Fld>
+              <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
               <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
               <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
             </div>
@@ -2353,11 +2349,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
               </div>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
-                <Fld label="単位">
-                  <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
-                    {unitList.map(u=><option key={u} value={u}>{u}</option>)}
-                  </select>
-                </Fld>
+                <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
                 <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
@@ -2492,11 +2484,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               </div>
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
-                <Fld label="単位">
-                  <select className="sel" value={it.unitLabel||"式"} onChange={e=>setI(i,"unitLabel",e.target.value)}>
-                    {unitList.map(u=><option key={u} value={u}>{u}</option>)}
-                  </select>
-                </Fld>
+                <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
                 <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
@@ -3628,25 +3616,72 @@ window.addEventListener("afterprint",function(){
 });
 
 // ── Settings ───────────────────────────────────────────────
+// 単位選択（一覧ボタン付き）
+function UnitSelect({value,onChange,unitList=[]}){
+  const[open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!open)return;
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[open]);
+  return(
+    <div ref={ref} style={{position:"relative",display:"flex",gap:6}}>
+      <select className="sel" style={{flex:1}} value={value||"式"} onChange={e=>onChange(e.target.value)}>
+        {unitList.map(u=><option key={u} value={u}>{u}</option>)}
+      </select>
+      <button className="btn bs bsm" style={{flexShrink:0,fontSize:11,padding:"0 10px"}}
+        onMouseDown={e=>{e.preventDefault();setOpen(v=>!v);}}>
+        一覧
+      </button>
+      {open&&ReactDOM.createPortal(
+        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:240,overflowY:"auto",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:160}:{top:100,left:20,width:160};})()}}>
+          <div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>単位一覧</div>
+          {unitList.map(u=>(
+            <div key={u} onMouseDown={()=>{onChange(u);setOpen(false);}}
+              style={{padding:"9px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13,fontWeight:value===u?700:400,background:value===u?"rgba(0,122,255,.06)":""}}>
+              {u}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── 作業マスター サジェスト入力 ───────────────────────────
 function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業内容・品名"}){
   const[show,setShow]=useState(false);
-  const[focused,setFocused]=useState(false);
-  const filtered=(workMaster||[]).filter(w=>w.desc.includes(value)&&value.length>0);
+  const[showAll,setShowAll]=useState(false);
+  const filtered=showAll?(workMaster||[]):(workMaster||[]).filter(w=>w.desc.includes(value)&&value.length>0);
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!showAll)return;
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowAll(false);};
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[showAll]);
   return(
-    <div style={{position:"relative",flex:1}}>
-      <input className="inp" placeholder={placeholder} value={value}
-        onChange={e=>{onChange(e.target.value);setShow(true);}}
-        onFocus={()=>{setFocused(true);setShow(true);}}
+    <div ref={ref} style={{position:"relative",flex:1,display:"flex",gap:6}}>
+      <input className="inp" style={{flex:1}} placeholder={placeholder} value={value}
+        onChange={e=>{onChange(e.target.value);setShow(true);setShowAll(false);}}
+        onFocus={()=>setShow(true)}
         onBlur={()=>{setTimeout(()=>setShow(false),200);}}
       />
-      {show&&focused&&filtered.length>0&&(
-        <div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--bg2)",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"var(--sh)",zIndex:500,maxHeight:200,overflowY:"auto"}}>
+      {workMaster.length>0&&(
+        <button className="btn bs bsm" style={{flexShrink:0,fontSize:11,padding:"0 10px"}}
+          onMouseDown={e=>{e.preventDefault();setShowAll(v=>!v);setShow(false);}}>
+          一覧
+        </button>
+      )}
+      {((show&&filtered.length>0&&!showAll)||(showAll&&filtered.length>0))&&ReactDOM.createPortal(
+        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:280,overflowY:"auto",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,280)}:{top:100,left:20,width:280};})()}}>
+          {showAll&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>作業マスター一覧（タップで選択）</div>}
           {filtered.map(w=>(
-            <div key={w.id} onMouseDown={()=>{onSelect(w);setShow(false);}}
-              style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13}}
-              onMouseEnter={e=>e.currentTarget.style.background="var(--fi)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div key={w.id} onMouseDown={()=>{onSelect(w);setShow(false);setShowAll(false);}}
+              style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13}}>
               <div style={{fontWeight:600}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
                 {w.unit&&`単位: ${w.unit}`}
@@ -3655,7 +3690,9 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
               </div>
             </div>
           ))}
-        </div>
+          {filtered.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#aaa"}}>登録なし</div>}
+        </div>,
+        document.body
       )}
     </div>
   );
