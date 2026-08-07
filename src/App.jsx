@@ -3624,7 +3624,8 @@ function UnitSelect({value,onChange,unitList=[]}){
     if(!open)return;
     const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
     document.addEventListener("mousedown",h);
-    return()=>document.removeEventListener("mousedown",h);
+    document.addEventListener("touchstart",h);
+    return()=>{document.removeEventListener("mousedown",h);document.removeEventListener("touchstart",h);};
   },[open]);
   return(
     <div ref={ref} style={{position:"relative",display:"flex",gap:6}}>
@@ -3636,7 +3637,7 @@ function UnitSelect({value,onChange,unitList=[]}){
         一覧
       </button>
       {open&&ReactDOM.createPortal(
-        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:240,overflowY:"auto",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:160}:{top:100,left:20,width:160};})()}}>
+        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",overflowY:"auto",WebkitOverflowScrolling:"touch",...(()=>{const r=ref.current?.getBoundingClientRect();const maxH=r?Math.min(240,window.innerHeight-r.bottom-16):240;return r?{top:r.bottom+4,left:r.left,width:160,maxHeight:maxH}:{top:100,left:20,width:160,maxHeight:240};})()}}>
           <div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>単位一覧</div>
           {unitList.map(u=>(
             <div key={u} onMouseDown={()=>{onChange(u);setOpen(false);}}
@@ -3677,7 +3678,7 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
         </button>
       )}
       {((show&&filtered.length>0&&!showAll)||(showAll&&filtered.length>0))&&ReactDOM.createPortal(
-        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:280,overflowY:"auto",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,280)}:{top:100,left:20,width:280};})()}}>
+        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:280,overflowY:"auto",WebkitOverflowScrolling:"touch",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,280)}:{top:100,left:20,width:280};})()}}>
           {showAll&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>作業マスター一覧（タップで選択）</div>}
           {filtered.map(w=>(
             <div key={w.id} onMouseDown={()=>{onSelect(w);setShow(false);setShowAll(false);}}
