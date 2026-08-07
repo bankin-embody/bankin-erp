@@ -4003,7 +4003,7 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           <UnitInput onAdd={u=>setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),u]}))}/>
         </div>
       </div>
-      <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>setForm(f=>({...f,workMaster:wm}))}/>
+      <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>{setForm(f=>({...f,workMaster:wm}));setSettings(s=>({...s,workMaster:wm}));}}/>
     </div>
   );
 }
