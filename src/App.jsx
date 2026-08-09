@@ -203,8 +203,11 @@ function WarekiMonthInput({value,onChange,className="inp"}){
   const[era,setEra]=useState(w.era||"令和");
   const[year,setYear]=useState(w.year||"");
   const[month,setMonth]=useState(w.month||"");
-  // valueが外から変わったとき同期
+  const prevValue=useRef(value);
+  // valueが外から変わったときだけ同期（内部の入力中は同期しない）
   useEffect(()=>{
+    if(value===prevValue.current)return;
+    prevValue.current=value;
     const w2=toWareki(value);
     setEra(w2.era||"令和");
     setYear(w2.year||"");
@@ -212,7 +215,7 @@ function WarekiMonthInput({value,onChange,className="inp"}){
   },[value]);
   const emit=(e,y,m)=>{
     const ym=fromWareki(e,y,m);
-    if(ym)onChange(ym);
+    if(ym){prevValue.current=ym;onChange(ym);}
   };
   return(
     <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
@@ -1599,11 +1602,11 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const uAmt=unpaidInvs.reduce((s,i)=>s+Math.max(0,gt(i)-(paidMap[String(i.id)]||0)),0);
     const uCnt=unpaidInvs.length;
     const yS=invoices.filter(i=>yr(i.date)===y).reduce((s,i)=>s+gs(i),0);// 年度累計売上
-    const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y&&e.category!=="入金").reduce((s,e)=>s+e.amount,0);
+    const mE=expenses.filter(e=>mo(e.date)===m&&yr(e.date)===y&&e.category!=="入金"&&e.category!=="法定費用（預り）").reduce((s,e)=>s+e.amount,0);
     const monthly=Array.from({length:6},(_,i)=>{
       const d=new Date(y,m-1-(5-i),1);const mm=d.getMonth()+1;const yy=d.getFullYear();
       const s=invoices.filter(inv=>mo(inv.date)===mm&&yr(inv.date)===yy).reduce((s,i)=>s+gs(i),0);
-      const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy&&e.category!=="入金").reduce((s,e)=>s+e.amount,0);
+      const e=expenses.filter(e=>mo(e.date)===mm&&yr(e.date)===yy&&e.category!=="入金"&&e.category!=="法定費用（預り）").reduce((s,e)=>s+e.amount,0);
       return{label:`${mm}月`,s,e};
     });
     const mx=Math.max(...monthly.map(d=>Math.max(d.s,d.e)),1);
@@ -1797,6 +1800,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
 function CustomerSelect({customers,value,onChange,includeAll=false}){
   const[search,setSearch]=useState("");
   const[open,setOpen]=useState(false);
+  const[pos,setPos]=useState({top:0,left:0,width:220});
   const ref=useRef(null);
   const dropRef=useRef(null);
   const selected=customers.find(c=>String(c.id)===String(value));
@@ -1804,25 +1808,31 @@ function CustomerSelect({customers,value,onChange,includeAll=false}){
     if(!search)return true;
     return(c.lastName||"").includes(search)||(c.firstName||"").includes(search)||(c.phone||"").includes(search);
   });
+  const updatePos=useCallback(()=>{
+    const r=ref.current?.getBoundingClientRect();
+    if(r)setPos({top:r.bottom+4,left:r.left,width:r.width});
+  },[]);
   useEffect(()=>{
     if(!open)return;
+    updatePos();
     const handler=e=>{
       if(ref.current&&ref.current.contains(e.target))return;
       if(dropRef.current&&dropRef.current.contains(e.target))return;
       setOpen(false);
     };
     document.addEventListener("mousedown",handler);
-    return()=>document.removeEventListener("mousedown",handler);
-  },[open]);
+    window.addEventListener("scroll",updatePos,true);
+    return()=>{document.removeEventListener("mousedown",handler);window.removeEventListener("scroll",updatePos,true);};
+  },[open,updatePos]);
   const select=(id)=>{onChange(id);setOpen(false);setSearch("");};
   return(
     <div ref={ref} style={{position:"relative"}}>
-      <div className="inp" style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",background:"var(--fi)"}} onClick={()=>setOpen(o=>!o)}>
+      <div className="inp" style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",background:"var(--fi)"}} onClick={()=>{updatePos();setOpen(o=>!o);}}>
         <span style={{flex:1,fontSize:13}}>{includeAll&&!value?"全顧客":selected?displayName(selected):"顧客を選択"}</span>
         <span style={{color:"var(--lb2)",fontSize:11}}>▼</span>
       </div>
       {open&&ReactDOM.createPortal(
-        <div ref={dropRef} style={{position:"fixed",zIndex:9999,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.18)",minWidth:220,maxWidth:320,overflow:"hidden",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:r.width}:{top:100,left:20};})()}}>
+        <div ref={dropRef} style={{position:"fixed",zIndex:9999,background:"#fff",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,.18)",overflow:"hidden",...pos,maxHeight:Math.min(300,window.innerHeight-pos.top-16)}}>
           <div style={{padding:"8px 10px",borderBottom:"1px solid #eee"}}>
             <input className="inp" style={{fontSize:12,padding:"6px 10px"}} placeholder="🔍 名前・電話で検索" value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
           </div>
@@ -2577,7 +2587,7 @@ function PaymentModal({inv,total,onSave,onClose}){
             <div className="stk" style={{gap:9}}>
               <div className="g2" style={{gap:9}}>
                 <Fld label="入金日"><input type="date" className="inp" value={date} onChange={e=>setDate(e.target.value)}/></Fld>
-                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
+                <Fld label="入金額（円）"><input type="number" inputMode="decimal" className="inp" value={amount} onChange={e=>setAmount(e.target.value)}/></Fld>
               </div>
               <Fld label="メモ" opt={true}><input className="inp" placeholder="経費分・残金など" value={memo} onChange={e=>setMemo(e.target.value)}/></Fld>
               <button className="btn bp" style={{width:"100%"}} onClick={add}>＋ 入金を記録</button>
@@ -2815,14 +2825,15 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
 
   // 集計
   const payments=expenses.filter(e=>e.category==="入金");
-  const expOnly=expenses.filter(e=>e.category!=="入金");
+  const expOnly=expenses.filter(e=>e.category!=="入金"&&e.category!=="法定費用（預り）");
+  const azukariOnly=expenses.filter(e=>e.category==="法定費用（預り）");
   const totalExp=expOnly.reduce((s,e)=>s+e.amount,0);
   const totalPay=payments.reduce((s,e)=>s+e.amount,0);
   const byCat={};expOnly.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
   const catE=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   const mx=Math.max(...catE.map(e=>e[1]),1);
 
-  const filtered=tab==="payment"?payments:tab==="expense"?expOnly:[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  const filtered=tab==="payment"?payments:tab==="expense"?[...expOnly,...azukariOnly]:[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
 
   // 経費入力フォーム
   if(modal) return(
@@ -3620,13 +3631,22 @@ window.addEventListener("afterprint",function(){
 function UnitSelect({value,onChange,unitList=[]}){
   const[open,setOpen]=useState(false);
   const ref=useRef(null);
+  const dropRef=useRef(null);
   useEffect(()=>{
     if(!open)return;
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    const h=e=>{
+      if(ref.current&&ref.current.contains(e.target))return;
+      if(dropRef.current&&dropRef.current.contains(e.target))return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown",h);
-    document.addEventListener("touchstart",h);
-    return()=>{document.removeEventListener("mousedown",h);document.removeEventListener("touchstart",h);};
+    return()=>document.removeEventListener("mousedown",h);
   },[open]);
+  const pos=useCallback(()=>{
+    const r=ref.current?.getBoundingClientRect();
+    const maxH=r?Math.min(240,window.innerHeight-r.bottom-16):240;
+    return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,160),maxHeight:maxH}:{top:100,left:20,width:160,maxHeight:240};
+  },[]);
   return(
     <div ref={ref} style={{position:"relative",display:"flex",gap:6}}>
       <select className="sel" style={{flex:1}} value={value||"式"} onChange={e=>onChange(e.target.value)}>
@@ -3637,10 +3657,10 @@ function UnitSelect({value,onChange,unitList=[]}){
         一覧
       </button>
       {open&&ReactDOM.createPortal(
-        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",overflowY:"auto",WebkitOverflowScrolling:"touch",...(()=>{const r=ref.current?.getBoundingClientRect();const maxH=r?Math.min(240,window.innerHeight-r.bottom-16):240;return r?{top:r.bottom+4,left:r.left,width:160,maxHeight:maxH}:{top:100,left:20,width:160,maxHeight:240};})()}}>
-          <div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>単位一覧</div>
+        <div ref={dropRef} style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",overflowY:"auto",...pos()}}>
+          <div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600,position:"sticky",top:0,background:"#fff"}}>単位一覧</div>
           {unitList.map(u=>(
-            <div key={u} onMouseDown={()=>{onChange(u);setOpen(false);}}
+            <div key={u} onMouseDown={e=>{e.preventDefault();onChange(u);setOpen(false);}}
               style={{padding:"9px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13,fontWeight:value===u?700:400,background:value===u?"rgba(0,122,255,.06)":""}}>
               {u}
             </div>
@@ -3656,20 +3676,26 @@ function UnitSelect({value,onChange,unitList=[]}){
 function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業内容・品名"}){
   const[show,setShow]=useState(false);
   const[showAll,setShowAll]=useState(false);
-  const filtered=showAll?(workMaster||[]):(workMaster||[]).filter(w=>w.desc.includes(value)&&value.length>0);
   const ref=useRef(null);
+  const dropRef=useRef(null);
+  const filtered=showAll?(workMaster||[]):(workMaster||[]).filter(w=>w.desc.includes(value)&&value.length>0);
+  const isOpen=(show&&filtered.length>0&&!showAll)||(showAll&&workMaster.length>0);
   useEffect(()=>{
-    if(!showAll)return;
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowAll(false);};
+    if(!isOpen)return;
+    const h=e=>{
+      if(ref.current&&ref.current.contains(e.target))return;
+      if(dropRef.current&&dropRef.current.contains(e.target))return;
+      setShow(false);setShowAll(false);
+    };
     document.addEventListener("mousedown",h);
     return()=>document.removeEventListener("mousedown",h);
-  },[showAll]);
+  },[isOpen]);
   return(
     <div ref={ref} style={{position:"relative",flex:1,display:"flex",gap:6}}>
       <input className="inp" style={{flex:1}} placeholder={placeholder} value={value}
         onChange={e=>{onChange(e.target.value);setShow(true);setShowAll(false);}}
         onFocus={()=>setShow(true)}
-        onBlur={()=>{setTimeout(()=>setShow(false),200);}}
+        onBlur={()=>{setTimeout(()=>{if(!showAll)setShow(false);},200);}}
       />
       {workMaster.length>0&&(
         <button className="btn bs bsm" style={{flexShrink:0,fontSize:11,padding:"0 10px"}}
@@ -3677,11 +3703,11 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
           一覧
         </button>
       )}
-      {((show&&filtered.length>0&&!showAll)||(showAll&&filtered.length>0))&&ReactDOM.createPortal(
-        <div style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",maxHeight:280,overflowY:"auto",WebkitOverflowScrolling:"touch",...(()=>{const r=ref.current?.getBoundingClientRect();return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,280)}:{top:100,left:20,width:280};})()}}>
-          {showAll&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600}}>作業マスター一覧（タップで選択）</div>}
-          {filtered.map(w=>(
-            <div key={w.id} onMouseDown={()=>{onSelect(w);setShow(false);setShowAll(false);}}
+      {isOpen&&ReactDOM.createPortal(
+        <div ref={dropRef} style={{position:"fixed",zIndex:9999,background:"#fff",border:"1px solid var(--sep)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,.15)",overflowY:"auto",...(()=>{const r=ref.current?.getBoundingClientRect();const maxH=r?Math.min(280,window.innerHeight-r.bottom-16):280;return r?{top:r.bottom+4,left:r.left,width:Math.max(r.width,280),maxHeight:maxH}:{top:100,left:20,width:280,maxHeight:280};})()}}>
+          {showAll&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--lb2)",borderBottom:"1px solid var(--sep)",fontWeight:600,position:"sticky",top:0,background:"#fff"}}>作業マスター一覧（クリックで選択）</div>}
+          {(showAll?workMaster:filtered).map(w=>(
+            <div key={w.id} onMouseDown={e=>{e.preventDefault();onSelect(w);setShow(false);setShowAll(false);}}
               style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--sep)",fontSize:13}}>
               <div style={{fontWeight:600}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
@@ -3691,7 +3717,7 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
               </div>
             </div>
           ))}
-          {filtered.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#aaa"}}>登録なし</div>}
+          {(showAll?workMaster:filtered).length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#aaa"}}>登録なし</div>}
         </div>,
         document.body
       )}
