@@ -233,7 +233,53 @@ function WarekiMonthInput({value,onChange,className="inp"}){
   );
 }
 
-// 経過年数を判定（firstReg: "YYYY-MM"）
+// 和暦日付入力（年月日）
+function WarekiDateInput({value,onChange,className="inp"}){
+  // value: "YYYY-MM-DD" 形式
+  const parse=v=>{
+    if(!v)return{era:"令和",year:"",month:"",day:""};
+    const[y,m,d]=(v||"").split("-").map(Number);
+    const ym=`${y}-${String(m).padStart(2,"0")}`;
+    const w=toWareki(ym);
+    return{era:w.era||"令和",year:w.year||"",month:m||"",day:d||""};
+  };
+  const init=parse(value);
+  const[era,setEra]=useState(init.era);
+  const[year,setYear]=useState(init.year);
+  const[month,setMonth]=useState(init.month);
+  const[day,setDay]=useState(init.day);
+  const prevValue=useRef(value);
+  useEffect(()=>{
+    if(value===prevValue.current)return;
+    prevValue.current=value;
+    const p=parse(value);
+    setEra(p.era);setYear(p.year);setMonth(p.month);setDay(p.day);
+  },[value]);
+  const emit=(e,y,m,d)=>{
+    const ym=fromWareki(e,y,m);
+    if(ym&&d){
+      const iso=`${ym}-${String(d).padStart(2,"0")}`;
+      prevValue.current=iso;onChange(iso);
+    }
+  };
+  return(
+    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+      <select className={className} style={{flex:"0 0 auto",width:90}} value={era} onChange={e=>{setEra(e.target.value);emit(e.target.value,year,month,day);}}>
+        {ERAS.map(e=><option key={e.name}>{e.name}</option>)}
+      </select>
+      <input className={className} type="number" inputMode="numeric" placeholder="年" min={1} max={99} value={year}
+        style={{width:64}} onChange={e=>{setYear(e.target.value);emit(era,e.target.value,month,day);}}/>
+      <span style={{fontSize:13,color:"var(--lb2)"}}>年</span>
+      <input className={className} type="number" inputMode="numeric" placeholder="月" min={1} max={12} value={month}
+        style={{width:56}} onChange={e=>{setMonth(e.target.value);emit(era,year,e.target.value,day);}}/>
+      <span style={{fontSize:13,color:"var(--lb2)"}}>月</span>
+      <input className={className} type="number" inputMode="numeric" placeholder="日" min={1} max={31} value={day}
+        style={{width:56}} onChange={e=>{setDay(e.target.value);emit(era,year,month,e.target.value);}}/>
+      <span style={{fontSize:13,color:"var(--lb2)"}}>日</span>
+      {value&&<span style={{fontSize:11,color:"var(--lb2)"}}>({value})</span>}
+    </div>
+  );
+}
 // 登録車：12年10ヶ月後から13年経過扱い
 // 軽自動車：13年経過した年の11月1日から13年経過扱い
 const getElapsedClass=(firstReg,isKei=false)=>{
@@ -1613,17 +1659,18 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
     const rec=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
     const mInvDetail=[...mInv].sort((a,b)=>b.date.localeCompare(a.date));
     const unpaidDetail=[...unpaidInvs].sort((a,b)=>b.date.localeCompare(a.date));
-    // 車検期限アラート: 90日以内の車両を抽出
-    const today90=new Date(now);today90.setDate(today90.getDate()+90);
+    // 車検期限アラート: 60日以内の車両を抽出
+    const today60=new Date(now);today60.setDate(today60.getDate()+60);
     const today30=new Date(now);today30.setDate(today30.getDate()+30);
     const shakkenAlerts=[];
     customers.forEach(c=>{
       (c.vehicles||[]).forEach(v=>{
         if(!v.shakkenExpiry||v.haisha)return;
-        const exp=new Date(v.shakkenExpiry+"-01");
-        // 月末を期限とする
-        exp.setMonth(exp.getMonth()+1);exp.setDate(0);
-        if(exp<=today90){
+        // YYYY-MM-DD または YYYY-MM の両方に対応
+        const expStr=v.shakkenExpiry.length===7?v.shakkenExpiry+"-01":v.shakkenExpiry;
+        const exp=new Date(expStr);
+        if(isNaN(exp.getTime()))return;
+        if(exp<=today60){
           const daysLeft=Math.ceil((exp-now)/(1000*60*60*24));
           shakkenAlerts.push({customer:c,vehicle:v,exp,daysLeft,urgent:exp<=today30});
         }
@@ -1749,7 +1796,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
         <div className="card" style={{background:"linear-gradient(135deg,#FFF8F0,#FFF 60%)",border:"1px solid rgba(255,149,0,.2)",padding:0,overflow:"hidden"}}>
           <div style={{padding:"11px 14px",borderBottom:"1px solid rgba(255,149,0,.15)",display:"flex",alignItems:"center",gap:9}}>
             <Ico e="🚗" bg="rgba(255,149,0,.15)"/>
-            <div><div className="b7">車検期限アラート</div><div className="cmu sm">90日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
+            <div><div className="b7">車検期限アラート</div><div className="cmu sm">60日以内に期限が来る車両 {shakkenAlerts.length}台</div></div>
           </div>
           {shakkenAlerts.map(({customer,vehicle,daysLeft,urgent},i)=>{
             const updateVehicle=(patch)=>setCustomers(cs=>cs.map(c=>c.id===customer.id?{...c,vehicles:(c.vehicles||[]).map(v=>v.id===vehicle.id?{...v,...patch}:v)}:c));
@@ -1757,14 +1804,15 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
             const doComplete=()=>{
               const base=new Date();
               base.setMonth(base.getMonth()+months);
-              const next=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,"0")}`;
+              const next=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,"0")}-${String(base.getDate()).padStart(2,"0")}`;
               if(confirm(`車検完了として次回期限を ${next} に更新しますか？`))updateVehicle({shakkenExpiry:next});
             };
             const doHaisha=()=>{if(confirm(`${vehicle.carName||vehicle.plateNo} を廃車済みにしますか？\nアラートから除外されます。`))updateVehicle({haisha:true,shakkenExpiry:""});};
             const doManual=()=>{
-              const input=prompt(`次回車検期限を入力してください（例: 2027-05）\n現在: ${vehicle.shakkenExpiry||"未設定"}`);
-              if(input&&/^\d{4}-\d{2}$/.test(input))updateVehicle({shakkenExpiry:input});
-              else if(input)alert("形式が正しくありません（例: 2027-05）");
+              const input=prompt(`次回車検期限を入力してください（例: 2027-05-14）\n現在: ${vehicle.shakkenExpiry||"未設定"}`);
+              if(input&&/^\d{4}-\d{2}-\d{2}$/.test(input))updateVehicle({shakkenExpiry:input});
+              else if(input&&/^\d{4}-\d{2}$/.test(input))updateVehicle({shakkenExpiry:input+"-01"});
+              else if(input)alert("形式が正しくありません（例: 2027-05-14）");
             };
             return(
               <div key={`${customer.id}-${vehicle.id}`} style={{borderBottom:i<shakkenAlerts.length-1?"1px solid rgba(255,149,0,.1)":"none"}}>
@@ -1947,7 +1995,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
             <CarTypeSelect value={f.carType} onChange={e=>setF(p=>({...p,carType:e.target.value}))}/>
           </Fld>
           <Fld label="初度登録年月"><WarekiMonthInput value={f.firstReg} onChange={v=>setF(p=>({...p,firstReg:v}))}/></Fld>
-          <Fld label="次回車検期限"><WarekiMonthInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/></Fld>
+          <Fld label="次回車検期限"><WarekiDateInput value={f.shakkenExpiry||""} onChange={v=>setF(p=>({...p,shakkenExpiry:v}))}/></Fld>
           <Fld label="車台番号" style={{gridColumn:"1/-1"}}><input className="inp" placeholder="ZVW5012345" value={f.chassisNo} onChange={e=>setF(p=>({...p,chassisNo:e.target.value}))}/></Fld>
         </div>
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
