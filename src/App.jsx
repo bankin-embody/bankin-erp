@@ -1033,7 +1033,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     drawRow(i,[
       it.desc||"",
       (it.qty===0||it.qty===undefined)?"-":String(it.qty),
-      it.unitLabel||"-",
+      it.qty===0||it.qty===undefined?"-":(it.unitLabel||"-"),
       it.unit?fmt(it.unit):"-",
       it.gijutsu?fmt(it.gijutsu):"-",
       amt?fmt(amt):"-",
@@ -1431,7 +1431,7 @@ window.addEventListener("afterprint",function(){
               if(ci.items&&ci.items.length>0){
                 ci.items.forEach((it,idx)=>{
                   const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
-                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,subtotal:idx===0?ci.subtotal:null});
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,subtotal:idx===0?ci.subtotal:null});
                 });
               }else{
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,subtotal:ci.subtotal||ci.total});
@@ -1522,7 +1522,7 @@ window.addEventListener("afterprint",function(){
                       <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid",breakInside:"avoid"}}>
                         <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",height:32}}>{it.desc}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.unitLabel||"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.qty===0||it.qty===undefined?"-":it.unitLabel||"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.unit?fmt(it.unit):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600,borderLeft:`1px solid ${theme.border}`}}>{amt?fmt(amt):"-"}</td>
@@ -2337,6 +2337,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
 
 const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,setInvoices,settings}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);
+  const[viewMode,setViewMode]=useState("list");
   const mkQId=arr=>String(nextId(arr.map(q=>({id:q.id.replace(/\D/g,"")}))));
   const save=form=>{
     if(modal==="add")setQuotes(p=>[...p,{...form,id:mkQId(p)}]);
@@ -2350,11 +2351,49 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
   if(print) return <PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} settings={settings} onClose={()=>setPrint(null)}/>;
+  const sorted=[...quotes].sort((a,b)=>b.date.localeCompare(a.date));
   return(
     <div className="stk fu">
-      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>見積書</div><button className="btn bp bsm" onClick={()=>setModal("add")}>＋ 作成</button></div>
+      <div className="rb"><div style={{fontSize:20,fontWeight:800}}>見積書</div>
+        <div style={{display:"flex",gap:6}}>
+          <div className="seg">{[["list","一覧"],["monthly","月別"]].map(([k,l])=><button key={k} className={`st ${viewMode===k?"on":""}`} onClick={()=>setViewMode(k)}>{l}</button>)}</div>
+          <button className="btn bp bsm" onClick={()=>setModal("add")}>＋ 作成</button>
+        </div>
+      </div>
+      {viewMode==="monthly"?(()=>{
+        const groups={};
+        sorted.forEach(q=>{const key=q.date.slice(0,7);if(!groups[key])groups[key]=[];groups[key].push(q);});
+        return(
+          <div className="stk" style={{gap:12}}>
+            {Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0])).map(([ym,qs])=>{
+              const[y,m]=ym.split("-");
+              const monthTotal=qs.reduce((s,q)=>s+calcItems(q.items,q.tax).total,0);
+              return(
+                <div key={ym}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",borderBottom:"2px solid var(--bl)",marginBottom:8}}>
+                    <div style={{fontWeight:800,fontSize:15,color:"var(--bl)"}}>{Number(y)}年 {Number(m)}月 <span style={{fontSize:12,fontWeight:400,color:"var(--lb2)",marginLeft:4}}>{qs.length}件</span></div>
+                    <div style={{fontWeight:700,fontSize:14,color:"var(--bl)"}}>{fmt(monthTotal)}</div>
+                  </div>
+                  <div className="lst">
+                    {qs.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
+                      <div key={q.id} className="li" onClick={()=>setModal(q)}>
+                        <Ico e="📋" bg="rgba(0,122,255,.1)"/>
+                        <div style={{flex:1,minWidth:0}}><div className="b6 trn">{displayName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
+                        <div className="b7">{fmt(total)}</div>
+                        <button className="btn bs bsm" onClick={e=>{e.stopPropagation();setPrint(q);}}>印刷</button>
+                        <button className="btn bd bsm" onClick={e=>{e.stopPropagation();if(confirm("削除？"))setQuotes(p=>p.filter(x=>x.id!==q.id));}}>削除</button>
+                      </div>
+                    );})}
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(groups).length===0&&<div style={{textAlign:"center",color:"var(--lb2)",padding:"32px 0"}}>データがありません</div>}
+          </div>
+        );
+      })():(
       <div className="lst">
-        {quotes.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
+        {sorted.map(q=>{const c=customers.find(c=>c.id===q.customerId);const{total}=calcItems(q.items,q.tax);return(
           <div key={q.id} className="li" onClick={()=>setModal(q)}>
             <Ico e="📋" bg="rgba(0,122,255,.1)"/>
             <div style={{flex:1,minWidth:0}}><div className="b6 trn">{displayName(c)}</div><div className="cmu sm">{q.id} · {q.date}</div></div>
@@ -2365,6 +2404,7 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
         );})}
         {!quotes.length&&<div className="li cmu" style={{justifyContent:"center"}}>見積書がありません</div>}
       </div>
+      )}
     </div>
   );
 });
@@ -2653,6 +2693,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
   const[showTpl,setShowTpl]=useState(false);
   const[payModal,setPayModal]=useState(null);
   const[search,setSearch]=useState("");
+  const[viewMode,setViewMode]=useState("list");// "list" | "monthly"
   const gt=inv=>invTotal(inv,settings);
   const filtered=invoices.filter(i=>{
     if(tab==="paid"&&i.status!=="入金済")return false;
@@ -2709,9 +2750,66 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
 
       <input className="inp" placeholder="🔍  顧客名・請求書番号で検索" value={search} onChange={e=>setSearch(e.target.value)}/>
       <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
-      <div className="seg">{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
-      <div className="stk" style={{gap:9}}>
-        {filtered.map(inv=>{
+      <input className="inp" placeholder="🔍  顧客名・請求書番号で検索" value={search} onChange={e=>setSearch(e.target.value)}/>
+      <div className="seg">{[["all","すべて"],["unpaid","未入金"],["paid","入金済"]].map(([k,l])=><button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>)}</div>
+      <div style={{display:"flex",gap:8}}>
+        <div className="seg" style={{flex:1}}>{[["all","全種別"],["repair","🔧 鈑金"],["shakken","🚗 車検"]].map(([k,l])=><button key={k} className={`st ${tTab===k?"on":""}`} onClick={()=>setTTab(k)}>{l}</button>)}</div>
+        <div className="seg">{[["list","一覧"],["monthly","月別"]].map(([k,l])=><button key={k} className={`st ${viewMode===k?"on":""}`} onClick={()=>setViewMode(k)}>{l}</button>)}</div>
+      </div>
+      {viewMode==="monthly"?(()=>{
+        // 月別グループ化
+        const sorted=[...filtered].sort((a,b)=>b.date.localeCompare(a.date));
+        const groups={};
+        sorted.forEach(inv=>{
+          const key=inv.date.slice(0,7);
+          if(!groups[key])groups[key]=[];
+          groups[key].push(inv);
+        });
+        return(
+          <div className="stk" style={{gap:12}}>
+            {Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0])).map(([ym,invs])=>{
+              const[y,m]=ym.split("-");
+              const monthTotal=invs.reduce((s,i)=>s+gt(i),0);
+              return(
+                <div key={ym}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",borderBottom:"2px solid var(--bl)",marginBottom:8}}>
+                    <div style={{fontWeight:800,fontSize:15,color:"var(--bl)"}}>{Number(y)}年 {Number(m)}月 <span style={{fontSize:12,fontWeight:400,color:"var(--lb2)",marginLeft:4}}>{invs.length}件</span></div>
+                    <div style={{fontWeight:700,fontSize:14,color:"var(--bl)"}}>{fmt(monthTotal)}</div>
+                  </div>
+                  <div className="stk" style={{gap:9}}>
+                    {invs.map(inv=>{
+                      const c=customers.find(c=>c.id===inv.customerId);
+                      const v=(c?.vehicles||[]).find(v=>v.id===inv.vehicleId);
+                      const isS=inv.type==="shakken";
+                      return(
+                        <div key={inv.id} onClick={()=>setModal({mode:isS?"shakken":"repair",doc:inv})}
+                          style={{background:"var(--bg2)",borderRadius:12,boxShadow:"var(--sh)",overflow:"hidden",cursor:"pointer"}}>
+                          <div style={{height:3,background:isS?"var(--bl)":"var(--or)"}}/>
+                          <div style={{padding:"10px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                            <div style={{minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                                <span className={`bdg ${isS?"dbl":"dor"}`} style={{fontSize:10}}>{isS?"車検":"鈑金"}</span>
+                                <span style={{fontSize:14,fontWeight:700}}>{displayName(c)}</span>
+                              </div>
+                              <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.id} · {inv.date}</div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:15,fontWeight:800,color:isS?"var(--bl)":"var(--or)"}}>{fmt(gt(inv))}</div>
+                              <div style={{fontSize:11}}><span className={`bdg ${inv.status==="入金済"?"dbl":inv.status==="未入金"?"dre":"dgy"}`}>{inv.status}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(groups).length===0&&<div style={{textAlign:"center",color:"var(--lb2)",padding:"32px 0",fontSize:13}}>データがありません</div>}
+          </div>
+        );
+      })():(<div className="stk" style={{gap:9}}>
+        {[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).map(inv=>{
           const c=customers.find(c=>c.id===inv.customerId);
           const v=(c?.vehicles||[]).find(v=>v.id===inv.vehicleId);
           const isS=inv.type==="shakken";
@@ -2764,6 +2862,7 @@ const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setEx
         })}
         {!filtered.length&&<div className="lst"><div className="li cmu" style={{justifyContent:"center"}}>データがありません</div></div>}
       </div>
+      )}
       {payModal&&<PaymentModal inv={payModal} total={gt(payModal)} onSave={updated=>{
         setInvoices(p=>p.map(i=>i.id===updated.id?updated:i));
         // inv.paymentsをexpensesの入金データに同期
