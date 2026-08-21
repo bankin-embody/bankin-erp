@@ -2291,7 +2291,8 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
 // ── Quote ──────────────────────────────────────────────────
 function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
   const unitList=settings?.unitList||DEF_UNIT_LIST;
-  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
+  const[form,setForm]=useState({customerId:doc?.customerId||(customers[0]?.id||""),vehicleId:doc?.vehicleId||"",date:doc?.date||today(),items:doc?.items||[{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}],tax:doc?.tax??0.1,status:doc?.status||"見積中",note:doc?.note||""});
+  const cust=customers.find(c=>c.id===Number(form.customerId));
   const addI=()=>setForm(f=>({...f,items:[...f.items,{desc:"",qty:1,unit:0,unitLabel:"式",gijutsu:0}]}));
   const remI=i=>setForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}));
   const setI=(i,k,v)=>setForm(f=>({...f,items:f.items.map((it,idx)=>idx===i?{...it,[k]:v}:it)}));
@@ -2307,7 +2308,10 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v)}))}/></Fld>
+        <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
+        <Fld label="車両" opt><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
+          <option value="">未選択</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
+        </select></Fld>
         <Fld label="ステータス"><select className="sel" value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{["見積中","承認済","却下"].map(s=><option key={s}>{s}</option>)}</select></Fld>
         <Fld label="日付"><input type="date" className="inp" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Fld>
         <Fld label="消費税"><select className="sel" value={form.tax} onChange={e=>setForm(f=>({...f,tax:Number(e.target.value)}))}><option value={0.1}>10%</option><option value={0.08}>8%</option><option value={0}>非課税</option></select></Fld>
@@ -2350,11 +2354,11 @@ const Quotes=React.memo(function Quotes({quotes,setQuotes,customers,invoices,set
   };
   const toInv=form=>{
     const nid=String(nextId(invoices.map(i=>({id:String(i.id).replace(/\D/g,"")}))));
-    setInvoices(p=>[...p,{...form,id:nid,type:"repair",vehicleId:"",dueDate:"",status:"未入金",date:today()}]);
+    setInvoices(p=>[...p,{...form,id:nid,type:"repair",dueDate:"",status:"未入金",date:today()}]);
     setModal(null);alert(`請求書 No.${nid} に変換しました`);
   };
   if(modal) return <QuoteFormModal doc={modal==="add"?null:modal} customers={customers} onSave={save} onClose={()=>setModal(null)} onToInv={modal!=="add"?toInv:null} settings={settings}/>;
-  if(print) return <PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} settings={settings} onClose={()=>setPrint(null)}/>;
+  if(print) return <PrintDoc type="quote" doc={print} customer={customers.find(c=>c.id===print.customerId)} vehicle={(customers.find(c=>c.id===print.customerId)?.vehicles||[]).find(v=>v.id===print.vehicleId)} settings={settings} onClose={()=>setPrint(null)}/>;
   const sorted=[...quotes].sort((a,b)=>b.date.localeCompare(a.date));
   return(
     <div className="stk fu">
