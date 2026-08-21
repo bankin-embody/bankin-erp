@@ -1855,6 +1855,10 @@ function CustomerSelect({customers,value,onChange,includeAll=false}){
   const filtered=customers.filter(c=>{
     if(!search)return true;
     return(c.lastName||"").includes(search)||(c.firstName||"").includes(search)||(c.phone||"").includes(search);
+  }).sort((a,b)=>{
+    const fa=a.firstName||a.lastName||"";
+    const fb=b.firstName||b.lastName||"";
+    return fa.localeCompare(fb,"ja");
   });
   const updatePos=useCallback(()=>{
     const r=ref.current?.getBoundingClientRect();
