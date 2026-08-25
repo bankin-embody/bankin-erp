@@ -4555,7 +4555,7 @@ function LoginScreen({onLogin,shopName}){
             <input className="inp" type="email" placeholder="your@email.com" value={email}
               onChange={e=>{setEmail(e.target.value);setError("");}}
               onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-              style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff"}}
+              style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",caretColor:"#fff",WebkitTextFillColor:"#fff",colorScheme:"dark"}}
               autoComplete="email"/>
           </div>
           <div>
@@ -4564,7 +4564,7 @@ function LoginScreen({onLogin,shopName}){
               <input className="inp" type={showPw?"text":"password"} placeholder="パスワードを入力" value={password}
                 onChange={e=>{setPassword(e.target.value);setError("");}}
                 onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",paddingRight:44}}
+                style={{background:"rgba(255,255,255,.08)",border:"1.5px solid rgba(255,255,255,.12)",color:"#fff",caretColor:"#fff",WebkitTextFillColor:"#fff",colorScheme:"dark",paddingRight:44}}
                 autoComplete="current-password"/>
               <button type="button" onClick={()=>setShowPw(p=>!p)}
                 style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"rgba(255,255,255,.45)"}}>
