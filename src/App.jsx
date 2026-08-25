@@ -668,8 +668,15 @@ create table if not exists bankin_data (
 -- Realtimeを有効化
 alter publication supabase_realtime add table bankin_data;
 
--- RLS（Row Level Security）を無効化（社内利用のため）
-alter table bankin_data disable row level security;`;
+-- RLS（Row Level Security）を有効化し、ログイン済みユーザーのみアクセス許可
+alter table bankin_data enable row level security;
+
+drop policy if exists "authenticated only" on bankin_data;
+create policy "authenticated only" on bankin_data
+  for all
+  to authenticated
+  using (true)
+  with check (true);`;
 
 // ── Atoms ──────────────────────────────────────────────────
 const Ico=({e,sz=17,bg})=><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:sz+13,height:sz+13,borderRadius:(sz+13)*.28,background:bg,fontSize:sz,lineHeight:1,flexShrink:0}}>{e}</span>;
