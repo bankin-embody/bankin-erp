@@ -4690,9 +4690,9 @@ export default function App(){
   const[unlocked,setUnlocked]=useState(()=>!!getSbSession()||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
   const[showPinSetup,setShowPinSetup]=useState(false);
   // hooksの後にreturn（Reactのルール順守）
-  if(sbEnabled2&&!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/>;
-  if(!loggedIn&&!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/>;
-  if(showPinSetup) return <PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/>;
+  if(sbEnabled2&&!loggedIn) return <><G/><LoginScreen onLogin={()=>setLoggedIn(true)} shopName={settings.shopName}/></>;
+  if(!loggedIn&&!unlocked) return <><G/><PinLock onUnlock={()=>setUnlocked(true)} shopName={settings.shopName}/></>;
+  if(showPinSetup) return <><G/><PinLock isSetup onUnlock={()=>{setShowPinSetup(false);}} shopName={settings.shopName}/></>;
 
   const syncDot={ok:"#7ec49a",error:"#e07570",syncing:"#c4a46a",idle:"rgba(255,255,255,.25)"}[syncState]||"rgba(255,255,255,.25)";
 
