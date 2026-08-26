@@ -993,7 +993,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   const colWidths=[0,15,15,24,24,27,24]; // 品名は残り幅で計算
   const tableW=W-M*2;
   colWidths[0]=tableW-colWidths.slice(1).reduce((a,b)=>a+b,0);
-  const headers=["品名","数量","単位","部品代","技術料","金額","備考"];
+  const headers=["品名","数量","単位","単価","技術料","金額","備考"];
   const rowH=7;
   // ヘッダー行
   pdf.setFillColor(ar,ag,ab);
@@ -1003,7 +1003,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFontSize(9);
   let cx=M;
   headers.forEach((h,i)=>{
-    const align=["金額","部品代","技術料"].includes(h)?"right":"left";
+    const align=["金額","単価","技術料"].includes(h)?"right":"left";
     const tx=align==="right"?cx+colWidths[i]-2:cx+2;
     pdf.text(h,tx,y+4.7,{align});
     cx+=colWidths[i];
@@ -1026,7 +1026,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     if(!isBlank){
       let cx2=M;
       cells.forEach((c,ci)=>{
-        const align=["金額","部品代","技術料"].includes(headers[ci])||ci>=3&&ci<=5?"right":(ci===1||ci===2?"center":"left");
+        const align=["金額","単価","技術料"].includes(headers[ci])||ci>=3&&ci<=5?"right":(ci===1||ci===2?"center":"left");
         const tx=align==="right"?cx2+colWidths[ci]-2:align==="center"?cx2+colWidths[ci]/2:cx2+2;
         if(c)pdf.text(String(c),tx,y+4.7,{align,maxWidth:colWidths[ci]-3});
         cx2+=colWidths[ci];
@@ -1460,7 +1460,7 @@ window.addEventListener("afterprint",function(){
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
-                    {["No.","日付","品名","数量","単位","部品代","技術料","金額(税抜)"].map((h,i)=>(
+                    {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)"].map((h,i)=>(
                       <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:i>=5?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
@@ -1514,9 +1514,9 @@ window.addEventListener("afterprint",function(){
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
-                    {["品名","数量","単位","部品代","技術料","金額","備考"].map(h=>(
+                    {["品名","数量","単位","単価","技術料","金額","備考"].map(h=>(
                       <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
-                        textAlign:["金額","部品代","技術料"].includes(h)?"right":"left",
+                        textAlign:["金額","単価","技術料"].includes(h)?"right":"left",
                         borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
@@ -2332,7 +2332,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
               <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-              <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+              <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
               <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
             </div>
             <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
@@ -2463,7 +2463,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
                 <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-                <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+                <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
@@ -2598,7 +2598,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"qty",Number(e.target.value))}}/></Fld>
                 <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-                <Fld label="部品代（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
+                <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
@@ -3874,7 +3874,7 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
               <div style={{fontWeight:600}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
                 {w.unit&&`単位: ${w.unit}`}
-                {w.partsCost>0&&` / 部品代: ¥${w.partsCost.toLocaleString()}`}
+                {w.partsCost>0&&` / 単価: ¥${w.partsCost.toLocaleString()}`}
                 {w.gijutsu>0&&` / 技術料: ¥${w.gijutsu.toLocaleString()}`}
               </div>
             </div>
@@ -3912,7 +3912,7 @@ function WorkMasterSettings({workMaster=[],onChange}){
             <Fld label="作業内容・品名"><input className="inp" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="例: バンパー修理・塗装"/></Fld>
             <div className="g3" style={{gap:8}}>
               <Fld label="単位"><input className="inp" value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} placeholder="式"/></Fld>
-              <Fld label="部品代（税抜）"><input type="number" inputMode="decimal" className="inp" value={form.partsCost} onChange={e=>setForm(f=>({...f,partsCost:e.target.value}))}/></Fld>
+              <Fld label="単価（税抜）"><input type="number" inputMode="decimal" className="inp" value={form.partsCost} onChange={e=>setForm(f=>({...f,partsCost:e.target.value}))}/></Fld>
               <Fld label="技術料（税抜）"><input type="number" inputMode="decimal" className="inp" value={form.gijutsu} onChange={e=>setForm(f=>({...f,gijutsu:e.target.value}))}/></Fld>
             </div>
             <div style={{display:"flex",gap:6}}>
@@ -3930,7 +3930,7 @@ function WorkMasterSettings({workMaster=[],onChange}){
               <div style={{fontSize:13,fontWeight:700}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
                 {w.unit&&`${w.unit}`}
-                {w.partsCost>0&&` / 部品代 ¥${Number(w.partsCost).toLocaleString()}`}
+                {w.partsCost>0&&` / 単価 ¥${Number(w.partsCost).toLocaleString()}`}
                 {w.gijutsu>0&&` / 技術料 ¥${Number(w.gijutsu).toLocaleString()}`}
               </div>
             </div>
