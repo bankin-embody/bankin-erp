@@ -4220,13 +4220,13 @@ function Settings({settings,setSettings,syncState,syncMsg,onManualSync,enabled:s
           {(form.unitList||DEF_UNIT_LIST).map((u,i)=>(
             <div key={i} style={{display:"inline-flex",alignItems:"center",gap:5,background:"var(--grp)",borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:600}}>
               <span>{u}</span>
-              <button onClick={()=>setForm(f=>({...f,unitList:(f.unitList||DEF_UNIT_LIST).filter((_,idx)=>idx!==i)}))}
+              <button onClick={()=>{const nl=(form.unitList||DEF_UNIT_LIST).filter((_,idx)=>idx!==i);setForm(f=>({...f,unitList:nl}));setSettings(s=>({...s,unitList:nl}));}}
                 style={{background:"none",border:"none",cursor:"pointer",color:"var(--re)",fontSize:14,lineHeight:1,padding:"0 2px",fontWeight:700}}>×</button>
             </div>
           ))}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <UnitInput onAdd={u=>setForm(f=>({...f,unitList:[...(f.unitList||DEF_UNIT_LIST),u]}))}/>
+          <UnitInput onAdd={u=>{const nl=[...(form.unitList||DEF_UNIT_LIST),u];setForm(f=>({...f,unitList:nl}));setSettings(s=>({...s,unitList:nl}));}}/>
         </div>
       </div>
       <WorkMasterSettings workMaster={form.workMaster||[]} onChange={wm=>{setForm(f=>({...f,workMaster:wm}));setSettings(s=>({...s,workMaster:wm}));}}/>
