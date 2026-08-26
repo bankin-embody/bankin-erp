@@ -1003,9 +1003,8 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFontSize(9);
   let cx=M;
   headers.forEach((h,i)=>{
-    const align=["金額","単価","技術料"].includes(h)?"right":"left";
-    const tx=align==="right"?cx+colWidths[i]-2:cx+2;
-    pdf.text(h,tx,y+4.7,{align});
+    const tx=cx+colWidths[i]/2;
+    pdf.text(h,tx,y+4.7,{align:"center"});
     cx+=colWidths[i];
   });
   y+=rowH;
@@ -1461,7 +1460,7 @@ window.addEventListener("afterprint",function(){
                 <thead>
                   <tr style={{background:theme.accent}}>
                     {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)"].map((h,i)=>(
-                      <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:i>=5?"right":"left",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                      <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"center",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1516,7 +1515,7 @@ window.addEventListener("afterprint",function(){
                   <tr style={{background:theme.accent}}>
                     {["品名","数量","単位","単価","技術料","金額","備考"].map(h=>(
                       <th key={h} style={{padding:"7px 10px",fontSize:11,fontWeight:700,color:"#fff",
-                        textAlign:["金額","単価","技術料"].includes(h)?"right":"left",
+                        textAlign:"center",
                         borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
