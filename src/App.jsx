@@ -72,13 +72,13 @@ const G = () => (
     .ni:hover{background:var(--sb-act);color:#fff;} .ni.on{background:rgba(255,255,255,.14);color:#fff;font-weight:700;}
     .nic{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
     .nb{margin-left:auto;background:var(--re);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;}
-    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(30,37,53,.94);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid rgba(255,255,255,.08);display:flex;padding:5px 0 env(safe-area-inset-bottom,10px);z-index:90;}
-    .bi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 5px;cursor:pointer;flex:1;color:rgba(255,255,255,.38);transition:color var(--tr);}
+    .bn{position:fixed;bottom:0;left:0;right:0;background:rgba(30,37,53,.94);backdrop-filter:blur(20px) saturate(180%);border-top:1px solid rgba(255,255,255,.08);display:flex;padding:6px 0 calc(env(safe-area-inset-bottom,10px) + 14px);z-index:90;}
+    .bi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 5px;cursor:pointer;flex:1;color:rgba(255,255,255,.38);transition:color var(--tr);}
     .bi.on{color:rgba(255,255,255,.90);}
     .sc{border-radius:var(--r);padding:15px 17px;color:#fff;position:relative;overflow:hidden;}
     .sc::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.12),transparent 55%);}
     .app{display:flex;height:100vh;overflow:hidden;}
-    .mn{flex:1;overflow-y:auto;padding-bottom:75px;}
+    .mn{flex:1;overflow-y:auto;padding-bottom:88px;}
     @media(min-width:768px){.mn{padding-bottom:14px;}.bn{display:none;}}
     @media(max-width:767px){.sb{display:none;}}
     .pw{padding:16px 13px;max-width:1100px;margin:0 auto;}
