@@ -2943,6 +2943,7 @@ function CombinedInvoice({invoices,customers,settings}){
 const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],setInvoices,customers=[],settings}){
   const[modal,setModal]=useState(null);
   const[tab,setTab]=useState("all");
+  const[viewMode,setViewMode]=useState("list");// "list" | "monthly"
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
   const initForm=()=>({date:today(),category:"材料費",desc:"",amount:0,receipt:false,type:"expense",invId:""});
   const[form,setForm]=useState(initForm());
@@ -3103,10 +3104,13 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
         </div>
       </div>
       {/* タブ */}
-      <div className="seg">
-        {[["all","すべて"],["expense","経費"],["payment","入金"],["chart","集計"]].map(([k,l])=>(
-          <button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>
-        ))}
+      <div style={{display:"flex",gap:8}}>
+        <div className="seg" style={{flex:1}}>
+          {[["all","すべて"],["expense","経費"],["payment","入金"],["chart","集計"]].map(([k,l])=>(
+            <button key={k} className={`st ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l}</button>
+          ))}
+        </div>
+        {tab!=="chart"&&<div className="seg">{[["list","一覧"],["monthly","月別"]].map(([k,l])=><button key={k} className={`st ${viewMode===k?"on":""}`} onClick={()=>setViewMode(k)}>{l}</button>)}</div>}
       </div>
       {tab==="chart"?(
         <div className="stk">
@@ -3120,7 +3124,63 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
             ))}</div>
           </div>
         </div>
-      ):(
+      ):viewMode==="monthly"?(()=>{
+        // 月別グループ化
+        const sorted=[...filtered].sort((a,b)=>b.date.localeCompare(a.date));
+        const groups={};
+        sorted.forEach(e=>{
+          const key=e.date.slice(0,7);
+          if(!groups[key])groups[key]=[];
+          groups[key].push(e);
+        });
+        const renderCard=e=>{
+          const isP=e.category==="入金";
+          const inv=e.invId?invoices.find(i=>String(i.id)===String(e.invId)):null;
+          const c=inv?customers.find(c=>c.id===inv.customerId):null;
+          return(
+            <div key={e.id} onClick={()=>{setForm({...e});setModal(e);}} style={{background:"#fff",borderRadius:14,boxShadow:"0 2px 8px rgba(0,0,0,.06)",border:`1px solid ${isP?"rgba(52,199,89,.2)":"rgba(0,0,0,.07)"}`,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:40,height:40,borderRadius:20,background:isP?"rgba(52,199,89,.12)":"rgba(255,149,0,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                {isP?"💰":e.receipt?"🧾":"📝"}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:13}}>{e.desc}</div>
+                <div style={{fontSize:11,color:"var(--lb2)",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <span>{e.date}</span>
+                  {!isP&&<span style={{background:"rgba(255,149,0,.1)",color:"var(--or)",borderRadius:5,padding:"1px 6px",fontSize:10,fontWeight:600}}>{e.category}</span>}
+                  {e.payee&&!isP&&<span style={{color:"var(--lb2)"}}>📍 {e.payee}</span>}
+                  {inv&&<span style={{color:"var(--bl)",fontSize:10}}>📄 {displayName(c)} No.{inv.id}</span>}
+                </div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:15,fontWeight:800,color:isP?"#1a8f3a":"var(--re)"}}>{isP?"＋":"－"}{fmt(e.amount)}</div>
+                {!isP&&e.receipt&&<div style={{fontSize:10,color:"var(--lb2)"}}>領収書あり</div>}
+              </div>
+            </div>
+          );
+        };
+        return(
+          <div className="stk" style={{gap:12}}>
+            {Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0])).map(([ym,es])=>{
+              const[y,m]=ym.split("-");
+              const monthExp=es.filter(e=>e.category!=="入金").reduce((s,e)=>s+e.amount,0);
+              const monthPay=es.filter(e=>e.category==="入金").reduce((s,e)=>s+e.amount,0);
+              return(
+                <div key={ym}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",borderBottom:"2px solid var(--or)",marginBottom:8}}>
+                    <div style={{fontWeight:800,fontSize:15,color:"var(--or)"}}>{Number(y)}年 {Number(m)}月 <span style={{fontSize:12,fontWeight:400,color:"var(--lb2)",marginLeft:4}}>{es.length}件</span></div>
+                    <div style={{textAlign:"right"}}>
+                      {monthExp>0&&<div style={{fontWeight:700,fontSize:12,color:"var(--re)"}}>－{fmt(monthExp)}</div>}
+                      {monthPay>0&&<div style={{fontWeight:700,fontSize:12,color:"#1a8f3a"}}>＋{fmt(monthPay)}</div>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>{es.map(renderCard)}</div>
+                </div>
+              );
+            })}
+            {Object.keys(groups).length===0&&<div style={{textAlign:"center",color:"var(--lb2)",padding:"32px 0",fontSize:13}}>データがありません</div>}
+          </div>
+        );
+      })():(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {filtered.map(e=>{
             const isP=e.category==="入金";
