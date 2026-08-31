@@ -391,7 +391,7 @@ const mo=d=>new Date(d).getMonth()+1;
 // ── Default Settings ───────────────────────────────────────
 const DEF_UNIT_LIST=["式","個","本","枚","セット","台","ヶ所","回","時間","m","L"];
 const DEF_SETTINGS={
-  shopName:"鈴木鈑金塗装",shopAddress:"〒000-0000 東京都○○区○○1-2-3",
+  shopName:"エムボディ",shopAddress:"〒000-0000 東京都○○区○○1-2-3",
   shopTel:"03-0000-0000",shopFax:"",shopEmail:"info@suzuki-bankin.co.jp",
   invoiceNo:"T1234567890123",
   bankName:"○○銀行",bankBranch:"○○支店",bankType:"普通",bankNo:"1234567",bankHolder:"スズキバンキントソウ",
@@ -595,7 +595,7 @@ const sbSubscribe=(conf,onUpdate)=>{
 };
 
 // useSbSync hook — Appで使う
-function useSbSync(db,setDb){
+function useSbSync(db,setDb,authReady=true){
   const[syncState,setSyncState]=useState("idle"); // idle | ok | error | syncing
   const[syncMsg,setSyncMsg]=useState("");
   const conf=getSbConf();
@@ -605,9 +605,9 @@ function useSbSync(db,setDb){
   const dbRef=useRef(db);
   useEffect(()=>{dbRef.current=db;},[db]);
 
-  // 初回ロード（dbRef確定後に実行）
+  // 初回ロード（ログイン済み・dbRef確定後に実行。未ログインならauthReadyがtrueになるまで待機）
   useEffect(()=>{
-    if(!enabled)return;
+    if(!enabled||!authReady)return;
     setSyncState("syncing");
     sbLoad(conf).then(remote=>{
       if(remote){
@@ -619,21 +619,21 @@ function useSbSync(db,setDb){
       }
     }).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[enabled]);
+  },[enabled,authReady]);
   const timerRef=useRef(null);
   useEffect(()=>{
-    if(!enabled)return;
+    if(!enabled||!authReady)return;
     clearTimeout(timerRef.current);
     timerRef.current=setTimeout(()=>{
       setSyncState("syncing");
       sbSave(conf,dbRef.current).then(()=>{setSyncState("ok");setSyncMsg(new Date().toLocaleTimeString("ja-JP"));}).catch(err=>{setSyncState("error");setSyncMsg(err.message);});
     },2000);
     return()=>clearTimeout(timerRef.current);
-  },[db,enabled]);
+  },[db,enabled,authReady]);
 
-  // Realtime購読（一度だけ）
+  // Realtime購読（authReadyになってから一度だけ）
   useEffect(()=>{
-    if(!enabled)return;
+    if(!enabled||!authReady)return;
     const unsub=sbSubscribe(conf,()=>{
       sbLoad(conf).then(remote=>{
         if(remote)setDb(local=>({...local,...remote,meta:{...remote.meta,savedAt:new Date().toISOString()}}));
@@ -641,7 +641,7 @@ function useSbSync(db,setDb){
     });
     return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[enabled]);
+  },[enabled,authReady]);
 
   const manualSync=async()=>{
     if(!enabled)return;
@@ -4738,12 +4738,13 @@ export default function App(){
   useSaveDB(db);
   const set=useCallback(k=>fn=>setDb(d=>({...d,[k]:typeof fn==="function"?fn(d[k]):fn})),[]);
   const{customers,quotes,invoices,expenses,worklogs,settings}=db;
-  const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb);
-  const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
-  const cur=PAGES.find(p=>p.id===page);
-  // Supabase Auth ログイン
+  // Supabase Auth ログイン（useSbSyncより前に確定させ、ログイン完了後の再取得トリガーに使う）
   const sbEnabled2=!!(getSbConf().url&&getSbConf().anonKey);
   const[loggedIn,setLoggedIn]=useState(()=>!!getSbSession());
+  const authReady=!sbEnabled2||loggedIn; // ログイン不要、またはログイン済みならフェッチ許可
+  const{syncState,syncMsg,enabled:sbEnabled,manualSync}=useSbSync(db,setDb,authReady);
+  const unpaid=useMemo(()=>invoices.filter(i=>i.status==="未入金").length,[invoices]);
+  const cur=PAGES.find(p=>p.id===page);
   // PINロック
   const hasPin=!!getPin();
   const[unlocked,setUnlocked]=useState(()=>!!getSbSession()||!getPin()||sessionStorage.getItem(PIN_SESSION)==="1");
