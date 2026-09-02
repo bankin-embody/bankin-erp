@@ -384,7 +384,10 @@ const printName=c=>{
   return name||"—";
 };
 // 選択欄用：読み仮名なしで名前のみ表示
-const displayName=c=>c?(c.lastName||"").trim()||"—":"—";
+const displayName=c=>{
+  const n=c?(c.lastName||"").trim():"";
+  return n?`${n} 様`:"—";
+};
 const yr=d=>new Date(d).getFullYear();
 const mo=d=>new Date(d).getMonth()+1;
 
@@ -2923,7 +2926,7 @@ function CombinedInvoice({invoices,customers,settings}){
           <Fld label="終了日"><input type="date" className="inp" value={to} onChange={e=>setTo(e.target.value)}/></Fld>
         </div>
       </div>
-      {c&&<div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}><div className="xs cmu mb4">請求先</div><div className="b7 lg">{printName(c)}</div>{c.address&&<div className="cmu sm mt4">{c.address}</div>}</div>}
+      {c&&<div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}><div className="xs cmu mb4">請求先</div><div className="b7 lg">{printName(c)} 様</div>{c.address&&<div className="cmu sm mt4">{c.address}</div>}</div>}
       <div className="lst">
         {filtered.map(inv=>(
           <div key={inv.id} className="li" style={{cursor:"default"}}>
