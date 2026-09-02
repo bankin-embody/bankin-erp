@@ -1629,7 +1629,7 @@ window.addEventListener("afterprint",function(){
 }
 
 // ── Dashboard ──────────────────────────────────────────────
-const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,setCustomers}){
+const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expenses,settings,setCustomers,onOpenInvoice}){
   const now=useMemo(()=>new Date(),[]);const m=now.getMonth()+1;const y=now.getFullYear();
   const[openCard,setOpenCard]=useState(null);// "sales"|"unpaid"|null
   const gt=useCallback(inv=>invTotal(inv,settings),[settings]);
@@ -1749,7 +1749,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
           </div>
           {unpaidDetail.length===0&&<div className="cmu sm" style={{padding:"14px 16px"}}>未入金の請求書はありません</div>}
           {unpaidDetail.map(inv=>{const c=customers.find(c=>c.id===inv.customerId);const paid=paidMap[String(inv.id)]||0;const remaining=Math.max(0,gt(inv)-paid);return(
-            <div key={inv.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)"}}>
+            <div key={inv.id} onClick={()=>onOpenInvoice&&onOpenInvoice(inv.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 14px",borderBottom:"1px solid var(--sep)",cursor:onOpenInvoice?"pointer":"default"}}>
               <div>
                 <div style={{fontSize:13,fontWeight:600}}>{displayName(c)}</div>
                 <div style={{fontSize:11,color:"var(--lb2)"}}>{inv.date}　{inv.type==="shakken"?"車検":"鈑金"}</div>
@@ -1759,6 +1759,7 @@ const Dashboard=React.memo(function Dashboard({customers,invoices,quotes,expense
                 {paid>0&&<div style={{fontSize:10,color:"var(--lb2)"}}>請求 {fmt(gt(inv))} / 入金済 {fmt(paid)}</div>}
                 {paid===0&&<div style={{fontSize:11,color:"var(--lb2)"}}>{inv.id}</div>}
               </div>
+              {onOpenInvoice&&<span style={{color:"var(--lb2)",fontSize:14,marginLeft:6}}>›</span>}
             </div>
           );})}
         </div>
@@ -2704,13 +2705,20 @@ function PaymentModal({inv,total,onSave,onClose}){
   );
 }
 
-const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings}){
+const Invoices=React.memo(function Invoices({invoices,setInvoices,expenses,setExpenses,customers,settings,openInvoiceId,onOpened}){
   const[modal,setModal]=useState(null);const[print,setPrint]=useState(null);const[printType,setPType]=useState("invoice");
   const[tab,setTab]=useState("all");const[tTab,setTTab]=useState("all");
   const[showTpl,setShowTpl]=useState(false);
   const[payModal,setPayModal]=useState(null);
   const[search,setSearch]=useState("");
   const[viewMode,setViewMode]=useState("list");// "list" | "monthly"
+  useEffect(()=>{
+    if(!openInvoiceId)return;
+    const inv=invoices.find(i=>String(i.id)===String(openInvoiceId));
+    if(inv)setModal({mode:inv.type==="shakken"?"shakken":"repair",doc:inv});
+    onOpened&&onOpened();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[openInvoiceId]);
   const gt=inv=>invTotal(inv,settings);
   const filtered=invoices.filter(i=>{
     if(tab==="paid"&&i.status!=="入金済")return false;
@@ -4734,6 +4742,7 @@ const BNAV_LABELS={"dashboard":"ホーム","customers":"顧客","worklog":"作�
 
 export default function App(){
   const[page,setPage]=useState("dashboard");
+  const[jumpInvoiceId,setJumpInvoiceId]=useState(null);// ダッシュボードから請求書へジャンプ
   const[db,setDb]=useState(()=>loadDB({
     customers:IC,quotes:IQ,invoices:II,expenses:IE,worklogs:IW,
     settings:DEF_SETTINGS,meta:{savedAt:null},
@@ -4761,10 +4770,10 @@ export default function App(){
 
   const render=()=>{
     switch(page){
-      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} setCustomers={set("customers")}/>;
+      case"dashboard":   return <Dashboard customers={customers} invoices={invoices} quotes={quotes} expenses={expenses} settings={settings} setCustomers={set("customers")} onOpenInvoice={id=>{setJumpInvoiceId(id);setPage("invoices");}}/>;
       case"customers":   return <Customers customers={customers} setCustomers={set("customers")} invoices={invoices} worklogs={worklogs} onGoWorklog={()=>setPage("worklog")}/>;
       case"quotes":      return <Quotes quotes={quotes} setQuotes={set("quotes")} customers={customers} invoices={invoices} setInvoices={set("invoices")} settings={settings}/>;
-      case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings}/>;
+      case"invoices":    return <Invoices invoices={invoices} setInvoices={set("invoices")} expenses={expenses} setExpenses={set("expenses")} customers={customers} settings={settings} openInvoiceId={jumpInvoiceId} onOpened={()=>setJumpInvoiceId(null)}/>;
       case"combined":    return <CombinedInvoice invoices={invoices} customers={customers} settings={settings}/>;
       case"worklog":      return <WorkLog worklogs={worklogs} setWorklogs={set("worklogs")} customers={customers}/>;
       case"expenses":    return <Expenses expenses={expenses} setExpenses={set("expenses")} invoices={invoices} setInvoices={set("invoices")} customers={customers} settings={settings}/>;
