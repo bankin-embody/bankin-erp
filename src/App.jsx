@@ -1070,12 +1070,12 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     pdf.text("法定費用・諸費用",lcX+3,y+4.3);
     let lY=y+6;
     const govRows=[
-      [doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],
-      ["重量税",fmt(doc.shakken?.juryozei||0)],
-      ["検査登録・証紙代",fmt(doc.shakken?.kensaShomei||0)],
-      ["技術情報管理料",fmt(doc.shakken?.gijutsuKanri||0)],
-      ["車検代行手数料",fmt(daikoRaw)],
-      [`　消費税（${Math.round(daikoTx*100)}%）`,fmt(daikoWT-daikoRaw)],
+      [doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",doc.shakken?.jibaisekiMochikomi?"持ち込み":fmtN(doc.shakken?.jibaiseki||0)],
+      ["重量税",fmtN(doc.shakken?.juryozei||0)],
+      ["検査登録・証紙代",fmtN(doc.shakken?.kensaShomei||0)],
+      ["技術情報管理料",fmtN(doc.shakken?.gijutsuKanri||0)],
+      ["車検代行手数料",fmtN(daikoRaw)],
+      [`　消費税（${Math.round(daikoTx*100)}%）`,fmtN(daikoWT-daikoRaw)],
     ];
     govRows.forEach(([l,v],i)=>{
       i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
@@ -1087,10 +1087,10 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     });
     pdf.setFillColor(lr2,lg2,lb2);pdf.rect(lcX,lY,lcW,7,"F");
     jpFont(pdf,"bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
-    pdf.text("法定費用合計",lcX+3,lY+4.8);pdf.text(fmt(gov+daikoWT),lcX+lcW-2,lY+4.8,{align:"right"});
+    pdf.text("法定費用合計",lcX+3,lY+4.8);pdf.text(fmtN(gov+daikoWT),lcX+lcW-2,lY+4.8,{align:"right"});
     // 右：整備費
     let rY=y;
-    [["整備費（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v],i)=>{
+    [["整備費（税抜）",fmtN(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmtN(taxAmt)],["整備費合計（税込）",fmtN(wT)]].forEach(([l,v],i)=>{
       i%2!==0?pdf.setFillColor(lr2,lg2,lb2):pdf.setFillColor(250,250,250);
       pdf.rect(rcX,rY,rcW,6,"F");
       pdf.setTextColor(80,80,80);jpFont(pdf,"normal");pdf.setFontSize(8);pdf.text(l,rcX+3,rY+4.3);
@@ -1107,7 +1107,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   }else if(docType==="combined"){
     // 合計請求書
     const sumW=80,sumX=W-M-80;
-    [["消費税合計",fmt(doc.combinedTax||0)]].forEach(([l,v])=>{
+    [["消費税合計",fmtN(doc.combinedTax||0)]].forEach(([l,v])=>{
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
       jpFont(pdf,"normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
@@ -1123,7 +1123,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   }else{
     // 一般請求書・見積・納品
     const sumW=80,sumX=W-M-80;
-    [["小計（税抜）",fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],["整備費合計（税込）",fmt(wT)]].forEach(([l,v])=>{
+    [["小計（税抜）",fmtN(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmtN(taxAmt)],["整備費合計（税込）",fmtN(wT)]].forEach(([l,v])=>{
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
       jpFont(pdf,"normal");pdf.setFontSize(9);pdf.setTextColor(100,100,100);pdf.text(l,sumX+3,y+4.7);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
@@ -1569,26 +1569,26 @@ window.addEventListener("afterprint",function(){
                 <div style={{flex:1,border:`1px solid ${theme.border}`,borderRadius:6,overflow:"hidden",fontSize:10}}>
                   <div style={{background:theme.accent,color:"#fff",padding:"4px 10px",fontWeight:700,fontSize:10}}>法定費用・諸費用</div>
                   {[
-                    [(doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険"), doc.shakken?.jibaisekiMochikomi?"持ち込み":fmt(doc.shakken?.jibaiseki||0)],
-                    ["重量税", fmt(doc.shakken?.juryozei||0)],
-                    ["検査登録・証紙代", fmt(doc.shakken?.kensaShomei||settings.kensaShomei||0)],
-                    ["技術情報管理料", fmt(doc.shakken?.gijutsuKanri||settings.gijutsuKanri||0)],
-                    ["車検代行手数料", fmt(daikoRaw)],
-                    [`　消費税（${Math.round(daikoTx*100)}%）`, fmt(daikoWT-daikoRaw)],
+                    [(doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険"), doc.shakken?.jibaisekiMochikomi?"持ち込み":fmtN(doc.shakken?.jibaiseki||0)],
+                    ["重量税", fmtN(doc.shakken?.juryozei||0)],
+                    ["検査登録・証紙代", fmtN(doc.shakken?.kensaShomei||settings.kensaShomei||0)],
+                    ["技術情報管理料", fmtN(doc.shakken?.gijutsuKanri||settings.gijutsuKanri||0)],
+                    ["車検代行手数料", fmtN(daikoRaw)],
+                    [`　消費税（${Math.round(daikoTx*100)}%）`, fmtN(daikoWT-daikoRaw)],
                   ].map(([l,v])=>(
                     <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 10px",borderBottom:`1px solid ${theme.border}`,background:"#fafafa"}}>
                       <span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
                     </div>
                   ))}
                   <div style={{display:"flex",justifyContent:"space-between",padding:"4px 10px",background:theme.light,fontWeight:700}}>
-                    <span>法定費用合計</span><span>{fmt(gov+daikoWT)}</span>
+                    <span>法定費用合計</span><span>{fmtN(gov+daikoWT)}</span>
                   </div>
                 </div>
                 <div style={{width:220,border:`1px solid ${theme.border}`,borderRadius:6,overflow:"hidden"}}>
                   {[
-                    ["整備費（税抜）", fmt(sub)],
-                    [`消費税（${Math.round((doc.tax||0.1)*100)}%）`, fmt(taxAmt)],
-                    ["整備費合計（税込）", fmt(wT)],
+                    ["整備費（税抜）", fmtN(sub)],
+                    [`消費税（${Math.round((doc.tax||0.1)*100)}%）`, fmtN(taxAmt)],
+                    ["整備費合計（税込）", fmtN(wT)],
                   ].map(([l,v])=>(
                     <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 12px",borderBottom:`1px solid ${theme.border}`,fontSize:10,background:"#fafafa"}}>
                       <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
@@ -1602,7 +1602,7 @@ window.addEventListener("afterprint",function(){
               </>
             ):(
               <div style={{marginLeft:"auto",width:280,border:`1px solid ${theme.border}`,borderRadius:8,overflow:"hidden"}}>
-                {[[`小計（税抜）`,fmt(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)]].map(([l,v])=>(
+                {[[`小計（税抜）`,fmtN(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmtN(taxAmt)],[`整備費合計（税込）`,fmtN(wT)]].map(([l,v])=>(
                   <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",borderBottom:`1px solid ${theme.border}`,fontSize:12,background:"#fafafa"}}>
                     <span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span>
                   </div>
@@ -2016,7 +2016,7 @@ function VehicleModal({v,onSave,onClose,onDel}){
         <div className="card" style={{background:"rgba(0,122,255,.04)",border:"1px solid rgba(0,122,255,.15)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--bl)",marginBottom:7}}>📊 車検時 自動計算プレビュー</div>
           <div className="g2" style={{gap:7}}>
-            {[[`自賠責（${getShakkenMonths(f.carType)}ヶ月）`,fmt(calcJibaiseki(f.carType,getShakkenMonths(f.carType)))],[`重量税（${getShakkenMonths(f.carType)/12}年）`,"手入力"]].map(([l,val])=>(
+            {[[`自賠責（${getShakkenMonths(f.carType)}ヶ月）`,fmtN(calcJibaiseki(f.carType,getShakkenMonths(f.carType)))],[`重量税（${getShakkenMonths(f.carType)/12}年）`,"手入力"]].map(([l,val])=>(
               <div key={l} style={{background:"var(--bg2)",borderRadius:8,padding:"8px 11px"}}><div className="xs cmu">{l}</div><div className="b7 cbl">{val}</div></div>
             ))}
           </div>
@@ -2260,7 +2260,7 @@ const Customers=React.memo(function Customers({customers,setCustomers,worklogs=[
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontSize:10,color:"#aaa"}}>自賠責目安</div>
-                          <div style={{fontSize:13,fontWeight:700,color:color}}>{fmt(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div>
+                          <div style={{fontSize:13,fontWeight:700,color:color}}>{fmtN(calcJibaiseki(v.carType,getShakkenMonths(v.carType)))}</div>
                         </div>
                       </div>
                     </div>
@@ -2345,7 +2345,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
       </div>
       <div className="card" style={{background:"var(--grp)"}}>
-        {[["小計",fmt(sub)],["消費税",fmt(taxAmt)],["合計",fmt(total)]].map(([l,v])=>(
+        {[["小計",fmtN(sub)],["消費税",fmtN(taxAmt)],["合計",fmt(total)]].map(([l,v])=>(
           <div key={l} className="rb" style={{padding:"4px 0",borderBottom:l==="消費税"?"1px solid var(--sep)":"none"}}><span className={`sm ${l==="合計"?"b7":"cmu"}`}>{l}</span><span className={l==="合計"?"b7 cbl":"sm"}>{v}</span></div>
         ))}
       </div>
@@ -2476,7 +2476,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
           <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
         </div>
         <div className="card" style={{background:"var(--grp)"}}>
-          {[["小計（税抜）",fmt(sub)],["消費税",fmt(taxAmt)],["合計（税込）",fmt(total)]].map(([l,v])=>(
+          {[["小計（税抜）",fmtN(sub)],["消費税",fmtN(taxAmt)],["合計（税込）",fmt(total)]].map(([l,v])=>(
             <div key={l} className="rb" style={{padding:"5px 0",borderBottom:l==="消費税"?"1px solid var(--sep)":"none"}}><span className={`sm ${l.includes("合計")?"b7":"cmu"}`}>{l}</span><span className={l.includes("合計")?"b7 cbl lg":"sm"}>{v}</span></div>
           ))}
         </div>
@@ -2544,7 +2544,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
             </div>
           </div>
           <div className="lst">
-            {[{key:"jibaiseki",label:`自賠責保険（${vehicle?getShakkenMonths(vehicle.carType):24}ヶ月）`,hint:vehicle?`自動: ${fmt(calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)))}`:"車両選択で自動入力"},{key:"juryozei",label:`重量税（${vehicle?getShakkenMonths(vehicle.carType)/12:2}年）`,hint:"手入力してください"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 ¥1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 ¥400",fixed:true}].map(({key,label,hint,fixed})=>(
+            {[{key:"jibaiseki",label:`自賠責保険（${vehicle?getShakkenMonths(vehicle.carType):24}ヶ月）`,hint:vehicle?`自動: ${fmtN(calcJibaiseki(vehicle.carType,getShakkenMonths(vehicle.carType)))}`:"車両選択で自動入力"},{key:"juryozei",label:`重量税（${vehicle?getShakkenMonths(vehicle.carType)/12:2}年）`,hint:"手入力してください"},{key:"kensaShomei",label:"検査登録証紙代",hint:"固定 1,450",fixed:true},{key:"gijutsuKanri",label:"技術管理料",hint:"固定 400",fixed:true}].map(({key,label,hint,fixed})=>(
               <div key={key} className="fr">
                 <div style={{flex:1,minWidth:0}}>
                   <div className="sm b6">{label}</div>
@@ -2615,7 +2615,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
           <div className="xs cmu" style={{fontWeight:700,marginBottom:7}}>金額内訳</div>
           {(()=>{
             const gaichu=0;const gaichuTax=0.1;const gaichuTotal=0;const profit=dWT;
-            const rows=[[`整備費（税抜）`,fmt(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmt(taxAmt)],[`整備費合計（税込）`,fmt(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmt(form.shakken.jibaiseki||0)],["重量税",fmt(form.shakken.juryozei||0)],["検査登録証紙代",fmt(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmt(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmt(gov)],null,["車検代行手数料（税抜）",fmt(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmt(dWT-(form.shakken.daiko||0))]];
+            const rows=[[`整備費（税抜）`,fmtN(sub)],[`消費税（${Math.round(form.tax*100)}%）`,fmtN(taxAmt)],[`整備費合計（税込）`,fmtN(wT)],null,[form.shakken.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険",form.shakken.jibaisekiMochikomi?"持ち込み":fmtN(form.shakken.jibaiseki||0)],["重量税",fmtN(form.shakken.juryozei||0)],["検査登録証紙代",fmtN(form.shakken.kensaShomei||settings.kensaShomei)],["技術管理料",fmtN(form.shakken.gijutsuKanri||settings.gijutsuKanri)],["法定費用合計（非課税）",fmtN(gov)],null,["車検代行手数料（税抜）",fmtN(form.shakken.daiko||0)],[`　消費税（${Math.round((form.shakken.daikoTax??settings.daikoTax)*100)}%）`,fmtN(dWT-(form.shakken.daiko||0))]];
             return rows;
           })().map((row,i)=>
             row===null?<div key={i} style={{borderTop:"1px solid var(--sep)",margin:"4px 0"}}/>:
