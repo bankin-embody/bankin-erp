@@ -372,6 +372,7 @@ const invGovFees=(inv,st)=>{
   return invTotal(inv,st)-invSales(inv,st);
 };
 const fmt=n=>`¥${Number(n||0).toLocaleString()}`;
+const fmtN=n=>Number(n||0).toLocaleString();// 明細行用（¥なし）
 const today=()=>new Date().toISOString().split("T")[0];
 const nextId=arr=>{const ns=arr.map(x=>parseInt(String(x.id||0).replace(/\D/g,""))||0);return ns.length?Math.max(...ns)+1:1;};
 const fullName=c=>c?`${c.lastName||""}${c.firstName?" "+c.firstName:""}`.trim()||"—":"—";
@@ -1043,9 +1044,9 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       it.desc||"",
       (it.qty===0||it.qty===undefined)?"-":String(it.qty),
       it.qty===0||it.qty===undefined?"-":(it.unitLabel||"-"),
-      it.unit?fmt(it.unit):"-",
-      it.gijutsu?fmt(it.gijutsu):"-",
-      amt?fmt(amt):"-",
+      it.unit?fmtN(it.unit):"-",
+      it.gijutsu?fmtN(it.gijutsu):"-",
+      amt?fmtN(amt):"-",
       it.note||"",
     ]);
   });
@@ -1475,9 +1476,9 @@ window.addEventListener("afterprint",function(){
                       <td style={{padding:"6px 6px",fontSize:11,wordBreak:"break-all"}}>{row.desc}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.qty||""}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.unit}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmt(row.partsCost):"-"}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmt(row.gijutsu):"-"}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmt(row.lineAmt):""}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmtN(row.partsCost):"-"}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmtN(row.gijutsu):"-"}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmtN(row.lineAmt):""}</td>
                     </tr>
                   ))}
                   {Array.from({length:blankCount},(_,i)=>(
@@ -1532,9 +1533,9 @@ window.addEventListener("afterprint",function(){
                         <td style={{padding:"8px 10px",fontSize:12,wordBreak:"break-all",height:32}}>{it.desc}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.qty===0||it.qty===undefined?"-":it.qty}</td>
                         <td style={{padding:"8px 10px",fontSize:12,textAlign:"center",borderLeft:`1px solid ${theme.border}`}}>{it.qty===0||it.qty===undefined?"-":it.unitLabel||"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.unit?fmt(it.unit):"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.gijutsu?fmt(it.gijutsu):"-"}</td>
-                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600,borderLeft:`1px solid ${theme.border}`}}>{amt?fmt(amt):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.unit?fmtN(it.unit):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",borderLeft:`1px solid ${theme.border}`}}>{it.gijutsu?fmtN(it.gijutsu):"-"}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,textAlign:"right",fontWeight:600,borderLeft:`1px solid ${theme.border}`}}>{amt?fmtN(amt):"-"}</td>
                         <td style={{padding:"8px 10px",fontSize:11,color:"#888",borderLeft:`1px solid ${theme.border}`}}>{it.note||""}</td>
                       </tr>
                     );
@@ -2338,7 +2339,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
               <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
               <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
             </div>
-            <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+            <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
           </div>
         ))}</div>
         <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -2469,7 +2470,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
                 <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
           ))}</div>
           <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -2604,7 +2605,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                 <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
                 <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
               </div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmt(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
           ))}</div>
           <button className="btn bs bsm mt8" onClick={addI}>＋ 整備明細追加</button>
@@ -3944,8 +3945,8 @@ function ItemSuggest({value,onChange,onSelect,workMaster=[],placeholder="作業�
               <div style={{fontWeight:600}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
                 {w.unit&&`単位: ${w.unit}`}
-                {w.partsCost>0&&` / 単価: ¥${w.partsCost.toLocaleString()}`}
-                {w.gijutsu>0&&` / 技術料: ¥${w.gijutsu.toLocaleString()}`}
+                {w.partsCost>0&&` / 単価: ${w.partsCost.toLocaleString()}`}
+                {w.gijutsu>0&&` / 技術料: ${w.gijutsu.toLocaleString()}`}
               </div>
             </div>
           ))}
@@ -4000,8 +4001,8 @@ function WorkMasterSettings({workMaster=[],onChange}){
               <div style={{fontSize:13,fontWeight:700}}>{w.desc}</div>
               <div style={{fontSize:11,color:"var(--lb3)"}}>
                 {w.unit&&`${w.unit}`}
-                {w.partsCost>0&&` / 単価 ¥${Number(w.partsCost).toLocaleString()}`}
-                {w.gijutsu>0&&` / 技術料 ¥${Number(w.gijutsu).toLocaleString()}`}
+                {w.partsCost>0&&` / 単価 ${Number(w.partsCost).toLocaleString()}`}
+                {w.gijutsu>0&&` / 技術料 ${Number(w.gijutsu).toLocaleString()}`}
               </div>
             </div>
             <div style={{display:"flex",gap:6}}>
