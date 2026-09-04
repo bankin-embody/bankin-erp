@@ -2997,6 +2997,79 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
   };
   const del=()=>{if(confirm("削除？")){setExpenses(p=>p.filter(e=>e.id!==modal.id));setModal(null);}};
 
+  // 月別印刷（経費・入金明細）
+  const handlePrintMonth=(ym,es)=>{
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+    const[y,m]=ym.split("-");
+    const shopName=settings.shopName||"";
+    const sorted=[...es].sort((a,b)=>a.date.localeCompare(b.date));
+    const monthExp=sorted.filter(e=>e.category!=="入金").reduce((s,e)=>s+e.amount,0);
+    const monthPay=sorted.filter(e=>e.category==="入金").reduce((s,e)=>s+e.amount,0);
+    const rows=sorted.map(e=>{
+      const isP=e.category==="入金";
+      const inv=e.invId?invoices.find(i=>String(i.id)===String(e.invId)):null;
+      const c=inv?customers.find(c=>c.id===inv.customerId):null;
+      const memo=[!isP?e.category:"",e.payee||"",inv?`${displayName(c)} No.${inv.id}`:""].filter(Boolean).join(" / ");
+      return`<tr>
+        <td>${e.date}</td>
+        <td>${e.desc||""}</td>
+        <td>${memo}</td>
+        <td class="num" style="color:${isP?"#1a8f3a":"#000"}">${isP?"＋":"－"}${Number(e.amount).toLocaleString()}</td>
+      </tr>`;
+    }).join("");
+    const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>経費・入金明細 ${y}年${m}月</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+@page{size:A4 portrait;margin:12mm 12mm;}
+body{font-family:'Noto Sans JP','Hiragino Sans',sans-serif;font-size:11px;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+a[href]::after{content:none!important;display:none!important;}
+h1{font-size:17px;font-weight:800;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:4px;}
+.sub{font-size:11px;color:#555;margin-bottom:14px;}
+table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+th,td{border:1px solid #999;padding:5px 7px;font-size:10.5px;vertical-align:top;}
+th{background:#f0f0f0;font-weight:700;text-align:center;}
+.num{text-align:right;font-family:'Courier New',monospace;white-space:nowrap;}
+.totals{display:flex;justify-content:flex-end;gap:24px;font-size:12px;font-weight:700;margin-bottom:6px;}
+.totals .re{color:#B85450;}
+.totals .gr{color:#1a8f3a;}
+.close-bar{display:flex;justify-content:center;padding:14px;}
+.close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
+@media print{.close-bar{display:none!important;}}
+</style>
+<script>window.addEventListener("afterprint",function(){try{window.close();}catch(e){}});</script>
+</head><body>
+<h1>経費・入金明細　${Number(y)}年${Number(m)}月</h1>
+<div class="sub">${shopName}　${sorted.length}件</div>
+<table>
+  <thead><tr><th style="width:80px;">日付</th><th>内容</th><th>備考</th><th style="width:90px;">金額</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="4" style="text-align:center;color:#888;">データがありません</td></tr>`}</tbody>
+</table>
+<div class="totals">
+  <div class="re">経費合計　－${monthExp.toLocaleString()}</div>
+  <div class="gr">入金合計　＋${monthPay.toLocaleString()}</div>
+</div>
+<div class="close-bar"><button onclick="window.close()">この画面を閉じる</button></div>
+</body></html>`;
+    const w=window.open("","_blank","width=820,height=1100");
+    if(!w){
+      const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.target="_blank";a.rel="noopener";
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>w.print(),600);
+    if(isIOS){
+      setTimeout(()=>{try{w.focus();w.print();}catch(e){}},900);
+    }
+  };
+
+
   // 集計
   const payments=expenses.filter(e=>e.category==="入金");
   const expOnly=expenses.filter(e=>e.category!=="入金"&&e.category!=="法定費用（預り）");
@@ -3179,7 +3252,10 @@ const Expenses=React.memo(function Expenses({expenses,setExpenses,invoices=[],se
               return(
                 <div key={ym}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",borderBottom:"2px solid var(--or)",marginBottom:8}}>
-                    <div style={{fontWeight:800,fontSize:15,color:"var(--or)"}}>{Number(y)}年 {Number(m)}月 <span style={{fontSize:12,fontWeight:400,color:"var(--lb2)",marginLeft:4}}>{es.length}件</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontWeight:800,fontSize:15,color:"var(--or)"}}>{Number(y)}年 {Number(m)}月 <span style={{fontSize:12,fontWeight:400,color:"var(--lb2)",marginLeft:4}}>{es.length}件</span></div>
+                      <button onClick={e=>{e.stopPropagation();handlePrintMonth(ym,es);}} className="btn bd bsm" style={{padding:"4px 9px",fontSize:11}}>🖨 印刷</button>
+                    </div>
                     <div style={{textAlign:"right"}}>
                       {monthExp>0&&<div style={{fontWeight:700,fontSize:12,color:"var(--re)"}}>－{fmt(monthExp)}</div>}
                       {monthPay>0&&<div style={{fontWeight:700,fontSize:12,color:"#1a8f3a"}}>＋{fmt(monthPay)}</div>}
