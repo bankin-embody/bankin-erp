@@ -994,10 +994,11 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   }
 
   // ── 明細テーブル ──
-  const colWidths=[0,15,15,24,24,27,24]; // 品名は残り幅で計算
+  const isCombined=docType==="combined";
+  const colWidths=isCombined?[13,20,0,12,12,20,20,24,20]:[0,15,15,24,24,27,24];
   const tableW=W-M*2;
-  colWidths[0]=tableW-colWidths.slice(1).reduce((a,b)=>a+b,0);
-  const headers=["品名","数量","単位","単価","技術料","金額","備考"];
+  colWidths[isCombined?2:0]=tableW-colWidths.reduce((a,b,i)=>i===(isCombined?2:0)?a:a+b,0);
+  const headers=isCombined?["No.","日付","品名","数量","単位","単価","技術料","金額","備考"]:["品名","数量","単位","単価","技術料","金額","備考"];
   const rowH=7;
   // ヘッダー行
   pdf.setFillColor(ar,ag,ab);
@@ -1016,8 +1017,23 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(0,0,0);
   pdf.setFontSize(9);
 
-  const maxRows=docType==="shakken"?14:docType==="combined"?22:16;
-  const items=doc.items||[];
+  const maxRows=docType==="shakken"?14:docType==="combined"?14:16;
+  // 合計請求書はallItemsを展開してNo./日付付きの行に変換
+  const combinedRows=isCombined?(()=>{
+    const rows=[];
+    (doc.allItems||[]).forEach(ci=>{
+      if(ci.items&&ci.items.length>0){
+        ci.items.forEach((it,idx)=>{
+          const lineAmt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
+          rows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc||"",qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":(it.unitLabel||""),unitPrice:it.unit||0,gijutsu:it.gijutsu||0,amt:lineAmt,note:it.note||""});
+        });
+      }else{
+        rows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc||"",qty:"",unit:"",unitPrice:0,gijutsu:0,amt:ci.subtotal||ci.total||0,note:""});
+      }
+    });
+    return rows;
+  })():null;
+  const items=isCombined?combinedRows:(doc.items||[]);
   const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
 
@@ -1029,7 +1045,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     if(!isBlank){
       let cx2=M;
       cells.forEach((c,ci)=>{
-        const align=["金額","単価","技術料"].includes(headers[ci])||ci>=3&&ci<=5?"right":(ci===1||ci===2?"center":"left");
+        const align=["金額","単価","技術料"].includes(headers[ci])?"right":(headers[ci]==="日付"||headers[ci]==="数量"||headers[ci]==="単位"||headers[ci]==="No."?"center":"left");
         const tx=align==="right"?cx2+colWidths[ci]-2:align==="center"?cx2+colWidths[ci]/2:cx2+2;
         if(c)pdf.text(String(c),tx,y+4.7,{align,maxWidth:colWidths[ci]-3});
         cx2+=colWidths[ci];
@@ -1039,16 +1055,28 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   };
 
   items.forEach((it,i)=>{
-    const amt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
-    drawRow(i,[
-      it.desc||"",
-      (it.qty===0||it.qty===undefined)?"-":String(it.qty),
-      it.qty===0||it.qty===undefined?"-":(it.unitLabel||"-"),
-      it.unit?fmtN(it.unit):"-",
-      it.gijutsu?fmtN(it.gijutsu):"-",
-      amt?fmtN(amt):"-",
-      it.note||"",
-    ]);
+    if(isCombined){
+      drawRow(i,[
+        it.id,it.date,it.desc,
+        (it.qty===0||it.qty===undefined||it.qty==="")?"":String(it.qty),
+        (it.qty===0||it.qty===undefined||it.qty==="")?"":it.unit,
+        it.unitPrice?fmtN(it.unitPrice):"",
+        it.gijutsu?fmtN(it.gijutsu):"",
+        it.amt?fmtN(it.amt):"",
+        it.note||"",
+      ]);
+    }else{
+      const amt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
+      drawRow(i,[
+        it.desc||"",
+        (it.qty===0||it.qty===undefined)?"-":String(it.qty),
+        it.qty===0||it.qty===undefined?"-":(it.unitLabel||"-"),
+        it.unit?fmtN(it.unit):"-",
+        it.gijutsu?fmtN(it.gijutsu):"-",
+        amt?fmtN(amt):"-",
+        it.note||"",
+      ]);
+    }
   });
   for(let i=0;i<blankCount;i++){
     drawRow(items.length+i,[],true);
@@ -1441,29 +1469,30 @@ window.addEventListener("afterprint",function(){
               if(ci.items&&ci.items.length>0){
                 ci.items.forEach((it,idx)=>{
                   const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
-                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,subtotal:idx===0?ci.subtotal:null});
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,note:it.note||"",subtotal:idx===0?ci.subtotal:null});
                 });
               }else{
-                allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,subtotal:ci.subtotal||ci.total});
+                allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,note:"",subtotal:ci.subtotal||ci.total});
               }
             });
-            const blankCount=Math.max(0,22-allRows.length);
+            const blankCount=Math.max(2,14-allRows.length);
             const totalTax=doc.combinedTax||0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
                 <colgroup>
-                  <col style={{width:40}}/>
-                  <col style={{width:68}}/>
+                  <col style={{width:36}}/>
+                  <col style={{width:62}}/>
                   <col style={{width:"auto"}}/>
-                  <col style={{width:40}}/>
-                  <col style={{width:38}}/>
-                  <col style={{width:78}}/>
-                  <col style={{width:78}}/>
-                  <col style={{width:88}}/>
+                  <col style={{width:34}}/>
+                  <col style={{width:34}}/>
+                  <col style={{width:66}}/>
+                  <col style={{width:66}}/>
+                  <col style={{width:76}}/>
+                  <col style={{width:70}}/>
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
-                    {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)"].map((h,i)=>(
+                    {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)","備考"].map((h,i)=>(
                       <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"center",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
@@ -1471,7 +1500,7 @@ window.addEventListener("afterprint",function(){
                 <tbody>
                   {allRows.map((row,i)=>(
                     <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
-                      <td style={{padding:"6px 6px",fontSize:11,height:28}}>{row.id}</td>
+                      <td style={{padding:"6px 6px",fontSize:11,height:26}}>{row.id}</td>
                       <td style={{padding:"6px 6px",fontSize:10}}>{row.date}</td>
                       <td style={{padding:"6px 6px",fontSize:11,wordBreak:"break-all"}}>{row.desc}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.qty||""}</td>
@@ -1479,19 +1508,20 @@ window.addEventListener("afterprint",function(){
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmtN(row.partsCost):"-"}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmtN(row.gijutsu):"-"}</td>
                       <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmtN(row.lineAmt):""}</td>
+                      <td style={{padding:"6px 6px",fontSize:10}}>{row.note||""}</td>
                     </tr>
                   ))}
                   {Array.from({length:blankCount},(_,i)=>(
                     <tr key={`b${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:(allRows.length+i)%2===0?"#fff":theme.light}}>
-                      <td style={{padding:"6px 6px",height:28}}/><td/><td/><td/><td/><td/><td/><td/>
+                      <td style={{padding:"6px 6px",height:26}}/><td/><td/><td/><td/><td/><td/><td/><td/>
                     </tr>
                   ))}
                   <tr style={{background:"#f5f5f5"}}>
-                    <td colSpan={7} style={{padding:"6px 10px",fontSize:11,textAlign:"right",color:"#555"}}>消費税合計</td>
-                    <td style={{padding:"6px 10px",fontSize:11,textAlign:"right",fontWeight:600}}>{fmt(totalTax)}</td>
+                    <td colSpan={8} style={{padding:"6px 10px",fontSize:11,textAlign:"right",color:"#555"}}>消費税合計</td>
+                    <td style={{padding:"6px 10px",fontSize:11,textAlign:"right",fontWeight:600}}>{fmtN(totalTax)}</td>
                   </tr>
                   <tr style={{background:theme.accent}}>
-                    <td colSpan={7} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額（税込）</td>
+                    <td colSpan={8} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額（税込）</td>
                     <td style={{padding:"8px 10px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
                   </tr>
                 </tbody>
