@@ -999,23 +999,23 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   const tableW=W-M*2;
   colWidths[isCombined?2:0]=tableW-colWidths.reduce((a,b,i)=>i===(isCombined?2:0)?a:a+b,0);
   const headers=isCombined?["No.","日付","品名","数量","単位","単価","技術料","金額","備考"]:["品名","数量","単位","単価","技術料","金額","備考"];
-  const rowH=7;
+  const rowH=isCombined?9.5:7;
   // ヘッダー行
   pdf.setFillColor(ar,ag,ab);
   pdf.rect(M,y,tableW,rowH,"F");
   pdf.setTextColor(255,255,255);
   jpFont(pdf,"bold");
-  pdf.setFontSize(9);
+  pdf.setFontSize(isCombined?10:9);
   let cx=M;
   headers.forEach((h,i)=>{
     const tx=cx+colWidths[i]/2;
-    pdf.text(h,tx,y+4.7,{align:"center"});
+    pdf.text(h,tx,y+rowH/2+1.7,{align:"center"});
     cx+=colWidths[i];
   });
   y+=rowH;
   jpFont(pdf,"normal");
   pdf.setTextColor(0,0,0);
-  pdf.setFontSize(9);
+  pdf.setFontSize(isCombined?10:9);
 
   const maxRows=docType==="shakken"?14:docType==="combined"?14:16;
   // 合計請求書はallItemsを展開してNo./日付付きの行に変換
@@ -1034,7 +1034,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     return rows;
   })():null;
   const items=isCombined?combinedRows:(doc.items||[]);
-  const blankCount=Math.max(0,Math.min(maxRows,maxRows-items.length+1));
+  const blankCount=isCombined?0:Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
 
   const drawRow=(i,cells,isBlank=false)=>{
@@ -1047,7 +1047,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       cells.forEach((c,ci)=>{
         const align=["金額","単価","技術料"].includes(headers[ci])?"right":(headers[ci]==="日付"||headers[ci]==="数量"||headers[ci]==="単位"||headers[ci]==="No."?"center":"left");
         const tx=align==="right"?cx2+colWidths[ci]-2:align==="center"?cx2+colWidths[ci]/2:cx2+2;
-        if(c)pdf.text(String(c),tx,y+4.7,{align,maxWidth:colWidths[ci]-3});
+        if(c)pdf.text(String(c),tx,y+rowH/2+1.7,{align,maxWidth:colWidths[ci]-3});
         cx2+=colWidths[ci];
       });
     }
@@ -1390,7 +1390,7 @@ window.addEventListener("afterprint",function(){
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:14}}>
               {customer?.company?(
                 <>
                   <div>{customer.company}</div>
@@ -1405,7 +1405,7 @@ window.addEventListener("afterprint",function(){
               車両番号: {vehicle.plateNo}　　車台番号: {vehicle.chassisNo}
             </div>}
             {/* 文面ボックス */}
-            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"5px 12px",marginTop:4,marginBottom:8,fontSize:11,lineHeight:1.6,background:"#fafafa",minHeight:60}}>
+            <div style={{border:"1px solid #ccc",borderRadius:5,padding:"9px 12px",marginTop:10,marginBottom:8,fontSize:11,lineHeight:1.6,background:"#fafafa",minHeight:60}}>
               <div>毎度お引き立てありがとうございます。</div>
               <div>下記の通りご請求申し上げます。</div>
               <div style={{marginTop:6}}>※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。</div>
@@ -1475,54 +1475,48 @@ window.addEventListener("afterprint",function(){
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,note:"",subtotal:ci.subtotal||ci.total});
               }
             });
-            const blankCount=Math.max(2,14-allRows.length);
             const totalTax=doc.combinedTax||0;
             return(
               <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
                 <colgroup>
-                  <col style={{width:36}}/>
-                  <col style={{width:62}}/>
+                  <col style={{width:38}}/>
+                  <col style={{width:66}}/>
                   <col style={{width:"auto"}}/>
-                  <col style={{width:34}}/>
-                  <col style={{width:34}}/>
-                  <col style={{width:66}}/>
-                  <col style={{width:66}}/>
-                  <col style={{width:76}}/>
-                  <col style={{width:70}}/>
+                  <col style={{width:38}}/>
+                  <col style={{width:38}}/>
+                  <col style={{width:72}}/>
+                  <col style={{width:72}}/>
+                  <col style={{width:82}}/>
+                  <col style={{width:74}}/>
                 </colgroup>
                 <thead>
                   <tr style={{background:theme.accent}}>
                     {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)","備考"].map((h,i)=>(
-                      <th key={h} style={{padding:"6px 6px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"center",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
+                      <th key={h} style={{padding:"9px 8px",fontSize:11.5,fontWeight:700,color:"#fff",textAlign:"center",borderRight:"1px solid rgba(255,255,255,.2)"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {allRows.map((row,i)=>(
                     <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
-                      <td style={{padding:"6px 6px",fontSize:11,height:26}}>{row.id}</td>
-                      <td style={{padding:"6px 6px",fontSize:10}}>{row.date}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,wordBreak:"break-all"}}>{row.desc}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.qty||""}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"center"}}>{row.unit}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.partsCost>0?fmtN(row.partsCost):"-"}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right"}}>{row.gijutsu>0?fmtN(row.gijutsu):"-"}</td>
-                      <td style={{padding:"6px 6px",fontSize:11,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmtN(row.lineAmt):""}</td>
-                      <td style={{padding:"6px 6px",fontSize:10}}>{row.note||""}</td>
-                    </tr>
-                  ))}
-                  {Array.from({length:blankCount},(_,i)=>(
-                    <tr key={`b${i}`} style={{borderBottom:`1px solid ${theme.border}`,background:(allRows.length+i)%2===0?"#fff":theme.light}}>
-                      <td style={{padding:"6px 6px",height:26}}/><td/><td/><td/><td/><td/><td/><td/><td/>
+                      <td style={{padding:"10px 8px",fontSize:12.5,height:36}}>{row.id}</td>
+                      <td style={{padding:"10px 8px",fontSize:11.5}}>{row.date}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,wordBreak:"break-all"}}>{row.desc}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,textAlign:"center"}}>{row.qty||""}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,textAlign:"center"}}>{row.unit}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,textAlign:"right"}}>{row.partsCost>0?fmtN(row.partsCost):"-"}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,textAlign:"right"}}>{row.gijutsu>0?fmtN(row.gijutsu):"-"}</td>
+                      <td style={{padding:"10px 8px",fontSize:12.5,textAlign:"right",fontWeight:600}}>{row.lineAmt>0?fmtN(row.lineAmt):""}</td>
+                      <td style={{padding:"10px 8px",fontSize:11.5}}>{row.note||""}</td>
                     </tr>
                   ))}
                   <tr style={{background:"#f5f5f5"}}>
-                    <td colSpan={8} style={{padding:"6px 10px",fontSize:11,textAlign:"right",color:"#555"}}>消費税合計</td>
-                    <td style={{padding:"6px 10px",fontSize:11,textAlign:"right",fontWeight:600}}>{fmtN(totalTax)}</td>
+                    <td colSpan={8} style={{padding:"9px 10px",fontSize:12,textAlign:"right",color:"#555"}}>消費税合計</td>
+                    <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmtN(totalTax)}</td>
                   </tr>
                   <tr style={{background:theme.accent}}>
-                    <td colSpan={8} style={{padding:"8px 10px",fontSize:12,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額（税込）</td>
-                    <td style={{padding:"8px 10px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
+                    <td colSpan={8} style={{padding:"11px 10px",fontSize:13,fontWeight:800,color:"#fff",textAlign:"right"}}>合計請求額（税込）</td>
+                    <td style={{padding:"11px 10px",fontSize:14,fontWeight:800,color:"#fff",textAlign:"right"}}>{fmt(grand)}</td>
                   </tr>
                 </tbody>
               </table>
