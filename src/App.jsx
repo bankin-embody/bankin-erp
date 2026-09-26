@@ -952,7 +952,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setTextColor(140,140,140);
   pdf.setFontSize(8);
   pdf.text("ご請求額",M+4,y+6);
-  pdf.setTextColor(ar,ag,ab);
+  pdf.setTextColor(0,0,0);
   jpFont(pdf,"bold");
   pdf.setFontSize(20);
   pdf.text(`¥${grand.toLocaleString()}—`,M+4,y+14.5);
@@ -1271,7 +1271,7 @@ function PrintDoc({type,doc,customer,vehicle,settings,onClose}){
     // iOS: @pageマージンを大きくしてコンテンツを強制的に小さく見せる
     // + font-size・paddingをコンパクトにしてA4 1枚に収める
     const iosExtra=isIOS?`
-@page{size:A4 portrait;margin:4mm 6mm;}
+@page{size:A4 portrait;margin:4mm 6mm 0 6mm;}
 body{font-size:9.5px!important;}
 *{line-height:1.3!important;}
 /* テーブルのパディングを詰める */
@@ -1297,11 +1297,11 @@ td,th,.detail-table td,.detail-table th{padding:4px 6px!important;font-size:9.5p
 `:``;
     const style=`<style>
 *{box-sizing:border-box;margin:0;padding:0;}
-@page{size:A4 portrait;margin:8mm 10mm;}
+@page{size:A4 portrait;margin:8mm 10mm 0 10mm;}
 html,body{margin:0;padding:0;}
 body{font-family:${isIOS?"-apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif":"'Noto Sans JP',-apple-system,sans-serif"};font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 a[href]::after{content:none!important;display:none!important;}
-.page{width:190mm;max-width:190mm;page-break-after:always;position:relative;margin:0 auto;}
+.page{width:190mm;max-width:190mm;min-height:281mm;page-break-after:always;position:relative;margin:0 auto;}
 .page:last-child{page-break-after:auto;}
 ${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 #print-area{border-radius:0!important;border:none!important;box-shadow:none!important;}
@@ -1426,7 +1426,7 @@ window.addEventListener("afterprint",function(){
               </div>
               {/* 角印枠 */}
               <div style={{width:64,height:64,border:`2px solid ${theme.accent}`,borderRadius:3,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.5}}>
-                <span style={{fontSize:10,color:theme.accent}}>印</span>
+                <span style={{fontSize:10,color:"#000"}}>印</span>
               </div>
             </div>
             {/* 振込先（請求書のみ） */}
@@ -1444,7 +1444,7 @@ window.addEventListener("afterprint",function(){
         <div style={{display:"flex",alignItems:"stretch",borderBottom:`2px solid ${theme.accent}`,background:theme.light}}>
           <div style={{flex:1,padding:"12px 20px",borderRight:`1px solid ${theme.border}`}}>
             <div style={{fontSize:10,color:"#888",marginBottom:3}}>ご請求額</div>
-            <div style={{fontSize:26,fontWeight:800,color:theme.accent}}>¥{(grand).toLocaleString()}—</div>
+            <div style={{fontSize:26,fontWeight:800,color:"#000"}}>¥{(grand).toLocaleString()}—</div>
           </div>
           <div style={{width:160,padding:"12px 16px",borderRight:`1px solid ${theme.border}`}}>
             <div style={{fontSize:10,color:"#888",marginBottom:3}}>消費税等</div>
