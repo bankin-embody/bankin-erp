@@ -1037,21 +1037,21 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   const blankCount=isCombined?0:Math.max(0,Math.min(maxRows,maxRows-items.length+1));
   const[lr,lg,lb]=hexLighten(theme.light);
 
-  const drawRow=(i,cells,isBlank=false)=>{
-    if(i%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,rowH,"F");}
+  const drawRow=(i,cells,isBlank=false,h=rowH)=>{
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,h,"F");}
     pdf.setDrawColor(...hexToRgbWithAlpha(theme.border));
     pdf.setLineWidth(0.15);
-    pdf.line(M,y+rowH,W-M,y+rowH);
+    pdf.line(M,y+h,W-M,y+h);
     if(!isBlank){
       let cx2=M;
       cells.forEach((c,ci)=>{
         const align=["金額","単価","技術料"].includes(headers[ci])?"right":(headers[ci]==="日付"||headers[ci]==="数量"||headers[ci]==="単位"||headers[ci]==="No."?"center":"left");
         const tx=align==="right"?cx2+colWidths[ci]-2:align==="center"?cx2+colWidths[ci]/2:cx2+2;
-        if(c)pdf.text(String(c),tx,y+rowH/2+1.7,{align,maxWidth:colWidths[ci]-3});
+        if(c)pdf.text(String(c),tx,y+h/2+1.7,{align,maxWidth:colWidths[ci]-3});
         cx2+=colWidths[ci];
       });
     }
-    y+=rowH;
+    y+=h;
   };
 
   items.forEach((it,i)=>{
@@ -1080,6 +1080,17 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   });
   for(let i=0;i<blankCount;i++){
     drawRow(items.length+i,[],true);
+  }
+  if(isCombined){
+    // A4の下端まで空白行で埋める（合計欄ぶんは確保）
+    const bottomLimit=H-6;
+    const reserve=4+7+11+(doc.note?16:2);
+    const avail=bottomLimit-reserve-y;
+    const n=Math.floor(avail/rowH);
+    if(n>0){
+      const fh=avail/n;
+      for(let i=0;i<n;i++)drawRow(items.length+i,[],true,fh);
+    }
   }
 
   y+=4;
@@ -1326,6 +1337,43 @@ ${pcExtra}
 window.addEventListener("afterprint",function(){
   try{window.close();}catch(e){}
 });
+function fillPages(){
+  var target=283/25.4*96; // A4の印刷可能高さ(px)
+  document.querySelectorAll(".page").forEach(function(pg){
+    var tb=pg.querySelector(".detail-table tbody");
+    var sum=tb&&tb.querySelector(".sum-row");
+    if(!tb||!sum)return;
+    tb.querySelectorAll("tr.fill").forEach(function(r){r.remove();});
+    var border=tb.getAttribute("data-border")||"#ccc";
+    var light=tb.getAttribute("data-light")||"#f5f5f5";
+    var base=tb.querySelectorAll("tr.data-row").length;
+    var fills=[];
+    function addRow(){
+      var tr=document.createElement("tr");
+      tr.className="fill";
+      tr.style.borderBottom="1px solid "+border;
+      tr.style.background=((base+fills.length)%2===0)?"#fff":light;
+      tr.style.height="36px";
+      for(var i=0;i<9;i++){tr.appendChild(document.createElement("td"));}
+      tb.insertBefore(tr,sum);
+      fills.push(tr);
+    }
+    pg.style.minHeight="0";
+    var guard=0;
+    while(pg.getBoundingClientRect().height<target&&guard<80){addRow();guard++;}
+    if(pg.getBoundingClientRect().height>target&&fills.length){var last=fills.pop();last.remove();}
+    var left=target-pg.getBoundingClientRect().height;
+    if(fills.length&&left>0){
+      var add=left/fills.length;
+      fills.forEach(function(r){r.style.height=(36+add)+"px";});
+    }
+  });
+}
+window.addEventListener("load",function(){
+  fillPages();
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fillPages);}
+});
+window.addEventListener("beforeprint",fillPages);
 </script>`;
     // iOS・PC共に正本＋控えの2枚
     const colorPage=`<div class="page">${cleanHTML}</div>`;
@@ -1496,9 +1544,9 @@ window.addEventListener("afterprint",function(){
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody data-border={theme.border} data-light={theme.light}>
                   {allRows.map((row,i)=>(
-                    <tr key={i} style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
+                    <tr key={i} className="data-row" style={{borderBottom:`1px solid ${theme.border}`,background:i%2===0?"#fff":theme.light,pageBreakInside:"avoid"}}>
                       <td style={{padding:"10px 8px",fontSize:12.5,height:36}}>{row.id}</td>
                       <td style={{padding:"10px 8px",fontSize:11.5}}>{row.date}</td>
                       <td style={{padding:"10px 8px",fontSize:12.5,wordBreak:"break-all"}}>{row.desc}</td>
@@ -1510,7 +1558,7 @@ window.addEventListener("afterprint",function(){
                       <td style={{padding:"10px 8px",fontSize:11.5}}>{row.note||""}</td>
                     </tr>
                   ))}
-                  <tr style={{background:"#f5f5f5"}}>
+                  <tr className="sum-row" style={{background:"#f5f5f5"}}>
                     <td colSpan={8} style={{padding:"9px 10px",fontSize:12,textAlign:"right",color:"#555"}}>消費税合計</td>
                     <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontWeight:600}}>{fmtN(totalTax)}</td>
                   </tr>
