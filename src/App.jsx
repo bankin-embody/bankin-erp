@@ -839,26 +839,26 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     pdf.__monoPatched=true;
   }
   const W=210,H=297,M=12; // ページ幅・高さ・マージン(mm)
-  const[ar,ag,ab]=[255,255,255]; // 白地・黒罫線スタイル
-  if(!pdf.__w2b){const _o=pdf.setTextColor.bind(pdf);pdf.setTextColor=(...a)=>{if(a[0]===255&&a[1]===255&&a[2]===255)return _o(0,0,0);return _o(...a);};pdf.__w2b=true;}
+  const[ar,ag,ab]=hexToRgb(theme.accent);
+  const AC=[ar,ag,ab];
+  const BC=hexToRgbWithAlpha(theme.border);
+  const[lr,lg,lb]=hexLighten(theme.light);
   let y=M;
 
-  // ── タイトル（白地・黒罫線） ──
-  pdf.setTextColor(0,0,0);
+  // ── ヘッダーバー ──
+  pdf.setFillColor(ar,ag,ab);
+  pdf.rect(0,0,W,17,"F");
+  pdf.setTextColor(255,255,255);
   jpFont(pdf,"bold");
-  pdf.setFontSize(20);
-  const titleX=W-M-52;
-  pdf.text(ttl.split("").join(" "),titleX,14,{align:"center"});
+  pdf.setFontSize(19);
+  pdf.text(ttl.split("").join(" "),M,11.5);
   jpFont(pdf,"normal");
   pdf.setFontSize(10);
   const dateStr=doc.date||today();
   const noStr=doc.id?`No. ${String(doc.id).replace(/\D/g,"")}`:"";
-  pdf.text(dateStr,W-M-104,21);
-  pdf.text(noStr,W-M,21,{align:"right"});
-  pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.5);
-  pdf.line(W-M-104,23,W-M,23);
-  pdf.setLineWidth(0.2);
-  y=28;
+  pdf.text(noStr?`${dateStr}　　${noStr}`:dateStr,W-M,11,{align:"right"});
+  pdf.setTextColor(0,0,0);
+  y=24;
 
   // ── 上段：左＝顧客情報、右＝会社情報 ──
   const topY=y;
@@ -882,7 +882,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   let leftY=y+26;
   // 文面ボックス（罫線入り）
   pdf.setTextColor(0,0,0);
-  pdf.setDrawColor(0,0,0);
+  pdf.setDrawColor(...AC);
   pdf.setLineWidth(0.4);
   const msgLines=["毎度お引き立てありがとうございます。","下記の通りご請求申し上げます。","※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。"];
   if(vehicle){msgLines.push(`車輌番号：${vehicle.plateNo||""}`);msgLines.push(`車台番号：${vehicle.chassisNo||""}`);}
@@ -890,6 +890,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   const boxH=lineH*msgLines.length+3;
   pdf.roundedRect(M,leftY,118,boxH,1.5,1.5,"S");
   pdf.setLineWidth(0.15);
+  pdf.setDrawColor(...BC);
   pdf.setFontSize(9.5);
   msgLines.forEach((t,i)=>{
     pdf.text(t,M+3,leftY+lineH*(i+1)-2);
@@ -938,20 +939,24 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   y=Math.max(leftY+boxH+4,rightY+2);
 
   // ── 区切り線 ──
-  pdf.setDrawColor(0,0,0);
+  pdf.setDrawColor(...BC);
   pdf.line(M,y,W-M,y);
   y+=1;
 
   // ── 請求額（罫線ボックス） ──
   y+=3;
   const barH=22;
-  pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);
+  pdf.setFillColor(...hexLighten(theme.light));
+  pdf.rect(M,y,W-M*2-(doc.dueDate?51:0),22,"F");
+  pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);
   const dueW=doc.dueDate?46:0;
   const amtW=W-M*2-(doc.dueDate?dueW+5:0);
   const taxW=44;
   pdf.roundedRect(M,y,amtW,barH,1.5,1.5,"S");
   pdf.line(M+amtW-taxW,y,M+amtW-taxW,y+barH);
+  pdf.setDrawColor(...BC);
   pdf.line(M,y+6.5,M+amtW,y+6.5);
+  pdf.line(M+amtW-taxW,y,M+amtW-taxW,y+barH);
   pdf.setLineWidth(0.2);
   jpFont(pdf,"normal");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
   pdf.text("ご請求額",M+(amtW-taxW)/2,y+4.6,{align:"center"});
@@ -962,12 +967,15 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.text(`¥${(docType==="combined"?(doc.combinedTax||0):taxAmt).toLocaleString()}—`,M+amtW-3,y+16,{align:"right"});
   if(doc.dueDate){
     const dueX=W-M-dueW;
-    pdf.setLineWidth(0.4);
+    pdf.setFillColor(ar,ag,ab);
+    pdf.rect(dueX,y,dueW,6.5,"F");
+    pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);
     pdf.roundedRect(dueX,y,dueW,barH,1.5,1.5,"S");
-    pdf.line(dueX,y+6.5,dueX+dueW,y+6.5);
     pdf.setLineWidth(0.2);
     jpFont(pdf,"normal");pdf.setFontSize(8.5);
+    pdf.setTextColor(255,255,255);
     pdf.text("お支払期限",dueX+dueW/2,y+4.6,{align:"center"});
+    pdf.setTextColor(0,0,0);
     jpFont(pdf,"bold");pdf.setFontSize(11);
     pdf.text(doc.dueDate,dueX+dueW/2,y+16,{align:"center"});
   }
@@ -980,7 +988,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   jpFont(pdf,"bold");
   pdf.text(`件名：${doc.subject||""}`,M+1,y+5);
   y+=7;
-  pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.5);
+  pdf.setDrawColor(...AC);pdf.setLineWidth(0.5);
   pdf.line(M,y,W-M,y);
   pdf.setLineWidth(0.2);
   jpFont(pdf,"normal");
@@ -1014,15 +1022,15 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   const footerH=docType==="shakken"?49:docType==="combined"?18:32;
   const reserve=4+footerH+(doc.note?16:2);
   const availBody=bottomLimit-reserve-y-headerH;
-  const rowH=Math.min(11,Math.max(6.5,availBody/Math.max(items.length,1)));
-  const bodyFont=rowH<8?9:10.5;
+  const rowH=Math.min(8.5,Math.max(6.5,availBody/Math.max(items.length,1)));
+  const bodyFont=rowH<7.5?9:10;
   const colX=[M];colWidths.forEach(w=>colX.push(colX[colX.length-1]+w));
   // ヘッダー行（罫線）
-  pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);
-  pdf.rect(M,y,tableW,headerH,"S");
-  pdf.setLineWidth(0.25);
+  pdf.setFillColor(ar,ag,ab);
+  pdf.rect(M,y,tableW,headerH,"F");
+  pdf.setDrawColor(255,255,255);pdf.setLineWidth(0.25);
   colX.slice(1,-1).forEach(x=>pdf.line(x,y,x,y+headerH));
-  pdf.setTextColor(0,0,0);
+  pdf.setTextColor(255,255,255);
   jpFont(pdf,"bold");
   pdf.setFontSize(10);
   headers.forEach((h,i)=>{
@@ -1034,7 +1042,8 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.setFontSize(bodyFont);
 
   const drawRow=(i,cells,isBlank=false,h=rowH)=>{
-    pdf.setDrawColor(0,0,0);
+    if(i%2!==0){pdf.setFillColor(lr,lg,lb);pdf.rect(M,y,tableW,h,"F");}
+    pdf.setDrawColor(...BC);
     pdf.setLineWidth(0.25);
     pdf.line(M,y+h,W-M,y+h);
     colX.forEach(x=>pdf.line(x,y,x,y+h));
@@ -1085,7 +1094,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   y+=4;
 
   // ── 合計欄（タイプ別） ──
-  pdf.setDrawColor(0,0,0);
+  pdf.setDrawColor(...BC);
   pdf.setLineWidth(0.2);
   const[lr2,lg2,lb2]=[255,255,255];
 
@@ -1110,13 +1119,13 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       pdf.rect(lcX,lY,lcW,6,"F");
       pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(8);pdf.text(l,lcX+3,lY+4.3);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,lcX+lcW-2,lY+4.3,{align:"right"});
-      pdf.setDrawColor(0,0,0);pdf.line(lcX,lY+6,lcX+lcW,lY+6);
+      pdf.setDrawColor(...BC);pdf.line(lcX,lY+6,lcX+lcW,lY+6);
       lY+=6;
     });
     pdf.setFillColor(lr2,lg2,lb2);pdf.rect(lcX,lY,lcW,7,"F");
     jpFont(pdf,"bold");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
     pdf.text("法定費用合計",lcX+3,lY+4.8);pdf.text(fmtN(gov+daikoWT),lcX+lcW-2,lY+4.8,{align:"right"});
-    pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);pdf.rect(lcX,y,lcW,lY+7-y,"S");pdf.line(lcX,lY,lcX+lcW,lY);pdf.setLineWidth(0.2);
+    pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);pdf.rect(lcX,y,lcW,lY+7-y,"S");pdf.line(lcX,lY,lcX+lcW,lY);pdf.setLineWidth(0.2);
     // 右：整備費
     let rY=y;
     [["整備費（税抜）",fmtN(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmtN(taxAmt)],["整備費合計（税込）",fmtN(wT)]].forEach(([l,v],i)=>{
@@ -1124,14 +1133,14 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       pdf.rect(rcX,rY,rcW,6,"F");
       pdf.setTextColor(0,0,0);jpFont(pdf,"normal");pdf.setFontSize(8);pdf.text(l,rcX+3,rY+4.3);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,rcX+rcW-2,rY+4.3,{align:"right"});
-      pdf.setDrawColor(0,0,0);pdf.line(rcX,rY+6,rcX+rcW,rY+6);
+      pdf.setDrawColor(...BC);pdf.line(rcX,rY+6,rcX+rcW,rY+6);
       rY+=6;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(rcX,rY,rcW,11,"F");
     pdf.setTextColor(255,255,255);jpFont(pdf,"bold");pdf.setFontSize(10);
     pdf.text("お支払い合計",rcX+3,rY+7.2);pdf.setFontSize(14);
     pdf.text(fmt(grand),rcX+rcW-3,rY+7.2,{align:"right"});
-    pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);pdf.rect(rcX,y,rcW,rY+11-y,"S");pdf.line(rcX,rY,rcX+rcW,rY);pdf.setLineWidth(0.2);
+    pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);pdf.rect(rcX,y,rcW,rY+11-y,"S");pdf.line(rcX,rY,rcX+rcW,rY);pdf.setLineWidth(0.2);
     pdf.setTextColor(0,0,0);jpFont(pdf,"normal");
     y=Math.max(lY+7,rY+11)+5;
   }else if(docType==="combined"){
@@ -1141,14 +1150,14 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
       jpFont(pdf,"normal");pdf.setFontSize(9);pdf.setTextColor(0,0,0);pdf.text(l,sumX+3,y+4.7);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
-      pdf.setDrawColor(0,0,0);pdf.line(sumX,y+7,sumX+sumW,y+7);
+      pdf.setDrawColor(...BC);pdf.line(sumX,y+7,sumX+sumW,y+7);
       y+=7;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
     pdf.setTextColor(255,255,255);jpFont(pdf,"bold");pdf.setFontSize(11);
     pdf.text("合計請求額（税込）",sumX+3,y+7.2);pdf.setFontSize(13);
     pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-    pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);pdf.rect(sumX,sumY0,sumW,y+11-sumY0,"S");pdf.line(sumX,y,sumX+sumW,y);pdf.setLineWidth(0.2);
+    pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);pdf.rect(sumX,sumY0,sumW,y+11-sumY0,"S");pdf.line(sumX,y,sumX+sumW,y);pdf.setLineWidth(0.2);
     pdf.setTextColor(0,0,0);jpFont(pdf,"normal");
     y+=11+5;
   }else{
@@ -1158,14 +1167,14 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       pdf.setFillColor(250,250,250);pdf.rect(sumX,y,sumW,7,"F");
       jpFont(pdf,"normal");pdf.setFontSize(9);pdf.setTextColor(0,0,0);pdf.text(l,sumX+3,y+4.7);
       pdf.setTextColor(0,0,0);jpFont(pdf,"bold");pdf.text(v,sumX+sumW-3,y+4.7,{align:"right"});
-      pdf.setDrawColor(0,0,0);pdf.line(sumX,y+7,sumX+sumW,y+7);
+      pdf.setDrawColor(...BC);pdf.line(sumX,y+7,sumX+sumW,y+7);
       y+=7;
     });
     pdf.setFillColor(ar,ag,ab);pdf.rect(sumX,y,sumW,11,"F");
     pdf.setTextColor(255,255,255);jpFont(pdf,"bold");pdf.setFontSize(11);
     pdf.text("お支払い合計",sumX+3,y+7.2);pdf.setFontSize(15);
     pdf.text(fmt(grand),sumX+sumW-3,y+7.2,{align:"right"});
-    pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.4);pdf.rect(sumX,sumY0,sumW,y+11-sumY0,"S");pdf.line(sumX,y,sumX+sumW,y);pdf.setLineWidth(0.2);
+    pdf.setDrawColor(...AC);pdf.setLineWidth(0.4);pdf.rect(sumX,sumY0,sumW,y+11-sumY0,"S");pdf.line(sumX,y,sumX+sumW,y);pdf.setLineWidth(0.2);
     pdf.setTextColor(0,0,0);jpFont(pdf,"normal");
     y+=11+5;
   }
@@ -1318,7 +1327,7 @@ ${isIOS?`@media print{.page{width:198mm;max-width:198mm;}}`:``}
 .detail-spacer{border-left:1px solid #e0e0e0;border-right:1px solid #e0e0e0;}
 .summary-block{page-break-inside:avoid;break-inside:avoid;}
 .rb{display:flex;align-items:center;justify-content:space-between;}
-.copy-label{position:absolute;top:6mm;left:10mm;font-size:13px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
+.copy-label{position:absolute;top:3mm;left:50%;transform:translateX(-50%);z-index:2;background:#fff;font-size:12px;font-weight:800;color:#444;border:2px solid #444;padding:2px 10px;border-radius:4px;letter-spacing:2px;}
 .mono *{color:#000!important;background:#fff!important;border-color:#000!important;}
 .close-bar{display:flex;justify-content:center;padding:10px;}
 .close-bar button{font-size:15px;font-weight:700;padding:10px 28px;border-radius:10px;border:none;background:#3D5A8A;color:#fff;}
@@ -1337,15 +1346,19 @@ function fillPages(){
     if(!tb)return;
     var sum=tb.querySelector(".sum-row");
     tb.querySelectorAll("tr.fill").forEach(function(r){r.remove();});
-    var rh=parseFloat(tb.getAttribute("data-rowh"))||44;
+    var rh=parseFloat(tb.getAttribute("data-rowh"))||34;
     var cols=parseInt(tb.getAttribute("data-cols"))||7;
     var fills=[];
+    var bc=tb.getAttribute("data-border")||"#000";
+    var lc=tb.getAttribute("data-light")||"#f5f5f5";
+    var base=tb.querySelectorAll("tr.data-row").length;
     function addRow(){
       var tr=document.createElement("tr");
       tr.className="fill";
+      tr.style.background=((base+fills.length)%2===0)?"#fff":lc;
       for(var i=0;i<cols;i++){
         var td=document.createElement("td");
-        td.style.border="1px solid #000";
+        td.style.border="1px solid "+bc;
         td.style.height=rh+"px";
         tr.appendChild(td);
       }
@@ -1419,18 +1432,16 @@ window.addEventListener("beforeprint",fillPages);
         <div id="print-area" style={{background:"#fff",borderRadius:14,border:`2px solid ${theme.border}`,fontFamily:"var(--f)",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,.08)",fontSize:13,color:"#000"}}>
 
         {/* ━━ ヘッダー：タイトルバー ━━ */}
-        <div style={{padding:"18px 20px 6px",display:"flex",justifyContent:"flex-end"}}>
-          <div style={{width:"56%",borderBottom:"2px solid #000",paddingBottom:6}}>
-            <div style={{fontSize:24,fontWeight:800,letterSpacing:10,textAlign:"center",color:"#000"}}>{ttl}</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginTop:6,color:"#000"}}>
-              <span>{doc.date||today()}</span>
-              {doc.id&&<span>No. {String(doc.id).replace(/\D/g,"")}</span>}
-            </div>
+        <div style={{background:theme.accent,padding:"12px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`3px solid ${theme.accent}`}}>
+          <div style={{color:"#fff",fontSize:22,fontWeight:800,letterSpacing:8}}>{ttl}</div>
+          <div style={{color:"rgba(255,255,255,.92)",fontSize:12,display:"flex",gap:18}}>
+            <span>{doc.date||today()}</span>
+            {doc.id&&<span>No. {String(doc.id).replace(/\D/g,"")}</span>}
           </div>
         </div>
 
         {/* ━━ 上段：左＝顧客情報、右＝会社情報 ━━ */}
-        <div style={{display:"flex",gap:0,padding:"14px 20px 16px"}}>
+        <div style={{display:"flex",gap:0,padding:"18px 20px 16px"}}>
 
           {/* 左：顧客名・車両・文面 */}
           <div style={{flex:1,paddingRight:16}}>
@@ -1446,10 +1457,10 @@ window.addEventListener("beforeprint",fillPages);
               )}
             </div>
             {/* 文面ボックス（罫線入り） */}
-            <div style={{border:"1.5px solid #000",borderRadius:7,padding:"4px 12px 6px",fontSize:12.5,lineHeight:1.6,background:"#fff",color:"#000"}}>
+            <div style={{border:`1.5px solid ${theme.accent}`,borderRadius:7,padding:"4px 12px 6px",fontSize:12.5,lineHeight:1.6,background:"#fafafa",color:"#000"}}>
               {["毎度お引き立てありがとうございます。","下記の通りご請求申し上げます。","※恐れ入りますが振込手数料はお客様のご負担でお願いいたします。",
                 ...(vehicle?[`車輌番号：${vehicle.plateNo||""}`,`車台番号：${vehicle.chassisNo||""}`]:[])].map((t,i)=>(
-                <div key={i} style={{borderBottom:"1px solid #000",minHeight:27,padding:"4px 4px 1px"}}>{t}</div>
+                <div key={i} style={{borderBottom:`1px solid ${theme.border}`,minHeight:27,padding:"4px 4px 1px"}}>{t}</div>
               ))}
               <div style={{minHeight:8}}/>
             </div>
@@ -1468,7 +1479,7 @@ window.addEventListener("beforeprint",fillPages);
                 </div>
               </div>
               {/* 角印枠 */}
-              <div style={{width:68,height:68,border:"2px solid #000",borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.6}}>
+              <div style={{width:68,height:68,border:`2px solid ${theme.accent}`,borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:.6}}>
                 <span style={{fontSize:10,color:"#000"}}>印</span>
               </div>
             </div>
@@ -1485,26 +1496,26 @@ window.addEventListener("beforeprint",fillPages);
 
         {/* ━━ 中段：請求額バー ━━ */}
         <div style={{display:"flex",alignItems:"stretch",gap:16,padding:"6px 20px 14px"}}>
-          <div style={{flex:1,display:"flex",border:"1.5px solid #000",borderRadius:6,overflow:"hidden"}}>
-            <div style={{flex:1,borderRight:"1.5px solid #000"}}>
-              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:"1.5px solid #000"}}>ご請求額</div>
+          <div style={{flex:1,display:"flex",border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden",background:theme.light}}>
+            <div style={{flex:1,borderRight:`1px solid ${theme.border}`}}>
+              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>ご請求額</div>
               <div style={{textAlign:"right",fontSize:28,fontWeight:800,padding:"10px 16px",color:"#000"}}>¥{(grand).toLocaleString()}—</div>
             </div>
             <div style={{width:150}}>
-              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:"1.5px solid #000"}}>消費税等</div>
+              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>消費税等</div>
               <div style={{textAlign:"right",fontSize:18,fontWeight:700,padding:"14px 14px",color:"#000"}}>¥{(type==="combined"?(doc.combinedTax||0):taxAmt).toLocaleString()}—</div>
             </div>
           </div>
           {doc.dueDate&&(
-            <div style={{width:160,border:"1.5px solid #000",borderRadius:6,overflow:"hidden"}}>
-              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:"1.5px solid #000"}}>お支払期限</div>
+            <div style={{width:160,border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden"}}>
+              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",background:theme.accent,color:"#fff"}}>お支払期限</div>
               <div style={{textAlign:"center",fontSize:15,fontWeight:800,padding:"14px 6px",color:"#000"}}>{doc.dueDate}</div>
             </div>
           )}
         </div>
 
         {/* ━━ 件名 ━━ */}
-        <div style={{margin:"0 20px 12px",padding:"4px 4px 4px",fontSize:14,fontWeight:700,borderBottom:"2px solid #000",minHeight:30}}>件名：{doc.subject||""}</div>
+        <div style={{margin:"0 20px 12px",padding:"4px 4px 4px",fontSize:14,fontWeight:700,borderBottom:`2px solid ${theme.accent}`,minHeight:30}}>件名：{doc.subject||""}</div>
 
         {/* ━━ 明細テーブル ━━ */}
         <div className="detail-wrap" style={{padding:"0 20px"}}>
@@ -1521,10 +1532,10 @@ window.addEventListener("beforeprint",fillPages);
               }
             });
             const totalTax=doc.combinedTax||0;
-            const B="1px solid #000";
-            const tdS=(x={})=>({padding:"10px 8px",fontSize:13.5,border:B,color:"#000",...x});
+            const B=`1px solid ${theme.border}`;
+            const tdS=(x={})=>({padding:"6px 8px",fontSize:13,border:B,color:"#000",...x});
             return(
-              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",border:"1.5px solid #000"}}>
+              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",border:`1.5px solid ${theme.accent}`}}>
                 <colgroup>
                   <col style={{width:40}}/>
                   <col style={{width:70}}/>
@@ -1539,14 +1550,14 @@ window.addEventListener("beforeprint",fillPages);
                 <thead>
                   <tr>
                     {["No.","日付","品名","数量","単位","単価","技術料","金額(税抜)","備考"].map((h,i)=>(
-                      <th key={h} style={{padding:"10px 6px",fontSize:12.5,fontWeight:700,color:"#000",textAlign:"center",border:"1.5px solid #000"}}>{h}</th>
+                      <th key={h} style={{padding:"8px 6px",fontSize:12,fontWeight:700,color:"#fff",background:theme.accent,textAlign:"center",border:"1px solid rgba(255,255,255,.35)"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody data-rowh="44" data-cols="9">
+                <tbody data-rowh="34" data-cols="9" data-border={theme.border} data-light={theme.light}>
                   {allRows.map((row,i)=>(
-                    <tr key={i} className="data-row" style={{pageBreakInside:"avoid"}}>
-                      <td style={tdS({height:44,fontSize:12.5})}>{row.id}</td>
+                    <tr key={i} className="data-row" style={{pageBreakInside:"avoid",background:i%2===0?"#fff":theme.light}}>
+                      <td style={tdS({height:34,fontSize:12.5})}>{row.id}</td>
                       <td style={tdS({fontSize:11.5})}>{row.date}</td>
                       <td style={tdS({wordBreak:"break-all"})}>{row.desc}</td>
                       <td style={tdS({textAlign:"center"})}>{row.qty||""}</td>
@@ -1557,13 +1568,13 @@ window.addEventListener("beforeprint",fillPages);
                       <td style={tdS({fontSize:11.5})}>{row.note||""}</td>
                     </tr>
                   ))}
-                  <tr className="sum-row">
+                  <tr className="sum-row" style={{background:"#f5f5f5"}}>
                     <td colSpan={8} style={tdS({textAlign:"right",fontSize:13})}>消費税合計</td>
                     <td style={tdS({textAlign:"right",fontWeight:600})}>{fmtN(totalTax)}</td>
                   </tr>
-                  <tr>
-                    <td colSpan={8} style={tdS({textAlign:"right",fontSize:14,fontWeight:800,borderTop:"2px solid #000",padding:"12px 10px"})}>合計請求額（税込）</td>
-                    <td style={tdS({textAlign:"right",fontSize:15,fontWeight:800,borderTop:"2px solid #000",padding:"12px 8px"})}>{fmt(grand)}</td>
+                  <tr style={{background:theme.accent}}>
+                    <td colSpan={8} style={tdS({textAlign:"right",fontSize:14,fontWeight:800,color:"#fff",padding:"10px 10px"})}>合計請求額（税込）</td>
+                    <td style={tdS({textAlign:"right",fontSize:15,fontWeight:800,color:"#fff",padding:"10px 8px"})}>{fmt(grand)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1574,10 +1585,10 @@ window.addEventListener("beforeprint",fillPages);
             const allRows=[...(doc.items||[])];
             const maxRows=type==="shakken"?14:type==="combined"?22:16;
             const blankCount=0;// 空白行は印刷時にA4下端まで自動で追加
-            const B="1px solid #000";
-            const tdS=(x={})=>({padding:"10px 10px",fontSize:13.5,border:B,color:"#000",...x});
+            const B=`1px solid ${theme.border}`;
+            const tdS=(x={})=>({padding:"6px 10px",fontSize:13,border:B,color:"#000",...x});
             return(
-              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",border:"1.5px solid #000"}}>
+              <table className="detail-table" style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",border:`1.5px solid ${theme.accent}`}}>
                 <colgroup>
                   <col style={{width:"auto"}}/>
                   <col style={{width:50}}/>
@@ -1590,16 +1601,16 @@ window.addEventListener("beforeprint",fillPages);
                 <thead>
                   <tr>
                     {["品名","数量","単位","単価","技術料","金額","備考"].map(h=>(
-                      <th key={h} style={{padding:"10px 8px",fontSize:12.5,fontWeight:700,color:"#000",textAlign:"center",border:"1.5px solid #000"}}>{h}</th>
+                      <th key={h} style={{padding:"8px 8px",fontSize:12,fontWeight:700,color:"#fff",background:theme.accent,textAlign:"center",border:"1px solid rgba(255,255,255,.35)"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody data-rowh="44" data-cols="7">
+                <tbody data-rowh="34" data-cols="7" data-border={theme.border} data-light={theme.light}>
                   {(doc.items||[]).map((it,i)=>{
                     const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
                     return(
-                      <tr key={i} className="data-row" style={{pageBreakInside:"avoid",breakInside:"avoid"}}>
-                        <td style={tdS({wordBreak:"break-all",height:44})}>{it.desc}</td>
+                      <tr key={i} className="data-row" style={{pageBreakInside:"avoid",breakInside:"avoid",background:i%2===0?"#fff":theme.light}}>
+                        <td style={tdS({wordBreak:"break-all",height:34})}>{it.desc}</td>
                         <td style={tdS({textAlign:"center"})}>{it.qty===0||it.qty===undefined?"":it.qty}</td>
                         <td style={tdS({textAlign:"center"})}>{it.qty===0||it.qty===undefined?"":it.unitLabel||""}</td>
                         <td style={tdS({textAlign:"right"})}>{it.unit?fmtN(it.unit):""}</td>
@@ -1617,14 +1628,14 @@ window.addEventListener("beforeprint",fillPages);
 
         {/* ━━ 合計欄 ━━ */}
         {type!=="combined"&&(()=>{
-          const B="1px solid #000";
+          const B=`1px solid ${theme.border}`;
           const row=(l,v,last)=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",borderBottom:last?"none":B,fontSize:13,color:"#000"}}>
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 14px",borderBottom:last?"none":B,fontSize:13,color:"#000",background:"#fafafa"}}>
               <span>{l}</span><span style={{fontWeight:600}}>{v}</span>
             </div>
           );
           const totalRow=(l,v)=>(
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 14px",borderTop:"2px solid #000",color:"#000"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 14px",background:theme.accent,color:"#fff"}}>
               <span style={{fontSize:14,fontWeight:800}}>{l}</span>
               <span style={{fontSize:21,fontWeight:800}}>{fmt(grand)}</span>
             </div>
@@ -1633,8 +1644,8 @@ window.addEventListener("beforeprint",fillPages);
           <div className="summary-block" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",padding:"14px 20px 12px",pageBreakInside:"avoid",pageBreakBefore:"avoid",breakBefore:"avoid",breakInside:"avoid",gap:16}}>
             {isS?(
               <>
-                <div style={{flex:1,border:"1.5px solid #000",borderRadius:6,overflow:"hidden"}}>
-                  <div style={{padding:"6px 14px",fontWeight:800,fontSize:12.5,borderBottom:"1.5px solid #000",color:"#000"}}>法定費用・諸費用</div>
+                <div style={{flex:1,border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden"}}>
+                  <div style={{padding:"6px 14px",fontWeight:800,fontSize:12.5,background:theme.accent,color:"#fff"}}>法定費用・諸費用</div>
                   {[
                     [(doc.shakken?.jibaisekiMochikomi?"自賠責保険（持ち込み）":"自賠責保険"), doc.shakken?.jibaisekiMochikomi?"持ち込み":fmtN(doc.shakken?.jibaiseki||0)],
                     ["重量税", fmtN(doc.shakken?.juryozei||0)],
@@ -1643,11 +1654,11 @@ window.addEventListener("beforeprint",fillPages);
                     ["車検代行手数料", fmtN(daikoRaw)],
                     [`　消費税（${Math.round(daikoTx*100)}%）`, fmtN(daikoWT-daikoRaw)],
                   ].map(([l,v])=>row(l,v,false))}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"9px 14px",fontWeight:800,fontSize:13.5,borderTop:"2px solid #000",color:"#000"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"9px 14px",fontWeight:800,fontSize:13.5,background:theme.light,color:"#000"}}>
                     <span>法定費用合計</span><span>{fmtN(gov+daikoWT)}</span>
                   </div>
                 </div>
-                <div style={{width:250,border:"1.5px solid #000",borderRadius:6,overflow:"hidden"}}>
+                <div style={{width:250,border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden"}}>
                   {[
                     ["整備費（税抜）", fmtN(sub)],
                     [`消費税（${Math.round((doc.tax||0.1)*100)}%）`, fmtN(taxAmt)],
@@ -1657,7 +1668,7 @@ window.addEventListener("beforeprint",fillPages);
                 </div>
               </>
             ):(
-              <div style={{marginLeft:"auto",width:310,border:"1.5px solid #000",borderRadius:6,overflow:"hidden"}}>
+              <div style={{marginLeft:"auto",width:310,border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden"}}>
                 {[[`小計（税抜）`,fmtN(sub)],[`消費税（${Math.round((doc.tax||0.1)*100)}%）`,fmtN(taxAmt)],[`整備費合計（税込）`,fmtN(wT)]].map(([l,v])=>row(l,v,false))}
                 {totalRow("お支払い合計")}
               </div>
