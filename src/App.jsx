@@ -354,7 +354,12 @@ const getShakkenMonths=(carType="")=>{
 
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
-const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+((Number(i.qty)||0)*(Number(i.unit)||0))+(Number(i.gijutsu)||0),0);return{sub,taxAmt:Math.trunc(sub*tax),total:Math.trunc(sub*(1+tax))};};
+const calcItems=(items,tax)=>{
+  let sub=0,exempt=0;
+  (items||[]).forEach(i=>{const a=(Number(i.qty)||0)*(Number(i.unit)||0)+(Number(i.gijutsu)||0);sub+=a;if(i.noTax)exempt+=a;});
+  const taxable=sub-exempt;
+  return{sub,taxAmt:Math.trunc(taxable*tax),total:Math.trunc(taxable*(1+tax))+Math.trunc(exempt)};
+};
 const invTotal=(inv,st)=>{
   const{total}=calcItems(inv.items,inv.tax);
   if(inv.type!=="shakken")return total;
@@ -1025,7 +1030,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       if(ci.items&&ci.items.length>0){
         ci.items.forEach((it,idx)=>{
           const lineAmt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
-          rows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc||"",qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":(it.unitLabel||""),unitPrice:it.unit||0,gijutsu:it.gijutsu||0,amt:lineAmt,note:it.note||""});
+          rows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc||"",qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":(it.unitLabel||""),unitPrice:it.unit||0,gijutsu:it.gijutsu||0,amt:lineAmt,note:it.note||(it.noTax?"税対象外":"")});
         });
       }else{
         rows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc||"",qty:"",unit:"",unitPrice:0,gijutsu:0,amt:ci.subtotal||ci.total||0,note:""});
@@ -1084,7 +1089,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
         it.unitPrice?fmtN(it.unitPrice):"",
         it.gijutsu?fmtN(it.gijutsu):"",
         it.amt?fmtN(it.amt):"",
-        it.note||"",
+        it.note||(it.noTax?"税対象外":""),
       ]);
     }else{
       const amt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
@@ -1095,7 +1100,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
         it.unit?fmtN(it.unit):"",
         it.gijutsu?fmtN(it.gijutsu):"",
         amt?fmtN(amt):"",
-        it.note||"",
+        it.note||(it.noTax?"税対象外":""),
       ]);
     }
   });
@@ -1543,7 +1548,7 @@ window.addEventListener("beforeprint",fillPages);
               if(ci.items&&ci.items.length>0){
                 ci.items.forEach((it,idx)=>{
                   const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
-                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,note:it.note||"",subtotal:idx===0?ci.subtotal:null});
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,note:it.note||(it.noTax?"税対象外":""),subtotal:idx===0?ci.subtotal:null});
                 });
               }else{
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,note:"",subtotal:ci.subtotal||ci.total});
@@ -1634,7 +1639,7 @@ window.addEventListener("beforeprint",fillPages);
                         <td style={tdS({textAlign:"right"})}>{it.unit?fmtN(it.unit):""}</td>
                         <td style={tdS({textAlign:"right"})}>{it.gijutsu?fmtN(it.gijutsu):""}</td>
                         <td style={tdS({textAlign:"right",fontWeight:600})}>{amt?fmtN(amt):""}</td>
-                        <td style={tdS({fontSize:12})}>{it.note||""}</td>
+                        <td style={tdS({fontSize:12})}>{it.note||(it.noTax?"税対象外":"")}</td>
                       </tr>
                     );
                   })}
@@ -2418,7 +2423,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
               <Fld label="単価（税抜）"><SignedInt style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
               <Fld label="技術料（税抜）"><SignedInt style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
             </div>
-            <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+            <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span><label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:it.noTax?700:400,color:it.noTax?"#FF3B30":"var(--lb2)",cursor:"pointer"}}><input type="checkbox" checked={!!it.noTax} onChange={e=>setI(i,"noTax",e.target.checked)}/>税対象外（買取など）</label>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
           </div>
         ))}</div>
         <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -2549,7 +2554,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
                 <Fld label="単価（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
                 <Fld label="技術料（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
               </div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span><label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:it.noTax?700:400,color:it.noTax?"#FF3B30":"var(--lb2)",cursor:"pointer"}}><input type="checkbox" checked={!!it.noTax} onChange={e=>setI(i,"noTax",e.target.checked)}/>税対象外（買取など）</label>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
           ))}</div>
           <button className="btn bs bsm mt8" onClick={addI}>＋ 明細追加</button>
@@ -2684,7 +2689,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
                 <Fld label="単価（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
                 <Fld label="技術料（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
               </div>
-              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
+              <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span><label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:it.noTax?700:400,color:it.noTax?"#FF3B30":"var(--lb2)",cursor:"pointer"}}><input type="checkbox" checked={!!it.noTax} onChange={e=>setI(i,"noTax",e.target.checked)}/>税対象外（買取など）</label>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
           ))}</div>
           <button className="btn bs bsm mt8" onClick={addI}>＋ 整備明細追加</button>
