@@ -354,7 +354,7 @@ const getShakkenMonths=(carType="")=>{
 
 const calcGovFees=s=>(s.jibaiseki||0)+(s.juryozei||0)+(s.kensaShomei||1450)+(s.gijutsuKanri||400);
 const calcDaiko=(d,t)=>Math.floor((d||0)*(1+(t||0.1)));
-const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+(i.qty*(i.unit||0))+(i.gijutsu||0),0);return{sub,taxAmt:Math.floor(sub*tax),total:Math.floor(sub*(1+tax))};};
+const calcItems=(items,tax)=>{const sub=items.reduce((s,i)=>s+((Number(i.qty)||0)*(Number(i.unit)||0))+(Number(i.gijutsu)||0),0);return{sub,taxAmt:Math.trunc(sub*tax),total:Math.trunc(sub*(1+tax))};};
 const invTotal=(inv,st)=>{
   const{total}=calcItems(inv.items,inv.tax);
   if(inv.type!=="shakken")return total;
@@ -685,6 +685,24 @@ create policy "authenticated only" on bankin_data
 // ── Atoms ──────────────────────────────────────────────────
 const Ico=({e,sz=17,bg})=><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:sz+13,height:sz+13,borderRadius:(sz+13)*.28,background:bg,fontSize:sz,lineHeight:1,flexShrink:0}}>{e}</span>;
 const Fld=({label,children,opt=false})=><div><div className="fl">{label}{opt&&<span style={{fontWeight:400,color:"var(--lb3)",marginLeft:3}}>任意</span>}</div>{children}</div>;
+// マイナス入力可の整数欄（iPhoneの数字キーパッドには「-」が無いため ± ボタン付き）
+function SignedInt({value,onChange,style}){
+  const n=Number(value)||0;
+  return(
+    <div style={{display:"flex",gap:4,alignItems:"stretch"}}>
+      <input type="text" inputMode="numeric" className="inp" style={{...style,flex:1,minWidth:0,color:n<0?"#FF3B30":undefined}} value={value}
+        onChange={e=>{
+          const v=e.target.value;
+          if(!/^[\d-]*$/.test(v))return;
+          const neg=v.includes("-");const d=v.replace(/-/g,"");
+          if(d===""||Number(d)===0){onChange(neg?"-":0);return;}
+          onChange(neg?-Number(d):Number(d));
+        }}
+        onBlur={()=>{if(!Number.isFinite(Number(value)))onChange(0);}}/>
+      <button type="button" className="btn bs bsm" style={{flexShrink:0,padding:"0 10px",fontWeight:800}} onClick={()=>onChange(n===0?"-":-n)}>±</button>
+    </div>
+  );
+}
 function Modal({title,children,footer,onClose,wide=false,tall=false}){
   useEffect(()=>{
     const h=e=>{if(e.key==="Escape")onClose();};
@@ -1562,9 +1580,9 @@ window.addEventListener("beforeprint",fillPages);
                       <td style={tdS({wordBreak:"break-all"})}>{row.desc}</td>
                       <td style={tdS({textAlign:"center"})}>{row.qty||""}</td>
                       <td style={tdS({textAlign:"center"})}>{row.unit}</td>
-                      <td style={tdS({textAlign:"right"})}>{row.partsCost>0?fmtN(row.partsCost):""}</td>
-                      <td style={tdS({textAlign:"right"})}>{row.gijutsu>0?fmtN(row.gijutsu):""}</td>
-                      <td style={tdS({textAlign:"right",fontWeight:600})}>{row.lineAmt>0?fmtN(row.lineAmt):""}</td>
+                      <td style={tdS({textAlign:"right"})}>{row.partsCost?fmtN(row.partsCost):""}</td>
+                      <td style={tdS({textAlign:"right"})}>{row.gijutsu?fmtN(row.gijutsu):""}</td>
+                      <td style={tdS({textAlign:"right",fontWeight:600})}>{row.lineAmt?fmtN(row.lineAmt):""}</td>
                       <td style={tdS({fontSize:11.5})}>{row.note||""}</td>
                     </tr>
                   ))}
@@ -2397,8 +2415,8 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="text" inputMode="decimal" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setI(i,"qty",e.target.value)}} onBlur={e=>setI(i,"qty",e.target.value===""?0:Number(e.target.value))}/></Fld>
               <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-              <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
-              <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
+              <Fld label="単価（税抜）"><SignedInt style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
+              <Fld label="技術料（税抜）"><SignedInt style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
             </div>
             <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
           </div>
@@ -2528,8 +2546,8 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="decimal" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setI(i,"qty",e.target.value)}} onBlur={e=>setI(i,"qty",e.target.value===""?0:Number(e.target.value))}/></Fld>
                 <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-                <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
-                <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
+                <Fld label="単価（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
+                <Fld label="技術料（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
@@ -2663,8 +2681,8 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="decimal" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setI(i,"qty",e.target.value)}} onBlur={e=>setI(i,"qty",e.target.value===""?0:Number(e.target.value))}/></Fld>
                 <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
-                <Fld label="単価（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.unit} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"unit",Number(e.target.value))}}/></Fld>
-                <Fld label="技術料（税抜）"><input type="text" inputMode="numeric" className="inp" style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={e=>{if(/^\d*$/.test(e.target.value))setI(i,"gijutsu",Number(e.target.value))}}/></Fld>
+                <Fld label="単価（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.unit} onChange={v=>setI(i,"unit",v)}/></Fld>
+                <Fld label="技術料（税抜）"><SignedInt style={{imeMode:"inactive"}} value={it.gijutsu||0} onChange={v=>setI(i,"gijutsu",v)}/></Fld>
               </div>
               <div className="rb mt8"><span className="cmu sm">小計: {fmtN(it.qty*(it.unit||0)+(it.gijutsu||0))}</span>{form.items.length>1&&<button className="btn bd bsm" onClick={()=>remI(i)}>削除</button>}</div>
             </div>
