@@ -982,8 +982,8 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
   pdf.line(M+amtW-taxW,y,M+amtW-taxW,y+barH);
   pdf.setLineWidth(0.2);
   jpFont(pdf,"normal");pdf.setFontSize(8.5);pdf.setTextColor(0,0,0);
-  pdf.text("ご請求額",M+(amtW-taxW)/2,y+4.6,{align:"center"});
-  pdf.text("消費税等",M+amtW-taxW/2,y+4.6,{align:"center"});
+  pdf.text(docType==="quote"?"合計金額":"ご請求額",M+(amtW-taxW)/2,y+4.6,{align:"center"});
+  pdf.text(docType==="quote"?"消費税":"消費税等",M+amtW-taxW/2,y+4.6,{align:"center"});
   jpFont(pdf,"bold");pdf.setFontSize(20);
   pdf.text(`¥${grand.toLocaleString()}—`,M+amtW-taxW-4,y+17,{align:"right"});
   pdf.setFontSize(13);
@@ -1521,11 +1521,11 @@ window.addEventListener("beforeprint",fillPages);
         <div style={{display:"flex",alignItems:"stretch",gap:16,padding:"6px 20px 14px"}}>
           <div style={{flex:1,display:"flex",border:`1.5px solid ${theme.accent}`,borderRadius:6,overflow:"hidden",background:theme.light}}>
             <div style={{flex:1,borderRight:`1px solid ${theme.border}`}}>
-              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>ご請求額</div>
+              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>{type==="quote"?"合計金額":"ご請求額"}</div>
               <div style={{textAlign:"right",fontSize:28,fontWeight:800,padding:"10px 16px",color:"#000"}}>¥{(grand).toLocaleString()}—</div>
             </div>
             <div style={{width:150}}>
-              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>消費税等</div>
+              <div style={{textAlign:"center",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${theme.border}`,color:"#000"}}>{type==="quote"?"消費税":"消費税等"}</div>
               <div style={{textAlign:"right",fontSize:18,fontWeight:700,padding:"14px 14px",color:"#000"}}>¥{(type==="combined"?(doc.combinedTax||0):taxAmt).toLocaleString()}—</div>
             </div>
           </div>
