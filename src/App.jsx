@@ -357,6 +357,8 @@ const EXPENSE_CATEGORIES=[
 const EXP_CAT=EXPENSE_CATEGORIES;
 const KAMOKU={"材料費":"売上原価（仕入）","消耗品費":"消耗品費","光熱費":"水道光熱費","工具費":"工具・器具・備品","外注費・下請費":"外注工賃","外注費":"外注工賃","交通費":"旅費交通費","広告費":"広告宣伝費","通信費":"通信費","法定費用（預り）":"預り金（法定費用）","その他":"雑費"};
 
+// 明細に車両ナンバーが選ばれていれば、品名の前に【ナンバー】を付けて表示
+const withPlate=it=>it&&it.plateNo?`【${it.plateNo}】${it.desc||""}`:((it&&it.desc)||"");
 const calcJibaiseki=(t,m=24)=>{const T=getJibaisekiTable();const tbl=T[t]||T["自家用乗用（普通・小型）"];return tbl[m]||tbl[24]||17650;};
 
 // 車種区分から車検有効期間（月数）を返す
@@ -1045,7 +1047,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
       if(ci.items&&ci.items.length>0){
         ci.items.forEach((it,idx)=>{
           const lineAmt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
-          rows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc||"",qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":(it.unitLabel||""),unitPrice:it.unit||0,gijutsu:it.gijutsu||0,amt:lineAmt,note:it.note||(it.noTax?"税対象外":"")});
+          rows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:withPlate(it),qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":(it.unitLabel||""),unitPrice:it.unit||0,gijutsu:it.gijutsu||0,amt:lineAmt,note:it.note||(it.noTax?"税対象外":"")});
         });
       }else{
         rows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc||"",qty:"",unit:"",unitPrice:0,gijutsu:0,amt:ci.subtotal||ci.total||0,note:""});
@@ -1109,7 +1111,7 @@ const buildInvoicePdfJP=({theme,ttl,doc,customer,vehicle,settings,sub,taxAmt,wT,
     }else{
       const amt=(it.qty||0)*(it.unit||0)+(it.gijutsu||0);
       drawRow(i,[
-        it.desc||"",
+        withPlate(it),
         (it.qty===0||it.qty===undefined)?"":String(it.qty),
         it.qty===0||it.qty===undefined?"":(it.unitLabel||""),
         it.unit?fmtN(it.unit):"",
@@ -1563,7 +1565,7 @@ window.addEventListener("beforeprint",fillPages);
               if(ci.items&&ci.items.length>0){
                 ci.items.forEach((it,idx)=>{
                   const lineAmt=it.qty*(it.unit||0)+(it.gijutsu||0);
-                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:it.desc,qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,note:it.note||(it.noTax?"税対象外":""),subtotal:idx===0?ci.subtotal:null});
+                  allRows.push({id:idx===0?String(ci.id).replace(/\D/g,""):"",date:idx===0?ci.date:"",desc:withPlate(it),qty:it.qty,unit:(it.qty===0||it.qty===undefined)?"":it.unitLabel||"",partsCost:it.unit||0,gijutsu:it.gijutsu||0,lineAmt:lineAmt,note:it.note||(it.noTax?"税対象外":""),subtotal:idx===0?ci.subtotal:null});
                 });
               }else{
                 allRows.push({id:String(ci.id).replace(/\D/g,""),date:ci.date,desc:ci.desc,qty:"",unit:"",partsCost:0,gijutsu:0,lineAmt:0,note:"",subtotal:ci.subtotal||ci.total});
@@ -1648,7 +1650,7 @@ window.addEventListener("beforeprint",fillPages);
                     const amt=it.qty*(it.unit||0)+(it.gijutsu||0);
                     return(
                       <tr key={i} className="data-row" style={{pageBreakInside:"avoid",breakInside:"avoid",background:i%2===0?"#fff":theme.light}}>
-                        <td style={tdS({wordBreak:"break-all",height:34})}>{it.desc}</td>
+                        <td style={tdS({wordBreak:"break-all",height:34})}>{withPlate(it)}</td>
                         <td style={tdS({textAlign:"center"})}>{it.qty===0||it.qty===undefined?"":it.qty}</td>
                         <td style={tdS({textAlign:"center"})}>{it.qty===0||it.qty===undefined?"":it.unitLabel||""}</td>
                         <td style={tdS({textAlign:"right"})}>{it.unit?fmtN(it.unit):""}</td>
@@ -2418,7 +2420,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
+        <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:"",items:f.items.map(x=>x.plateNo?{...x,vehicleId:"",plateNo:""}:x)}))}/></Fld>
         <Fld label="車両" opt><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
           <option value="">未選択</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
         </select></Fld>
@@ -2433,6 +2435,7 @@ function QuoteFormModal({doc,customers,onSave,onClose,onToInv,settings}){
             <div className="mb8" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
               <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.unit)setI(i,"unitLabel",w.unit);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
             </div>
+            {(cust?.vehicles||[]).length>0&&(<div className="mb8"><select className="sel" style={{fontSize:13}} value={it.vehicleId||""} onChange={e=>{const v=(cust?.vehicles||[]).find(x=>String(x.id)===e.target.value);setForm(f=>({...f,items:f.items.map((x,idx)=>idx===i?{...x,vehicleId:v?v.id:"",plateNo:v?v.plateNo:""}:x)}));}}><option value="">この明細のナンバー（任意）</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.plateNo}　{v.carName}</option>)}</select></div>)}
             <div className="g3" style={{gap:7}}>
               <Fld label="数量"><input type="text" inputMode="decimal" className="inp" style={{padding:"11px 13px",fontSize:15,imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setI(i,"qty",e.target.value)}} onBlur={e=>setI(i,"qty",e.target.value===""?0:Number(e.target.value))}/></Fld>
               <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
@@ -2549,7 +2552,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
       <div className="stk">
         <div style={{background:"rgba(255,149,0,.08)",border:"1px solid rgba(255,149,0,.25)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--or)"}}>🔧 鈑金修理用請求書</span></div>
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:"",items:f.items.map(x=>x.plateNo?{...x,vehicleId:"",plateNo:""}:x)}))}/></Fld>
           <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
@@ -2565,6 +2568,7 @@ function RepairForm({doc,customers,onSave,onClose,settings}){
               <div className="mb8" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                 <ItemSuggest value={it.desc} onChange={v=>setI(i,"desc",v)} onSelect={w=>{setI(i,"desc",w.desc);if(w.unit)setI(i,"unitLabel",w.unit);if(w.partsCost)setI(i,"unit",w.partsCost);if(w.gijutsu)setI(i,"gijutsu",w.gijutsu);}} workMaster={settings?.workMaster||[]}/>
               </div>
+              {(cust?.vehicles||[]).length>0&&(<div className="mb8"><select className="sel" style={{fontSize:13}} value={it.vehicleId||""} onChange={e=>{const v=(cust?.vehicles||[]).find(x=>String(x.id)===e.target.value);setForm(f=>({...f,items:f.items.map((x,idx)=>idx===i?{...x,vehicleId:v?v.id:"",plateNo:v?v.plateNo:""}:x)}));}}><option value="">この明細のナンバー（任意）</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.plateNo}　{v.carName}</option>)}</select></div>)}
               <div className="g3" style={{gap:7}}>
                 <Fld label="数量"><input type="text" inputMode="decimal" className="inp" style={{imeMode:"inactive"}} value={it.qty} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setI(i,"qty",e.target.value)}} onBlur={e=>setI(i,"qty",e.target.value===""?0:Number(e.target.value))}/></Fld>
                 <Fld label="単位"><UnitSelect value={it.unitLabel||"式"} onChange={v=>setI(i,"unitLabel",v)} unitList={unitList}/></Fld>
@@ -2625,7 +2629,7 @@ function ShakkenForm({doc,customers,onSave,onClose,settings}){
       <div className="stk">
         <div style={{background:"rgba(0,122,255,.06)",border:"1px solid rgba(0,122,255,.2)",borderRadius:9,padding:"8px 12px"}}><span className="b6 sm" style={{color:"var(--bl)"}}>🚗 車検用請求書 — 法定費用は非課税・代行料のみ課税</span></div>
         <div className="g2" style={{gap:9}}>
-          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:""}))}/></Fld>
+          <Fld label="顧客"><CustomerSelect customers={customers} value={form.customerId} onChange={v=>setForm(f=>({...f,customerId:Number(v),vehicleId:"",items:f.items.map(x=>x.plateNo?{...x,vehicleId:"",plateNo:""}:x)}))}/></Fld>
           <Fld label="車両"><select className="sel" value={form.vehicleId} onChange={e=>setForm(f=>({...f,vehicleId:e.target.value===""?"":Number(e.target.value)}))}>
             <option value="">選択してください</option>{(cust?.vehicles||[]).map(v=><option key={v.id} value={v.id}>{v.carName} {v.plateNo}</option>)}
           </select></Fld>
